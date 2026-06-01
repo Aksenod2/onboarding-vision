@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "sdds-serv": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@salutejs/sdds-mcp@latest",
+        "--lib",
+        "sdds-serv",
+        "--version",
+        "latest"
+      ]
+    }
+  }
+}
