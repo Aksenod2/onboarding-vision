@@ -116,6 +116,22 @@ export interface VCIPSession {
   status: 'Pending' | 'Passed' | 'Failed';
 }
 
+// --- DVU-задача (роль Менеджер) ---
+// Порождается при провале авто-проверки в домене OBO/KYC/VKYC.
+export type DVUDomain = 'OBO' | 'KYC' | 'VKYC';
+export type DVUStatus = 'New' | 'InProgress' | 'Resolved' | 'DocumentsRequested';
+export type DVUPriority = 'Low' | 'Medium' | 'High';
+
+export interface DVUTask {
+  id: string;
+  domain: DVUDomain;
+  companyName: string;
+  reason: string; // причина алерта
+  priority: DVUPriority;
+  status: DVUStatus;
+  createdAt: string; // DD-MM-YYYY
+}
+
 // Обёртка над всем кейсом
 export interface OnboardingCase {
   id: string;

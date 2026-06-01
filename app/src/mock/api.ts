@@ -15,6 +15,7 @@ import type {
   RiskAssessment,
   ScreeningResult,
   VCIPSession,
+  DVUTask,
 } from './types';
 
 // Мутабельная копия золотой записи — рабочее состояние сессии.
@@ -28,6 +29,15 @@ const REQUIRED_UPLOADS: DocumentRecord[] = [
   { docType: 'Address Proof', applicableTo: 'Company', mandatory: true, handling: 'Upload (Hybrid)', status: 'Pending' },
 ];
 let uploads: DocumentRecord[] = structuredClone(REQUIRED_UPLOADS);
+
+// RM (Менеджер): очередь DVU-задач. Порождены провалом авто-проверок (домен OBO).
+const DVU_SEED: DVUTask[] = [
+  { id: 'DVU-1042', domain: 'OBO', companyName: 'Saanvi Textiles Private Limited', reason: 'Board Resolution требует ручной сверки подписей', priority: 'High', status: 'New', createdAt: '01-06-2026' },
+  { id: 'DVU-1043', domain: 'OBO', companyName: 'Meridian Exports LLP', reason: 'Адрес не совпал с реестром (Probe42)', priority: 'Medium', status: 'New', createdAt: '01-06-2026' },
+  { id: 'DVU-1039', domain: 'OBO', companyName: 'Kapoor Trading Co.', reason: 'Address Proof нечитаемый — нужен повтор', priority: 'Low', status: 'InProgress', createdAt: '31-05-2026' },
+  { id: 'DVU-1031', domain: 'OBO', companyName: 'Nimbus Logistics Pvt Ltd', reason: 'Расхождение наименования с CIN', priority: 'Medium', status: 'New', createdAt: '31-05-2026' },
+];
+let dvuTasks: DVUTask[] = structuredClone(DVU_SEED);
 
 // Имитация сетевой задержки, чтобы экраны показывали состояния загрузки.
 const NETWORK_DELAY_MS = 350;
@@ -102,9 +112,27 @@ export const openAccount = (): Promise<Account> => {
   return delay(state.account);
 };
 
+// --- RM (Менеджер): DVU-задачи ---
+export const getDvuTasks = (): Promise<DVUTask[]> => delay(dvuTasks);
+export const getDvuTask = (id: string): Promise<DVUTask | undefined> =>
+  delay(dvuTasks.find((t) => t.id === id));
+
+const setTaskStatus = (id: string, status: DVUTask['status']): Promise<DVUTask[]> => {
+  dvuTasks = dvuTasks.map((t) => (t.id === id ? { ...t, status } : t));
+  return delay(dvuTasks);
+};
+
+// RM-01: взять задачу в работу.
+export const takeTask = (id: string) => setTaskStatus(id, 'InProgress');
+// RM-02: резолюция — данные/документы валидны.
+export const resolveTask = (id: string) => setTaskStatus(id, 'Resolved');
+// RM-02: запросить документы у клиента (нотификация, транзит назад).
+export const requestDocuments = (id: string) => setTaskStatus(id, 'DocumentsRequested');
+
 // Сброс к исходной золотой записи — удобно для перезапуска демо.
 export const reset = (): void => {
   state = structuredClone(saanviTextiles);
   session = null;
   uploads = structuredClone(REQUIRED_UPLOADS);
+  dvuTasks = structuredClone(DVU_SEED);
 };
