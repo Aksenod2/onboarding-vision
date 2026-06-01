@@ -1,0 +1,28 @@
+{
+  "name": "sber-onboarding-prototype",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@salutejs/sdds-serv": "^0.350.1",
+    "@salutejs/sdds-themes": "^0.66.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.4",
+    "styled-components": "5.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/styled-components": "^5.1.34",
+    "@vitejs/plugin-react": "^4.3.4",
+    "babel-plugin-styled-components": "^2.1.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
