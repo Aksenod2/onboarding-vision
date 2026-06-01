@@ -80,7 +80,14 @@ export const CL08Confirm = () => {
       step={5}
       title="Подтверждение заявки"
       subtitle="Проверьте данные перед отправкой. После отправки запустится проверка KYC."
-      primary={<Button view="accent" size="m" text="Отправить заявку" onClick={() => navigate('/result')} />}
+      primary={
+        <Button
+          view="accent"
+          size="m"
+          text="Отправить заявку"
+          onClick={() => navigate('/result')}
+        />
+      }
     >
       {section('Компания', [
         data.company.companyName,

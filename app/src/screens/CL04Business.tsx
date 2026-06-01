@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { Button, Select, Radiobox, Note, BodyM, BodyS } from '@salutejs/sdds-serv';
 import { textPrimary, textSecondary } from '@salutejs/sdds-themes/tokens';
 import { OnboardingLayout } from '../ui/OnboardingLayout';
+import { setOnboardingMode } from '../mock/api';
 import type { RiskCategory } from '../mock/types';
 
 // CL-04 — Бизнес-анкета (Business Nature Questionnaire). source: 2026-06-01_obo : 004 (BNQ)
@@ -134,7 +135,11 @@ export const CL04Business = () => {
           view="accent"
           size="m"
           text="Определить риск-категорию"
-          onClick={() => setResult(computeRisk(industry, residents, pep, fatca))}
+          onClick={() => {
+            const r = computeRisk(industry, residents, pep, fatca);
+            setOnboardingMode(r.mode); // режим кейса = сценарий риска (STP/Hybrid/Offline)
+            setResult(r);
+          }}
         />
       }
     >

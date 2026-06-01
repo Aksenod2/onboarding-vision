@@ -16,6 +16,7 @@ import type {
   ScreeningResult,
   VCIPSession,
   DVUTask,
+  OnboardingMode,
 } from './types';
 
 // Мутабельная копия золотой записи — рабочее состояние сессии.
@@ -94,6 +95,12 @@ export const passVcip = (signatoryId: string): Promise<VCIPSession[]> => {
 export const uploadDocument = (docType: DocumentRecord['docType']): Promise<DocumentRecord[]> => {
   uploads = uploads.map((d) => (d.docType === docType ? { ...d, status: 'Uploaded' } : d));
   return delay(uploads);
+};
+
+// CL-04: риск-категория задаёт режим онбординга (STP/Hybrid/Offline).
+export const setOnboardingMode = (mode: OnboardingMode): Promise<OnboardingCase> => {
+  state.mode = mode;
+  return delay(state);
 };
 
 // CL-09: триггер открытия счёта (шаг 009). Mock: генерим CIF/реквизиты для STP.

@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { CL01Welcome } from './screens/CL01Welcome';
 import { CL02Login } from './screens/CL02Login';
 import { CL03Company } from './screens/CL03Company';
@@ -8,15 +9,24 @@ import { CL06VcipSession } from './screens/CL06VcipSession';
 import { CL07Documents } from './screens/CL07Documents';
 import { CL08Confirm } from './screens/CL08Confirm';
 import { CL09Result } from './screens/CL09Result';
-import { TR01Transit } from './screens/TR01Transit';
 import { RM01Queue } from './screens/RM01Queue';
 import { RM02Task } from './screens/RM02Task';
 import { DemoNav } from './ui/DemoNav';
 
-// Поток: клиент CL-01…CL-09 → транзит TR-01 → менеджер RM-01/RM-02.
+// Сброс прокрутки наверх при смене экрана (React Router сам этого не делает).
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
+
+// Поток: клиент CL-01…CL-09; менеджер RM-01/RM-02 (переход ролей — через карту экранов).
 export const App = () => {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<CL01Welcome />} />
         <Route path="/login" element={<CL02Login />} />
@@ -27,7 +37,6 @@ export const App = () => {
         <Route path="/documents" element={<CL07Documents />} />
         <Route path="/confirm" element={<CL08Confirm />} />
         <Route path="/result" element={<CL09Result />} />
-        <Route path="/transit" element={<TR01Transit />} />
         <Route path="/rm/queue" element={<RM01Queue />} />
         <Route path="/rm/task" element={<RM02Task />} />
         <Route path="*" element={<Navigate to="/" replace />} />

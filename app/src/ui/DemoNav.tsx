@@ -1,40 +1,38 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Fragment, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { reset } from '../mock/api';
 
-// Демо-навигатор по экранам прототипа (НЕ часть продукта — мета-инструмент).
-// Плавающая иконка ☰ внизу справа → вертикальная панель с прыжком на любой этап + сброс.
+// Карта экранов прототипа (мета-инструмент, НЕ часть продукта).
+// Плавающая иконка ☰ → обзорная схема потока: узлы по ролям + развилка,
+// клик по узлу = переход на экран. Серые узлы — описаны в схеме, ещё не собраны.
 
-const GROUPS = [
-  {
-    role: 'Клиент',
-    dot: '#21A038',
-    items: [
-      { l: '1 Лендинг', p: '/' },
-      { l: '2 Вход', p: '/login' },
-      { l: '3 Компания', p: '/company' },
-      { l: '4 Анкета', p: '/business' },
-      { l: '5 Видео-ID', p: '/vcip-invite' },
-      { l: '6 Документы', p: '/documents' },
-      { l: '7 Подтверждение', p: '/confirm' },
-      { l: '8 Результат', p: '/result' },
-    ],
-  },
-  {
-    role: 'Менеджер',
-    dot: '#F5811F',
-    items: [
-      { l: 'Транзит', p: '/transit' },
-      { l: 'Очередь DVU', p: '/rm/queue' },
-      { l: 'Карточка задачи', p: '/rm/task?id=DVU-1042' },
-    ],
-  },
+type Node = { l: string; p?: string; ghost?: boolean };
+
+const CLIENT: Node[] = [
+  { l: '1 Лендинг', p: '/' },
+  { l: '2 Вход', p: '/login' },
+  { l: '3 Компания', p: '/company' },
+  { l: '4 Анкета', p: '/business' },
+  { l: '5 Видео-ID', p: '/vcip-invite' },
+  { l: '6 Видео-сессия', p: '/vcip-session?sig=SIG-1' },
+  { l: '7 Документы', p: '/documents' },
+  { l: '8 Подтверждение', p: '/confirm' },
+  { l: '9 Результат (STP)', p: '/result' },
+];
+
+const MANAGER: Node[] = [
+  { l: 'Очередь DVU', p: '/rm/queue' },
+  { l: 'Карточка · OBO', p: '/rm/task?id=DVU-1042' },
+  { l: 'KYC-разбор', ghost: true },
+  { l: 'VKYC · встреча', ghost: true },
+  { l: 'VKYC · сессии', ghost: true },
 ];
 
 const INK = '#111827';
-const INK_SOFT = '#1F2937';
 const LINE = 'rgba(255,255,255,0.12)';
+const GREEN = '#21A038';
+const ORANGE = '#F5811F';
 
 const Fab = styled.button`
   position: fixed;
@@ -51,79 +49,131 @@ const Fab = styled.button`
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   &:hover {
-    background: ${INK_SOFT};
+    opacity: 0.92;
   }
 `;
 
-const Panel = styled.div`
+const Backdrop = styled.div`
   position: fixed;
-  right: 1.5rem;
-  bottom: 5rem;
-  z-index: 9999;
-  width: 320px;
-  background: ${INK};
-  border-radius: 16px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.45);
 `;
 
-const Group = styled.div`
+const Overlay = styled.div`
+  position: fixed;
+  z-index: 9999;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 2rem));
+  background: ${INK};
+  border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: #fff;
+`;
+
+const Header = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+const HTitle = styled.span`
+  font-size: 0.95rem;
+  font-weight: 700;
+`;
+
+const Close = styled.button`
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  &:hover {
+    color: #fff;
+  }
+`;
+
+const Lane = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 `;
 
-const RoleLabel = styled.span`
+const RoleLabel = styled.span<{ c: string }>`
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.62);
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-`;
-
-const Dot = styled.span<{ c: string }>`
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: ${({ c }) => c};
-  display: inline-block;
-`;
-
-const Grid = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-`;
-
-const Item = styled.button`
-  background: rgba(255, 255, 255, 0.08);
-  border: none;
-  color: #fff;
-  padding: 0.4rem 0.7rem;
-  border-radius: 8px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  &:hover {
-    background: rgba(255, 255, 255, 0.18);
+  &::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: ${({ c }) => c};
   }
 `;
 
-const Divider = styled.div`
-  height: 1px;
-  background: ${LINE};
+const Flow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
 `;
 
-const ResetRow = styled.div`
+const Arrow = styled.span`
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.9rem;
+`;
+
+const Chip = styled.button<{ tone: string; active?: boolean; ghost?: boolean }>`
+  border: 1px solid ${({ tone, ghost }) => (ghost ? LINE : tone)};
+  background: ${({ tone, active, ghost }) =>
+    ghost ? 'transparent' : active ? tone : 'rgba(255,255,255,0.06)'};
+  color: ${({ active, ghost }) => (ghost ? 'rgba(255,255,255,0.4)' : active ? '#fff' : 'rgba(255,255,255,0.92)')};
+  border-style: ${({ ghost }) => (ghost ? 'dashed' : 'solid')};
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: ${({ ghost }) => (ghost ? 'default' : 'pointer')};
+  &:hover {
+    background: ${({ tone, ghost, active }) =>
+      ghost ? 'transparent' : active ? tone : 'rgba(255,255,255,0.14)'};
+  }
+`;
+
+const Branch = styled.div`
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.78rem;
+  padding-left: 0.25rem;
+`;
+
+const Footer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid ${LINE};
+  padding-top: 0.85rem;
+`;
+
+const Hint = styled.span`
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.72rem;
 `;
 
 const IconBtn = styled.button`
@@ -142,10 +192,14 @@ const IconBtn = styled.button`
 
 export const DemoNav = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
 
-  const go = (p: string) => {
-    navigate(p);
+  const isActive = (p?: string) => !!p && p.split('?')[0] === location.pathname;
+
+  const go = (n: Node) => {
+    if (!n.p || n.ghost) return;
+    navigate(n.p);
     setOpen(false);
   };
   const doReset = () => {
@@ -154,34 +208,55 @@ export const DemoNav = () => {
     setOpen(false);
   };
 
+  const renderFlow = (nodes: Node[], tone: string) =>
+    nodes.map((n, i) => (
+      <Fragment key={n.l}>
+        {i > 0 && <Arrow>→</Arrow>}
+        <Chip
+          tone={tone}
+          ghost={n.ghost}
+          active={isActive(n.p)}
+          title={n.ghost ? 'Описан в схеме, ещё не собран' : undefined}
+          onClick={() => go(n)}
+        >
+          {n.l}
+        </Chip>
+      </Fragment>
+    ));
+
   return (
     <>
       {open && (
-        <Panel>
-          {GROUPS.map((g) => (
-            <Group key={g.role}>
-              <RoleLabel>
-                <Dot c={g.dot} />
-                {g.role}
-              </RoleLabel>
-              <Grid>
-                {g.items.map((it) => (
-                  <Item key={it.p} onClick={() => go(it.p)}>
-                    {it.l}
-                  </Item>
-                ))}
-              </Grid>
-            </Group>
-          ))}
-          <Divider />
-          <ResetRow>
-            <IconBtn title="Сбросить демо-данные" onClick={doReset}>
-              ↺
-            </IconBtn>
-          </ResetRow>
-        </Panel>
+        <>
+          <Backdrop onClick={() => setOpen(false)} />
+          <Overlay>
+            <Header>
+              <HTitle>Карта экранов прототипа</HTitle>
+              <Close onClick={() => setOpen(false)}>×</Close>
+            </Header>
+
+            <Lane>
+              <RoleLabel c={GREEN}>Клиент</RoleLabel>
+              <Flow>{renderFlow(CLIENT, GREEN)}</Flow>
+            </Lane>
+
+            <Branch>↳ Hybrid: клиент видит «на проверке», менеджер разбирает →</Branch>
+
+            <Lane>
+              <RoleLabel c={ORANGE}>Менеджер · DVU</RoleLabel>
+              <Flow>{renderFlow(MANAGER, ORANGE)}</Flow>
+            </Lane>
+
+            <Footer>
+              <Hint>Серые узлы — описаны в схеме, ещё не собраны</Hint>
+              <IconBtn title="Сбросить демо-данные" onClick={doReset}>
+                ↺
+              </IconBtn>
+            </Footer>
+          </Overlay>
+        </>
       )}
-      <Fab title="Экраны прототипа" onClick={() => setOpen((o) => !o)}>
+      <Fab title="Карта экранов" onClick={() => setOpen((o) => !o)}>
         ☰
       </Fab>
     </>
