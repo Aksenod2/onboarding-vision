@@ -11,6 +11,9 @@ import { CL08Confirm } from './screens/CL08Confirm';
 import { CL09Result } from './screens/CL09Result';
 import { RM01Queue } from './screens/RM01Queue';
 import { RM02Task } from './screens/RM02Task';
+import { RM03KycTask } from './screens/RM03KycTask';
+import { RM04VkycMeeting } from './screens/RM04VkycMeeting';
+import { RM05Session } from './screens/RM05Session';
 import { DemoNav } from './ui/DemoNav';
 
 // Сброс прокрутки наверх при смене экрана (React Router сам этого не делает).
@@ -39,6 +42,9 @@ export const App = () => {
         <Route path="/result" element={<CL09Result />} />
         <Route path="/rm/queue" element={<RM01Queue />} />
         <Route path="/rm/task" element={<RM02Task />} />
+        <Route path="/rm/kyc" element={<RM03KycTask />} />
+        <Route path="/rm/vkyc" element={<RM04VkycMeeting />} />
+        <Route path="/rm/session" element={<RM05Session />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <DemoNav />

@@ -80,15 +80,17 @@ export const RM01Queue = () => {
 
   // Клик по карточке открывает задачу. Новую — попутно берём в работу
   // (New → В работе); статус регулируется этим, а не отдельной кнопкой.
+  // Маршрут зависит от домена DVU (OBO / KYC / VKYC).
   const open = async (t: DVUTask) => {
     if (t.status === 'New') await takeTask(t.id);
-    navigate(`/rm/task?id=${t.id}`);
+    const route = t.domain === 'KYC' ? '/rm/kyc' : t.domain === 'VKYC' ? '/rm/vkyc' : '/rm/task';
+    navigate(`${route}?id=${t.id}`);
   };
 
   return (
     <RmLayout
       title="Очередь задач DVU"
-      subtitle="Заявки, не прошедшие авто-проверку (домен OBO — данные и документы). Возьмите задачу в работу."
+      subtitle="Заявки, не прошедшие авто-проверку — по всем доменам (OBO · KYC · VKYC). Клик по задаче — открыть и взять в работу."
     >
       {tasks.map((t) => (
         <Row key={t.id} onClick={() => open(t)}>

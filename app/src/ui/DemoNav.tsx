@@ -24,9 +24,9 @@ const CLIENT: Node[] = [
 const MANAGER: Node[] = [
   { l: 'Очередь DVU', p: '/rm/queue' },
   { l: 'Карточка · OBO', p: '/rm/task?id=DVU-1042' },
-  { l: 'KYC-разбор', ghost: true },
-  { l: 'VKYC · встреча', ghost: true },
-  { l: 'VKYC · сессии', ghost: true },
+  { l: 'KYC-разбор', p: '/rm/kyc?id=DVU-1051' },
+  { l: 'VKYC · встреча', p: '/rm/vkyc?id=DVU-1055' },
+  { l: 'VKYC · сессии', p: '/rm/session?id=DVU-1055' },
 ];
 
 const INK = '#111827';
