@@ -139,7 +139,8 @@ export const RM01Queue = () => {
               </Pill>
             </AppHead>
             <Sub>
-              На проверке: {openCount} из {checks.length} ({checks.map((c) => c.domain).join(' · ')})
+              ↩ Из онбординга клиента · Hybrid · отправлена {checks[0].createdAt} · на проверке{' '}
+              {openCount} из {checks.length} ({checks.map((c) => c.domain).join(' · ')})
             </Sub>
             <Checks>
               {checks.map((t) => (

@@ -40,6 +40,11 @@ const Caption = styled.span`
   color: ${RM_ORANGE.text};
 `;
 
+const Origin = styled.span`
+  font-size: 0.74rem;
+  color: #667085;
+`;
+
 const Row = styled.div`
   display: flex;
   align-items: center;
@@ -99,6 +104,7 @@ export const ApplicationPath = ({ companyName, current }: Props) => {
   return (
     <Wrap>
       <Caption>Путь заявки · {companyName}</Caption>
+      <Origin>↩ Поступила из онбординга клиента · сценарий Hybrid (не прошла авто-проверку)</Origin>
       <Row>
         {steps.map((s, i) => (
           <Fragment key={s.domain}>

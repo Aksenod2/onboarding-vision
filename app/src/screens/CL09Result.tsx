@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { Button, Note, BodyM, BodyS } from '@salutejs/sdds-serv';
 import { textPrimary, textSecondary, surfaceSolidSecondary } from '@salutejs/sdds-themes/tokens';
 import { OnboardingLayout } from '../ui/OnboardingLayout';
+import { RM_ORANGE } from '../ui/rmTheme';
 import { getOnboardingCase, openAccount } from '../mock/api';
 import type { Account, OnboardingCase } from '../mock/types';
 
@@ -38,6 +39,31 @@ const Val = styled(BodyS)`
   font-weight: 600;
 `;
 
+// Мини-статус передачи заявки в банк (для Hybrid/Offline).
+const Handoff = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+`;
+
+const HArrow = styled.span`
+  color: ${textSecondary};
+`;
+
+const HStep = styled.span<{ state: 'done' | 'active' | 'todo' }>`
+  padding: 0.3rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  ${({ state }) =>
+    state === 'done'
+      ? 'background: rgba(33,160,56,0.14); color: #1E7B33;'
+      : state === 'active'
+        ? `background: ${RM_ORANGE.base}; color: #fff;`
+        : 'background: rgba(16,24,40,0.06); color: #98A2B3;'}
+`;
+
 export const CL09Result = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<OnboardingCase | null>(null);
@@ -48,7 +74,17 @@ export const CL09Result = () => {
     openAccount().then(setAccount); // шаг 009: триггер открытия счёта (mock)
   }, []);
 
-  const mode = data?.mode ?? 'STP';
+  // Ждём данные перед рендером: иначе экран сначала рисуется как STP (mode по
+  // умолчанию), а Note кэширует текст первого маунта и не обновляет его при Hybrid.
+  if (!data) {
+    return (
+      <OnboardingLayout step={6} title="Результат">
+        <Key>Загрузка результата…</Key>
+      </OnboardingLayout>
+    );
+  }
+
+  const mode = data.mode;
   const stp = mode === 'STP';
 
   return (
@@ -60,15 +96,28 @@ export const CL09Result = () => {
     >
       <Note
         view={stp ? 'positive' : 'info'}
-        title={stp ? 'Заявка одобрена автоматически (STP)' : 'Заявка на ручной проверке'}
+        title={stp ? 'Заявка одобрена автоматически (STP)' : 'Заявка передана в банк на ручную проверку'}
         text={
           stp
             ? 'Все проверки пройдены. Счёт открывается, реквизиты — ниже.'
             : mode === 'Hybrid'
-              ? 'Часть данных требует проверки DVU. Мы свяжемся по результатам.'
-              : 'Потребуется офлайн-визит для завершения идентификации.'
+              ? 'Часть данных и документов проверяет команда банка (DVU). Вы получите уведомление о решении.'
+              : 'Потребуется офлайн-визит для завершения идентификации (Offline).'
         }
       />
+
+      {!stp && (
+        <Block>
+          <Title>Статус заявки</Title>
+          <Handoff>
+            <HStep state="done">Отправлено</HStep>
+            <HArrow>→</HArrow>
+            <HStep state="active">На проверке банка · DVU</HStep>
+            <HArrow>→</HArrow>
+            <HStep state="todo">Решение</HStep>
+          </Handoff>
+        </Block>
+      )}
 
       {account && stp && (
         <Block>
@@ -92,12 +141,14 @@ export const CL09Result = () => {
         </Block>
       )}
 
-      <Note
-        view="info"
-        size="s"
-        title="Что дальше"
-        text="Доступ в интернет-банк и обслуживание счёта — за пределами онбординга."
-      />
+      {stp && (
+        <Note
+          view="info"
+          size="s"
+          title="Что дальше"
+          text="Доступ в интернет-банк и обслуживание счёта — за пределами онбординга."
+        />
+      )}
     </OnboardingLayout>
   );
 };
