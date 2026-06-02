@@ -43,6 +43,11 @@ const Muted = styled(BodyS)`
   color: ${textSecondary};
 `;
 
+// Pill как прямой ребёнок flex-колонки растягивается на всю ширину — обнимаем контент.
+const StatusPill = styled(Pill)`
+  align-self: flex-start;
+`;
+
 const Video = styled.div`
   aspect-ratio: 16 / 10;
   border-radius: 0.75rem;
@@ -108,7 +113,7 @@ export const RM04VkycMeeting = () => {
                 <Muted>Aadhaar {signatory.aadhaar ?? '—'}</Muted>
               </>
             )}
-            <Pill tone="warning">selfVKYC: {session?.status ?? 'Failed'}</Pill>
+            <StatusPill tone="warning">selfVKYC: {session?.status ?? 'Failed'}</StatusPill>
           </Block>
           <Block>
             <BlockTitle>Запись видеовстречи</BlockTitle>
