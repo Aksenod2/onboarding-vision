@@ -152,9 +152,11 @@ interface Props {
   primary?: ReactNode;
   /** Переопределение «Назад» (по умолчанию — на предыдущую стадию). */
   onBack?: () => void;
+  /** Контент НИЖЕ карточки (вне её) — для мета/демо-элементов, не связанных с шагом. */
+  afterCard?: ReactNode;
 }
 
-export const OnboardingLayout = ({ step, title, subtitle, children, primary, onBack }: Props) => {
+export const OnboardingLayout = ({ step, title, subtitle, children, primary, onBack, afterCard }: Props) => {
   const navigate = useNavigate();
 
   const total = ONBOARDING_STEPS.length;
@@ -191,6 +193,7 @@ export const OnboardingLayout = ({ step, title, subtitle, children, primary, onB
             {primary ?? <span />}
           </Footer>
         </Card>
+        {afterCard}
       </Shell>
     </Page>
   );

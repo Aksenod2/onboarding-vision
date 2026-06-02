@@ -53,7 +53,7 @@ const HArrow = styled.span`
 
 // Демо-мостик к стороне менеджера (мета-элемент, не часть продукта).
 const DemoBridge = styled.div`
-  margin-top: 0.25rem;
+  margin-top: 1.25rem;
   border: 1px dashed rgba(16, 24, 40, 0.22);
   border-radius: 0.75rem;
   padding: 1rem 1.25rem;
@@ -117,6 +117,26 @@ export const CL09Result = () => {
       title={stp ? 'Счёт открывается' : 'Заявка принята'}
       subtitle={data ? `${data.company.companyName} · сценарий ${mode}` : undefined}
       primary={<Button view="accent" size="m" text="На главную" onClick={() => navigate('/')} />}
+      afterCard={
+        <DemoBridge>
+          <DemoLabel>Демо · вторая сторона процесса</DemoLabel>
+          <BodyS>
+            Заявки, не прошедшие авто-проверку, дальше разбирает <b>менеджер банка (DVU)</b> — это
+            вторая роль процесса. В реальном продукте это отдельный человек и интерфейс; здесь
+            переключаемся для демонстрации.
+          </BodyS>
+          <RmAccent>
+            <Bridge>
+              <Button
+                view="accent"
+                size="m"
+                text="Открыть сторону менеджера →"
+                onClick={() => navigate('/rm/queue')}
+              />
+            </Bridge>
+          </RmAccent>
+        </DemoBridge>
+      }
     >
       <Note
         view={stp ? 'positive' : 'info'}
@@ -174,24 +194,6 @@ export const CL09Result = () => {
         />
       )}
 
-      <DemoBridge>
-        <DemoLabel>Демо · вторая сторона процесса</DemoLabel>
-        <BodyS>
-          Заявки, не прошедшие авто-проверку, дальше разбирает <b>менеджер банка (DVU)</b> — это
-          вторая роль процесса. В реальном продукте это отдельный человек и интерфейс; здесь
-          переключаемся для демонстрации.
-        </BodyS>
-        <RmAccent>
-          <Bridge>
-            <Button
-              view="accent"
-              size="m"
-              text="Открыть сторону менеджера →"
-              onClick={() => navigate('/rm/queue')}
-            />
-          </Bridge>
-        </RmAccent>
-      </DemoBridge>
     </OnboardingLayout>
   );
 };
