@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import { Button, Note, BodyM, BodyS } from '@salutejs/sdds-serv';
 import { textPrimary, textSecondary, surfaceSolidSecondary } from '@salutejs/sdds-themes/tokens';
 import { OnboardingLayout } from '../ui/OnboardingLayout';
-import { RM_ORANGE } from '../ui/rmTheme';
+import { RM_ORANGE, RmAccent } from '../ui/rmTheme';
 import { getOnboardingCase, openAccount } from '../mock/api';
 import type { Account, OnboardingCase } from '../mock/types';
 
@@ -49,6 +49,30 @@ const Handoff = styled.div`
 
 const HArrow = styled.span`
   color: ${textSecondary};
+`;
+
+// Демо-мостик к стороне менеджера (мета-элемент, не часть продукта).
+const DemoBridge = styled.div`
+  margin-top: 0.25rem;
+  border: 1px dashed rgba(16, 24, 40, 0.22);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  background: rgba(16, 24, 40, 0.02);
+`;
+
+const DemoLabel = styled.span`
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #98a2b3;
+`;
+
+const Bridge = styled.div`
+  align-self: flex-start;
 `;
 
 const HStep = styled.span<{ state: 'done' | 'active' | 'todo' }>`
@@ -149,6 +173,25 @@ export const CL09Result = () => {
           text="Доступ в интернет-банк и обслуживание счёта — за пределами онбординга."
         />
       )}
+
+      <DemoBridge>
+        <DemoLabel>Демо · вторая сторона процесса</DemoLabel>
+        <BodyS>
+          Заявки, не прошедшие авто-проверку, дальше разбирает <b>менеджер банка (DVU)</b> — это
+          вторая роль процесса. В реальном продукте это отдельный человек и интерфейс; здесь
+          переключаемся для демонстрации.
+        </BodyS>
+        <RmAccent>
+          <Bridge>
+            <Button
+              view="accent"
+              size="m"
+              text="Открыть сторону менеджера →"
+              onClick={() => navigate('/rm/queue')}
+            />
+          </Bridge>
+        </RmAccent>
+      </DemoBridge>
     </OnboardingLayout>
   );
 };
