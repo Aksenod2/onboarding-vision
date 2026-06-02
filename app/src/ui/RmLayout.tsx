@@ -115,7 +115,7 @@ export const RmLayout = ({ title, subtitle, children, onBack }: Props) => {
       <Page>
         <Shell>
           <TopBar>
-            <Brand>СБЕР · Рабочее место менеджера</Brand>
+            <Brand>БАНК · Рабочее место менеджера</Brand>
             <RoleChip>DVU · Проверка OBO</RoleChip>
           </TopBar>
           {onBack && <BackLink onClick={onBack}>← К очереди</BackLink>}

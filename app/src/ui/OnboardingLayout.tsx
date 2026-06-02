@@ -169,7 +169,7 @@ export const OnboardingLayout = ({ step, title, subtitle, children, primary, onB
   return (
     <Page>
       <Shell>
-        <Brand onClick={() => navigate('/')}>СБЕР · Онбординг юрлиц · Индия</Brand>
+        <Brand onClick={() => navigate('/')}>БАНК · Онбординг юрлиц · Индия</Brand>
         <Progress>
           <ProgressTop>
             <StepCount>

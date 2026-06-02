@@ -126,7 +126,7 @@ export const CL01Welcome = () => {
   return (
     <Page>
       <Hero>
-        <Eyebrow>СБЕР · Онбординг юрлиц · Индия</Eyebrow>
+        <Eyebrow>БАНК · Онбординг юрлиц · Индия</Eyebrow>
         <Heading>Расчётный счёт для компании — за один рабочий день</Heading>
         <Lead>
           Цифровой онбординг: данные подтянем из реестров (PAN, Probe42, CKYC), проверки пройдут

@@ -2,10 +2,10 @@ import { css, keyframes } from 'styled-components';
 
 // Дизайн-слой прототипа: единый язык поверх SDDS Serv.
 // Направление — спокойный премиальный финтех: воздух, мягкая многослойность,
-// сдержанная атмосфера зелёным акцентом Сбера, плавная staggered-загрузка.
+// сдержанная атмосфера зелёным акцентом, плавная staggered-загрузка.
 // Палитру/компоненты SDDS не нарушаем — это только композиция и «атмосфера».
 
-const SBER_GREEN = '33, 160, 56'; // фирменный зелёный, только для фоновой атмосферы
+const BRAND_GREEN = '33, 160, 56'; // фирменный зелёный, только для фоновой атмосферы
 
 export const radii = {
   card: '24px',
@@ -22,15 +22,15 @@ export const elevation = {
 // Атмосферный фон страницы — мягкое зелёное свечение сверху на тёплом нейтрале.
 export const pageBackground = css`
   background:
-    radial-gradient(1100px 520px at 50% -12%, rgba(${SBER_GREEN}, 0.1), transparent 62%),
-    radial-gradient(820px 460px at 88% 4%, rgba(${SBER_GREEN}, 0.05), transparent 58%),
+    radial-gradient(1100px 520px at 50% -12%, rgba(${BRAND_GREEN}, 0.1), transparent 62%),
+    radial-gradient(820px 460px at 88% 4%, rgba(${BRAND_GREEN}, 0.05), transparent 58%),
     linear-gradient(180deg, #f6f9f7 0%, #ffffff 38%);
 `;
 
 // Полупрозрачная зелёная плашка (для героя/акцентных панелей).
 export const accentPanel = css`
-  background: linear-gradient(135deg, rgba(${SBER_GREEN}, 0.14), rgba(${SBER_GREEN}, 0.04));
-  border: 1px solid rgba(${SBER_GREEN}, 0.16);
+  background: linear-gradient(135deg, rgba(${BRAND_GREEN}, 0.14), rgba(${BRAND_GREEN}, 0.04));
+  border: 1px solid rgba(${BRAND_GREEN}, 0.16);
 `;
 
 // Надстрочная метка (eyebrow) — разрядка, капс, мелкий кегль.
