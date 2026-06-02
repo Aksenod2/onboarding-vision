@@ -1,0 +1,18 @@
+# Render Blueprint — статический хостинг прототипа (Vite SPA).
+# Деплой: на render.com → New → Blueprint → подключить этот репозиторий.
+services:
+  - type: web
+    name: sber-onboarding-prototype
+    runtime: static
+    rootDir: app
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    # SPA-фолбэк: все маршруты → index.html (иначе /login, /rm/queue и т.п. дают 404).
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
