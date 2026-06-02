@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { Button, TextArea, Note, BodyM, BodyS } from '@salutejs/sdds-serv';
 import { textPrimary, textSecondary, surfaceSolidSecondary } from '@salutejs/sdds-themes/tokens';
 import { RmLayout, Pill } from '../ui/RmLayout';
+import { ApplicationPath } from '../ui/ApplicationPath';
 import { getDvuTask, getSignatories, getVcip, resolveTask } from '../mock/api';
 import type { AuthorizedSignatory, DVUTask, VCIPSession } from '../mock/types';
 
@@ -89,6 +90,8 @@ export const RM04VkycMeeting = () => {
       subtitle={task ? task.reason : undefined}
       onBack={() => navigate('/rm/queue')}
     >
+      {task && <ApplicationPath companyName={task.companyName} current="VKYC" />}
+
       {done === 'confirmed' && (
         <Note view="positive" title="Личность подтверждена" text="VKYC закрыт вручную, видеоидентификация пройдена." />
       )}

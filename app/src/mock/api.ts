@@ -124,6 +124,9 @@ export const openAccount = (): Promise<Account> => {
 export const getDvuTasks = (): Promise<DVUTask[]> => delay(dvuTasks);
 export const getDvuTask = (id: string): Promise<DVUTask | undefined> =>
   delay(dvuTasks.find((t) => t.id === id));
+// Проверки одной заявки (заявко-центрично — группировка по компании).
+export const getDvuTasksByCompany = (companyName: string): Promise<DVUTask[]> =>
+  delay(dvuTasks.filter((t) => t.companyName === companyName));
 
 const setTaskStatus = (id: string, status: DVUTask['status']): Promise<DVUTask[]> => {
   dvuTasks = dvuTasks.map((t) => (t.id === id ? { ...t, status } : t));

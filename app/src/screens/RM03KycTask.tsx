@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { Button, TextArea, Note, BodyM, BodyS } from '@salutejs/sdds-serv';
 import { textPrimary, textSecondary, surfaceSolidSecondary } from '@salutejs/sdds-themes/tokens';
 import { RmLayout, Pill } from '../ui/RmLayout';
+import { ApplicationPath } from '../ui/ApplicationPath';
 import { getCompany, getDvuTask, getScreening, resolveTask } from '../mock/api';
 import type { Company, DVUTask, ScreeningResult } from '../mock/types';
 
@@ -93,6 +94,8 @@ export const RM03KycTask = () => {
       subtitle={task ? `${task.companyName} · ${task.reason}` : undefined}
       onBack={() => navigate('/rm/queue')}
     >
+      {task && <ApplicationPath companyName={task.companyName} current="KYC" />}
+
       {done && (
         <Note view="positive" title="Алерт закрыт" text="Данные подтверждены, KYC-проверка продолжается." />
       )}

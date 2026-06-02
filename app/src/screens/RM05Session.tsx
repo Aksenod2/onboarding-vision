@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { Button, Select, Radiobox, Note, BodyM, BodyS } from '@salutejs/sdds-serv';
 import { textPrimary, textSecondary, surfaceSolidSecondary } from '@salutejs/sdds-themes/tokens';
 import { RmLayout } from '../ui/RmLayout';
+import { ApplicationPath } from '../ui/ApplicationPath';
 import { getDvuTask, getSignatories, resolveTask } from '../mock/api';
 import type { AuthorizedSignatory, DVUTask } from '../mock/types';
 
@@ -85,6 +86,8 @@ export const RM05Session = () => {
       subtitle={signatory ? `Подписант: ${signatory.fullName}` : undefined}
       onBack={() => navigate('/rm/queue')}
     >
+      {task && <ApplicationPath companyName={task.companyName} current="VKYC" />}
+
       {stage === 'done' && (
         <Note view="positive" title="Сессия проведена" text="Видеоидентификация завершена (VKYC complete), задача закрыта." />
       )}

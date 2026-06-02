@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { Button, TextArea, Note, BodyM, BodyS } from '@salutejs/sdds-serv';
 import { textPrimary, textSecondary, surfaceSolidSecondary } from '@salutejs/sdds-themes/tokens';
 import { RmLayout, Pill } from '../ui/RmLayout';
+import { ApplicationPath } from '../ui/ApplicationPath';
 import {
   getCompany,
   getDvuTask,
@@ -102,6 +103,8 @@ export const RM02Task = () => {
       subtitle={task ? `${task.companyName} · ${task.reason}` : undefined}
       onBack={() => navigate('/rm/queue')}
     >
+      {task && <ApplicationPath companyName={task.companyName} current="OBO" />}
+
       {done === 'resolved' && (
         <Note view="positive" title="Задача закрыта" text="Данные и документы помечены валидными. Поток онбординга продолжается." />
       )}
