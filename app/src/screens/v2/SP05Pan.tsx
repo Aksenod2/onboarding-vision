@@ -6,8 +6,6 @@ import {
   textPrimary,
   textSecondary,
   textAccent,
-  dsplLBold,
-  bodyL,
   bodyM,
   bodySBold,
 } from '@salutejs/sdds-themes/tokens';
@@ -128,16 +126,17 @@ const CardHeader = styled.div`
 
 const CardTitle = styled.h1`
   margin: 0 0 0.35rem;
-  ${dsplLBold};
   font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
   color: ${textPrimary};
 `;
 
 const CardSubtitle = styled.p`
   margin: 0;
-  ${bodyL};
+  font-size: 0.9rem;
+  line-height: 1.5;
   color: ${textSecondary};
-  font-size: 0.92rem;
 `;
 
 const CardBody = styled.div`
@@ -203,16 +202,17 @@ const ScreeningEyebrow = styled.div`
 
 const ScreeningTitle = styled.h2`
   margin: 0 0 0.25rem;
-  ${dsplLBold};
   font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.2;
   color: ${textPrimary};
 `;
 
 const ScreeningSubtitle = styled.p`
   margin: 0;
-  ${bodyM};
-  color: ${textSecondary};
   font-size: 0.82rem;
+  line-height: 1.5;
+  color: ${textSecondary};
 `;
 
 const ChecksList = styled.ul`

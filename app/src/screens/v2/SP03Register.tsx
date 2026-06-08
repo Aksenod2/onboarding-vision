@@ -7,8 +7,6 @@ import {
   textPrimary,
   textSecondary,
   textAccent,
-  dsplLBold,
-  bodyL,
   bodyM,
   bodyS,
 } from '@salutejs/sdds-themes/tokens';
@@ -133,16 +131,17 @@ const StepLabel = styled.div`
 
 const Title = styled.h1`
   margin: 0 0 0.25rem;
-  ${dsplLBold};
   font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
   color: ${textPrimary};
 `;
 
 const Subtitle = styled.p`
   margin: 0;
-  ${bodyL};
+  font-size: 0.9rem;
+  line-height: 1.5;
   color: ${textSecondary};
-  font-size: 0.92rem;
 `;
 
 const CardBody = styled.div`

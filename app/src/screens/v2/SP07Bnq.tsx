@@ -7,8 +7,6 @@ import {
   textPrimary,
   textSecondary,
   textAccent,
-  dsplLBold,
-  bodyL,
   bodyM,
   bodySBold,
 } from '@salutejs/sdds-themes/tokens';
@@ -26,7 +24,6 @@ import {
   accentPanel,
   elevation,
   enter,
-  eyebrow,
   radii,
 } from '../../ui/designSystem';
 
@@ -237,31 +234,30 @@ const Wrap = styled.div`
 const ProgressBar = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 6px;
 `;
 
-const ProgressMeta = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
-
+// Подчинённый счётчик вопросов — намеренно тише верхнего StepProgress:
+// без капса, без жирного, мелкий серый текст.
 const ProgressLabel = styled.span`
-  ${eyebrow};
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
   color: ${textSecondary};
 `;
 
+// Тонкая нейтральная полоса — другой паттерн (не зелёный textAccent как в StepProgress).
 const ProgressTrack = styled.div`
-  height: 4px;
-  border-radius: 4px;
+  height: 2px;
+  border-radius: 2px;
   background: rgba(0, 0, 0, 0.08);
   overflow: hidden;
 `;
 
 const ProgressFill = styled.div<{ $pct: number }>`
   height: 100%;
-  border-radius: 4px;
-  background: ${textAccent};
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.28);
   width: ${({ $pct }) => $pct}%;
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 `;
@@ -283,14 +279,16 @@ const Card = styled.div`
 
 const CardTitle = styled.h1`
   margin: 0;
-  ${dsplLBold};
   font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
   color: ${textPrimary};
 `;
 
 const CardSubtitle = styled.p`
   margin: 0;
-  ${bodyL};
+  font-size: 0.9rem;
+  line-height: 1.5;
   color: ${textSecondary};
 `;
 
@@ -932,12 +930,9 @@ export const SP07Bnq = () => {
   return (
     <ScreenV2 maxWidth="640px">
       <Wrap>
-        {/* Прогресс */}
+        {/* Прогресс по вопросам анкеты — подчинён верхнему StepProgress */}
         <ProgressBar>
-          <ProgressMeta>
-            <ProgressLabel>{t.stepOf(visibleStepNum, totalSteps)}</ProgressLabel>
-            <ProgressLabel>{currentQ.attribute}</ProgressLabel>
-          </ProgressMeta>
+          <ProgressLabel>{t.stepOf(visibleStepNum, totalSteps)}</ProgressLabel>
           <ProgressTrack>
             <ProgressFill $pct={(visibleStepNum / totalSteps) * 100} />
           </ProgressTrack>

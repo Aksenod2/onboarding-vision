@@ -72,8 +72,9 @@ const Header = styled.header`
 `;
 
 const Logo = styled.span`
-  ${dsplLBold};
   font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
   color: ${textAccent};
   letter-spacing: -0.01em;
   user-select: none;
@@ -83,10 +84,10 @@ const Logo = styled.span`
 `;
 
 const LogoBank = styled.span`
-  ${dsplLBold};
   font-size: 1.5rem;
-  color: ${textSecondary};
   font-weight: 400;
+  line-height: 1.2;
+  color: ${textSecondary};
 `;
 
 const HeaderRight = styled.div`

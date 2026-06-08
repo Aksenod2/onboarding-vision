@@ -6,7 +6,6 @@ import {
   textPrimary,
   textSecondary,
   textAccent,
-  dsplLBold,
   bodyL,
   bodyM,
   bodySBold,
@@ -153,14 +152,16 @@ const EyebrowLabel = styled.div`
 
 const CardTitle = styled.h2`
   margin: 0;
-  ${dsplLBold};
   font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
   color: ${textPrimary};
 `;
 
 const CardSubtitle = styled.p`
   margin: 0;
-  ${bodyM};
+  font-size: 0.9rem;
+  line-height: 1.5;
   color: ${textSecondary};
 `;
 
@@ -441,8 +442,9 @@ const SuccessIcon = styled.div`
 
 const SuccessTitle = styled.h2`
   margin: 0;
-  ${dsplLBold};
   font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
   color: ${textPrimary};
 `;
 

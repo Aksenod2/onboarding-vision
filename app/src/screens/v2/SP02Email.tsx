@@ -5,7 +5,6 @@ import {
   textPrimary,
   textSecondary,
   textAccent,
-  dsplLBold,
   bodyL,
   bodyM,
   bodySBold,
@@ -118,8 +117,9 @@ const EmailBody = styled.div`
 
 const Greeting = styled.p`
   margin: 0;
-  ${dsplLBold};
   font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
   color: ${textPrimary};
   ${enter(0.12)};
 `;

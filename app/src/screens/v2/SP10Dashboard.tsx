@@ -6,7 +6,6 @@ import {
   textPrimary,
   textSecondary,
   textAccent,
-  dsplLBold,
   bodyL,
   bodyM,
   bodySBold,
@@ -149,8 +148,9 @@ const PageMeta = styled.div`
 
 const AppTitle = styled.h1`
   margin: 0;
-  ${dsplLBold};
   font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.15;
   color: ${textPrimary};
 `;
 
