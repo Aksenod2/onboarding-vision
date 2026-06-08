@@ -29,6 +29,20 @@ const MANAGER: Node[] = [
   { l: 'VKYC · сессии', p: '/rm/session?id=DVU-1055' },
 ];
 
+const V2: Node[] = [
+  { l: '1 Лендинг', p: '/v2' },
+  { l: '2 Письмо', p: '/v2/email' },
+  { l: '3 Регистрация', p: '/v2/login' },
+  { l: '4 Согласие реестры', p: '/v2/registry' },
+  { l: '5 PAN', p: '/v2/pan' },
+  { l: '6 Данные компании', p: '/v2/company' },
+  { l: '7 Анкета BNQ', p: '/v2/bnq' },
+  { l: '8 Согласие VCIP', p: '/v2/pre-vcip' },
+  { l: '9 Видео-ID', p: '/v2/vcip' },
+  { l: '10 Дашборд', p: '/v2/dashboard' },
+];
+
+const BLUE = '#2563EB';
 const INK = '#111827';
 const LINE = 'rgba(255,255,255,0.12)';
 const GREEN = '#21A038';
@@ -245,6 +259,11 @@ export const DemoNav = () => {
             <Lane>
               <RoleLabel c={ORANGE}>Менеджер · DVU</RoleLabel>
               <Flow>{renderFlow(MANAGER, ORANGE)}</Flow>
+            </Lane>
+
+            <Lane>
+              <RoleLabel c={BLUE}>Онбординг v2 · Sole Prop</RoleLabel>
+              <Flow>{renderFlow(V2, BLUE)}</Flow>
             </Lane>
 
             <Footer>

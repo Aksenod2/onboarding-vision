@@ -14,6 +14,18 @@ import { RM02Task } from './screens/RM02Task';
 import { RM03KycTask } from './screens/RM03KycTask';
 import { RM04VkycMeeting } from './screens/RM04VkycMeeting';
 import { RM05Session } from './screens/RM05Session';
+import { SP01Landing } from './screens/v2/SP01Landing';
+import { SP02Email } from './screens/v2/SP02Email';
+import { SP03Register } from './screens/v2/SP03Register';
+import { SP04Registry } from './screens/v2/SP04Registry';
+import { SP05Pan } from './screens/v2/SP05Pan';
+import { SP06Company } from './screens/v2/SP06Company';
+import { SPDataConsents } from './screens/v2/SPDataConsents';
+import { SP07Bnq } from './screens/v2/SP07Bnq';
+import { SP08PreVcip } from './screens/v2/SP08PreVcip';
+import { SP09Vcip } from './screens/v2/SP09Vcip';
+import { SP10Dashboard } from './screens/v2/SP10Dashboard';
+import { LanguageProvider } from './ui/v2/LanguageContext';
 import { DemoNav } from './ui/DemoNav';
 
 // Сброс прокрутки наверх при смене экрана (React Router сам этого не делает).
@@ -45,6 +57,25 @@ export const App = () => {
         <Route path="/rm/kyc" element={<RM03KycTask />} />
         <Route path="/rm/vkyc" element={<RM04VkycMeeting />} />
         <Route path="/rm/session" element={<RM05Session />} />
+        {/* v2 flow — обёрнуто в LanguageProvider, v1 роуты не затронуты */}
+        <Route path="/v2/*" element={
+          <LanguageProvider>
+            <Routes>
+              <Route index element={<SP01Landing />} />
+              <Route path="email" element={<SP02Email />} />
+              <Route path="login" element={<SP03Register />} />
+              <Route path="registry" element={<SP04Registry />} />
+              <Route path="pan" element={<SP05Pan />} />
+              <Route path="company" element={<SP06Company />} />
+              <Route path="data-consents" element={<SPDataConsents />} />
+              <Route path="bnq" element={<SP07Bnq />} />
+              <Route path="pre-vcip" element={<SP08PreVcip />} />
+              <Route path="vcip" element={<SP09Vcip />} />
+              <Route path="dashboard" element={<SP10Dashboard />} />
+              <Route path="*" element={<Navigate to="/v2" replace />} />
+            </Routes>
+          </LanguageProvider>
+        } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <DemoNav />
