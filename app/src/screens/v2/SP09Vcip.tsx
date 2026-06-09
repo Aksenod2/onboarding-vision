@@ -6,7 +6,6 @@ import {
   textPrimary,
   textSecondary,
   textAccent,
-  bodyL,
   bodyM,
   bodySBold,
 } from '@salutejs/sdds-themes/tokens';
@@ -20,7 +19,7 @@ import {
 import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
-import { getVcip, passVcip, setStepStatus } from '../../mock/v2/api';
+import { getVcip, setStepStatus } from '../../mock/v2/api';
 import type { VCIPSession } from '../../mock/v2/types';
 
 // SP-09 — VCIP + подписание (один владелец).
@@ -36,84 +35,50 @@ const dict: Record<
     subtitle: string;
     cameraPlaceholder: string;
     participant: string;
-    // Шаг 1
     step1Label: string;
     step1Hint: string;
     btnStart: string;
     identRunning: string;
     identDone: string;
-    // Шаг 2
-    step2Label: string;
-    docDeclaration: string;
-    docDeclarationDesc: string;
-    docSolePropDeclaration: string;
-    docSolePropDeclarationDesc: string;
-    btnSign: string;
-    // Финал
-    successTitle: string;
-    successBody: string;
-    btnDashboard: string;
-    // Загрузка
+    btnContinue: string;
     loading: string;
   }
 > = {
   ru: {
     eyebrow: 'ВИДЕОИДЕНТИФИКАЦИЯ',
     title: 'Видеосессия',
-    subtitle: 'Подтвердите личность и подпишите документы',
+    subtitle: 'Подтвердите свою личность по видео',
     cameraPlaceholder: 'Камера',
     participant: 'Участник',
-    step1Label: 'Шаг 1 — Идентификация',
+    step1Label: 'Идентификация',
     step1Hint:
       'Убедитесь, что вы находитесь в хорошо освещённом месте, камера и микрофон включены.',
     btnStart: 'Начать видеоидентификацию',
     identRunning: 'Идентификация выполняется…',
     identDone: 'Идентификация пройдена',
-    step2Label: 'Шаг 2 — Подписание документов',
-    docDeclaration: 'Декларация достоверности',
-    docDeclarationDesc:
-      'Подтверждаю, что все предоставленные мной сведения являются полными, достоверными и актуальными.',
-    docSolePropDeclaration: 'Заявление индивидуального предпринимателя',
-    docSolePropDeclarationDesc:
-      'Подтверждаю статус индивидуального предпринимателя и принимаю условия обслуживания Сбербанк Индия.',
-    btnSign: 'Подписать и завершить',
-    successTitle: 'Готово!',
-    successBody:
-      'Видеоидентификация пройдена, документы подписаны. Мы приступаем к проверке вашей заявки.',
-    btnDashboard: 'К дашборду прогресса',
+    btnContinue: 'Продолжить к подписанию',
     loading: 'Загрузка…',
   },
   en: {
     eyebrow: 'VIDEO IDENTIFICATION',
     title: 'Video Session',
-    subtitle: 'Verify your identity and sign the documents',
+    subtitle: 'Verify your identity over video',
     cameraPlaceholder: 'Camera',
     participant: 'Participant',
-    step1Label: 'Step 1 — Identification',
+    step1Label: 'Identification',
     step1Hint:
       'Make sure you are in a well-lit place and your camera and microphone are enabled.',
     btnStart: 'Start Video Identification',
     identRunning: 'Identification in progress…',
     identDone: 'Identification passed',
-    step2Label: 'Step 2 — Sign Documents',
-    docDeclaration: 'Declaration of Accuracy',
-    docDeclarationDesc:
-      'I confirm that all information I have provided is complete, accurate and up to date.',
-    docSolePropDeclaration: 'Sole Proprietor Declaration',
-    docSolePropDeclarationDesc:
-      'I confirm my status as a sole proprietor and accept the terms of service of Sberbank India.',
-    btnSign: 'Sign & Complete',
-    successTitle: 'All Done!',
-    successBody:
-      'Video identification is complete and documents are signed. We are now reviewing your application.',
-    btnDashboard: 'Go to Progress Dashboard',
+    btnContinue: 'Continue to signing',
     loading: 'Loading…',
   },
 };
 
 // ─── Состояния сессии ────────────────────────────────────────────────────────
 
-type FlowStep = 'idle' | 'ident_running' | 'ident_done' | 'signing' | 'sign_done' | 'complete';
+type FlowStep = 'idle' | 'ident_running' | 'ident_done';
 
 // ─── Styled components ───────────────────────────────────────────────────────
 
@@ -125,6 +90,20 @@ const blink = keyframes`
 const pulse = keyframes`
   0%, 100% { box-shadow: 0 0 0 0 rgba(33, 160, 56, 0.45); }
   50%       { box-shadow: 0 0 0 10px rgba(33, 160, 56, 0); }
+`;
+
+// Вертикальный стек секций — задаёт единый отступ между карточкой и шагами
+// (контейнер ScreenV2.Content без gap, а здесь детей несколько).
+const Stack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+`;
+
+// Ряд кнопки — выравнивание основной кнопки вправо (правило Дениса 2026-06-09).
+const ButtonRow = styled.div`
+  display: flex;
+  justify-content: flex-end;
 `;
 
 // Секция-карточка
@@ -309,10 +288,16 @@ const ParticipantName = styled.span`
 
 // ─── Шаг-секция ─────────────────────────────────────────────────────────────
 
+// Та же карточка, что и видеоблок — единая вложенность (решение Дениса 2026-06-09):
+// шаги не лежат «голыми» на фоне, а оформлены карточками, как видеосессия.
 const StepSection = styled.div<{ $delay?: number }>`
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  background: #ffffff;
+  border-radius: ${radii.card};
+  box-shadow: ${elevation.card};
+  padding: 1.5rem;
   ${({ $delay = 0 }) => enter($delay)};
 `;
 
@@ -360,105 +345,6 @@ const StatusText = styled.span`
   color: ${textPrimary};
 `;
 
-// ─── Документы к подписанию ──────────────────────────────────────────────────
-
-const DocList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-`;
-
-const DocItem = styled.div<{ $signed?: boolean }>`
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem 1.125rem;
-  border-radius: ${radii.panel};
-  background: ${({ $signed }) => ($signed ? 'rgba(33, 160, 56, 0.06)' : '#f7f9f8')};
-  border: 1px solid ${({ $signed }) => ($signed ? 'rgba(33, 160, 56, 0.22)' : 'rgba(0,0,0,0.07)')};
-  transition: background 0.3s, border-color 0.3s;
-`;
-
-const DocIconWrap = styled.div<{ $signed?: boolean }>`
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: ${({ $signed }) => ($signed ? 'rgba(33, 160, 56, 0.14)' : 'rgba(0,0,0,0.06)')};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  flex-shrink: 0;
-  transition: background 0.3s;
-`;
-
-const DocContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-`;
-
-const DocTitle = styled.span`
-  ${bodySBold};
-  color: ${textPrimary};
-  font-size: 0.9rem;
-`;
-
-const DocDesc = styled.p`
-  margin: 0;
-  ${bodyM};
-  font-size: 0.82rem;
-  color: ${textSecondary};
-  line-height: 1.45;
-`;
-
-// ─── Успех ───────────────────────────────────────────────────────────────────
-
-const SuccessCard = styled.div`
-  background: #ffffff;
-  border-radius: ${radii.card};
-  box-shadow: ${elevation.card};
-  padding: 2.5rem 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  text-align: center;
-  ${enter(0.05)};
-`;
-
-const SuccessIcon = styled.div`
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: rgba(33, 160, 56, 0.12);
-  border: 2px solid rgba(33, 160, 56, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  color: rgb(33, 160, 56);
-`;
-
-const SuccessTitle = styled.h2`
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: ${textPrimary};
-`;
-
-const SuccessBody = styled.p`
-  margin: 0;
-  ${bodyL};
-  color: ${textSecondary};
-  max-width: 380px;
-`;
-
-const Spacer = styled.div`
-  height: 0.5rem;
-`;
-
 // ─── Загрузка ─────────────────────────────────────────────────────────────────
 
 const LoadingText = styled.p`
@@ -496,52 +382,24 @@ export const SP09Vcip = () => {
     }, 2800);
   };
 
-  // Шаг 2: подписание + завершение
-  const handleSign = async () => {
-    if (busy) return;
-    setBusy(true);
-    setFlowStep('sign_done');
-    await passVcip();
+  // После идентификации → отдельный финальный шаг подписания деклараций (BRD step 09).
+  const handleContinue = async () => {
     try { await setStepStatus('vcip', 'done'); } catch (_) { /* игнорируем */ }
-    setFlowStep('complete');
-    setBusy(false);
+    navigate('/v2/sign');
   };
 
   // ─── Состояние загрузки ──────────────────────────────────────────────────
   if (!vcip) {
     return (
-      <ScreenV2 maxWidth="600px">
+      <ScreenV2>
         <LoadingText>{t.loading}</LoadingText>
-      </ScreenV2>
-    );
-  }
-
-  // ─── Финальный экран успеха ───────────────────────────────────────────────
-  if (flowStep === 'complete') {
-    return (
-      <ScreenV2 maxWidth="600px">
-        <SuccessCard>
-          <SuccessIcon>✓</SuccessIcon>
-          <SuccessTitle>{t.successTitle}</SuccessTitle>
-          <SuccessBody>{t.successBody}</SuccessBody>
-          <Spacer />
-          {/* TODO свериться с MCP — Button view="accent" size="l" */}
-          <Button
-            view="accent"
-            size="l"
-            text={t.btnDashboard}
-            onClick={() => navigate('/v2/dashboard')}
-          />
-        </SuccessCard>
       </ScreenV2>
     );
   }
 
   // ─── Основной поток ───────────────────────────────────────────────────────
   const isIdentRunning = flowStep === 'ident_running';
-  const isIdentDone = flowStep === 'ident_done' || flowStep === 'signing' || flowStep === 'sign_done';
-  const showStep2 = isIdentDone;
-  const isSigning = flowStep === 'sign_done';
+  const isIdentDone = flowStep === 'ident_done';
 
   const initials = vcip.personName
     .split(' ')
@@ -551,7 +409,8 @@ export const SP09Vcip = () => {
     .slice(0, 2);
 
   return (
-    <ScreenV2 maxWidth="600px">
+    <ScreenV2>
+      <Stack>
       {/* Карточка видеосессии */}
       <Card $delay={0.04}>
         <CardHeader>
@@ -584,7 +443,7 @@ export const SP09Vcip = () => {
         </CardBody>
       </Card>
 
-      {/* Шаг 1 — Идентификация */}
+      {/* Шаг идентификации */}
       <StepSection $delay={0.12}>
         <StepLabel>{t.step1Label}</StepLabel>
 
@@ -607,51 +466,31 @@ export const SP09Vcip = () => {
         )}
 
         {flowStep === 'idle' && (
-          /* TODO свериться с MCP — Button view="accent" size="l" */
-          <Button
-            view="accent"
-            size="l"
-            text={t.btnStart}
-            onClick={handleStartIdent}
-            disabled={busy}
-          />
+          <ButtonRow>
+            {/* TODO свериться с MCP — Button view="accent" size="l" */}
+            <Button
+              view="accent"
+              size="l"
+              text={t.btnStart}
+              onClick={handleStartIdent}
+              disabled={busy}
+            />
+          </ButtonRow>
+        )}
+
+        {/* После идентификации → переход на отдельный шаг подписания (BRD step 09) */}
+        {isIdentDone && (
+          <ButtonRow>
+            <Button
+              view="accent"
+              size="l"
+              text={t.btnContinue}
+              onClick={handleContinue}
+            />
+          </ButtonRow>
         )}
       </StepSection>
-
-      {/* Шаг 2 — Подписание (появляется после идентификации) */}
-      {showStep2 && (
-        <StepSection $delay={0.05}>
-          <StepLabel>{t.step2Label}</StepLabel>
-
-          <DocList>
-            <DocItem $signed={isSigning}>
-              <DocIconWrap $signed={isSigning}>{isSigning ? '✓' : '📄'}</DocIconWrap>
-              <DocContent>
-                <DocTitle>{t.docDeclaration}</DocTitle>
-                <DocDesc>{t.docDeclarationDesc}</DocDesc>
-              </DocContent>
-            </DocItem>
-
-            <DocItem $signed={isSigning}>
-              {/* open: В-4 — для Sole Prop нет Board Resolution; используем аналог-декларацию */}
-              <DocIconWrap $signed={isSigning}>{isSigning ? '✓' : '📋'}</DocIconWrap>
-              <DocContent>
-                <DocTitle>{t.docSolePropDeclaration}</DocTitle>
-                <DocDesc>{t.docSolePropDeclarationDesc}</DocDesc>
-              </DocContent>
-            </DocItem>
-          </DocList>
-
-          {/* TODO свериться с MCP — Button view="accent" size="l" */}
-          <Button
-            view="accent"
-            size="l"
-            text={t.btnSign}
-            onClick={handleSign}
-            disabled={busy || isSigning}
-          />
-        </StepSection>
-      )}
+      </Stack>
     </ScreenV2>
   );
 };

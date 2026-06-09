@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-// TODO свериться с MCP — Button, TextField, BodyL, BodyM, BodyS (Note/Notification — проверить правильное имя)
-import { Button, TextField, BodyL, BodyM, BodyS } from '@salutejs/sdds-serv';
+// TODO свериться с MCP — Button, TextField, Checkbox, BodyL, BodyM, BodyS (Note/Notification — проверить правильное имя)
+import { Button, TextField, Checkbox, BodyL, BodyM, BodyS } from '@salutejs/sdds-serv';
 import {
   textPrimary,
   textSecondary,
@@ -15,9 +15,9 @@ import {
 import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
-import { getBusiness, updateBusiness, uploadDocument, setStepStatus } from '../../mock/v2/api';
+import { getBusiness, updateBusiness, uploadDocument, setStepStatus, getBnq } from '../../mock/v2/api';
 import { businessFieldSources } from '../../mock/v2/types';
-import type { Business } from '../../mock/v2/types';
+import type { Business, BnqAnswer } from '../../mock/v2/types';
 import { radii, elevation, enter, eyebrow, accentPanel } from '../../ui/designSystem';
 import { nextStepRoute } from '../../ui/v2/steps';
 
@@ -63,20 +63,36 @@ const dict: Record<
     sectionBasic: string;
     sectionAddress: string;
     sectionActivity: string;
+    // Доп. секция (B7/B8)
+    sectionAdditional: string;
+    corrSameLabel: string;
+    corrAddrLabel: string;
+    corrAddrPlaceholder: string;
+    chequeBookLabel: string;
+    // Секция документов
+    sectionDocs: string;
+    sectionDocsHint: string;
+    docLicence: string;
+    docLicenceReason: string;
+    docIec: string;
+    docIecReason: string;
+    docUploadBtn: string;
+    docUploading: string;
+    docUploaded: string;
     // Proof required marker
     proofRequired: string;
   }
 > = {
   ru: {
     eyebrow: 'ДАННЫЕ БИЗНЕСА',
-    title: 'Подтвердите данные',
+    title: 'Проверьте данные компании',
     subtitle:
-      'Мы подтянули сведения о вашем бизнесе из государственных реестров. Проверьте — и при необходимости отредактируйте.',
+      'Мы автоматически заполнили сведения о вашем бизнесе. Проверьте — и при необходимости отредактируйте.',
     editBtn: 'Изменить',
     cancelBtn: 'Отмена',
     confirmBtn: 'Подтвердить и продолжить',
     saving: 'Сохраняем…',
-    loadingText: 'Загрузка данных из реестра…',
+    loadingText: 'Загрузка данных…',
     tradeName: 'Наименование бизнеса (Trade Name)',
     pan: 'PAN',
     gstin: 'GSTIN',
@@ -90,7 +106,7 @@ const dict: Record<
     industry: 'Отрасль (Industry)',
     segment: 'Сегмент (Segment)',
     companyResidency: 'Резидентность бизнеса',
-    registryBadge: 'Из реестра · Probe42',
+    registryBadge: 'Заполнено автоматически',
     uploadProof: 'Подтвердите изменение — загрузите документ',
     uploadBtn: 'Загрузить документ',
     uploadedLabel: 'Загружено ✓',
@@ -100,18 +116,32 @@ const dict: Record<
     sectionBasic: 'Основные данные',
     sectionAddress: 'Юридический адрес',
     sectionActivity: 'Деятельность',
+    sectionAdditional: 'Дополнительно',
+    corrSameLabel: 'Корреспондентский адрес совпадает с юридическим',
+    corrAddrLabel: 'Корреспондентский адрес',
+    corrAddrPlaceholder: 'Укажите адрес для корреспонденции',
+    chequeBookLabel: 'Нужна чековая книжка',
+    sectionDocs: 'Документы к загрузке',
+    sectionDocsHint: 'На основе ваших ответов нужно приложить следующие документы. Можно загрузить все сразу.',
+    docLicence: 'Лицензия на деятельность (Business Licence)',
+    docLicenceReason: 'Требуется для выбранной отрасли',
+    docIec: 'IEC (Importer Exporter Code)',
+    docIecReason: 'Требуется для внешнеэкономической деятельности',
+    docUploadBtn: 'Загрузить',
+    docUploading: 'Загрузка…',
+    docUploaded: 'Загружено ✓',
     proofRequired: 'требуется документ',
   },
   en: {
     eyebrow: 'BUSINESS DETAILS',
-    title: 'Confirm your details',
+    title: 'Review your company details',
     subtitle:
-      'We fetched the information about your business from government registries. Please review — and edit if anything needs correction.',
+      'We pre-filled your business details automatically. Please review — and edit if anything needs correction.',
     editBtn: 'Edit',
     cancelBtn: 'Cancel',
     confirmBtn: 'Confirm and continue',
     saving: 'Saving…',
-    loadingText: 'Loading data from registry…',
+    loadingText: 'Loading data…',
     tradeName: 'Business Trade Name',
     pan: 'PAN',
     gstin: 'GSTIN',
@@ -125,7 +155,7 @@ const dict: Record<
     industry: 'Industry',
     segment: 'Segment',
     companyResidency: 'Company Residency',
-    registryBadge: 'From registry · Probe42',
+    registryBadge: 'Pre-filled',
     uploadProof: 'Confirm the change — upload a document',
     uploadBtn: 'Upload document',
     uploadedLabel: 'Uploaded ✓',
@@ -135,6 +165,20 @@ const dict: Record<
     sectionBasic: 'Basic information',
     sectionAddress: 'Registered address',
     sectionActivity: 'Business activity',
+    sectionAdditional: 'Additional',
+    corrSameLabel: 'Correspondence address is the same as registered',
+    corrAddrLabel: 'Correspondence address',
+    corrAddrPlaceholder: 'Enter your correspondence address',
+    chequeBookLabel: 'Cheque book required',
+    sectionDocs: 'Documents to upload',
+    sectionDocsHint: 'Based on your answers, the following documents are required. You can upload them all at once.',
+    docLicence: 'Business Licence',
+    docLicenceReason: 'Required for the selected industry',
+    docIec: 'IEC (Importer Exporter Code)',
+    docIecReason: 'Required for import/export activity',
+    docUploadBtn: 'Upload',
+    docUploading: 'Uploading…',
+    docUploaded: 'Uploaded ✓',
     proofRequired: 'document required',
   },
 };
@@ -282,6 +326,34 @@ const DvuWarning = styled.div`
   ${enter(0)};
 `;
 
+// Строка документа в секции «Документы к загрузке»
+const DocRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.875rem 1rem;
+  border: 1px solid rgba(255, 180, 0, 0.3);
+  border-radius: ${radii.panel};
+  background: rgba(255, 180, 0, 0.06);
+`;
+
+const DocInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+`;
+
+const DocName = styled(BodyM)`
+  color: ${textPrimary};
+  font-weight: 600;
+`;
+
+const DocReason = styled(BodyS)`
+  color: ${textSecondary};
+`;
+
 const DvuTitle = styled(BodyM)`
   color: ${textWarning};
   font-weight: 700;
@@ -298,6 +370,7 @@ const Actions = styled.div`
   gap: 0.75rem;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   padding-top: 0.5rem;
 `;
 
@@ -338,6 +411,16 @@ export const SP06Company = () => {
   // uploadedProofs — per-field: загружен ли подтверждающий документ
   const [uploadedProofs, setUploadedProofs] = useState<UploadedProofs>({});
 
+  // Доп. секция (B7/B8) — ручной ввод, не из реестра, без proof/DVU
+  const [chequeBook, setChequeBook] = useState(false);
+  const [corrSameAsReg, setCorrSameAsReg] = useState(true);
+  const [corrAddress, setCorrAddress] = useState('');
+
+  // Документы к загрузке — собраны в одной точке (перенесены из анкеты, решение Дениса 2026-06-09).
+  // Какие требуются — определяем по ответам BNQ: лицензия (по отрасли), IEC (по ВЭД).
+  const [bnq, setBnq] = useState<BnqAnswer[]>([]);
+  const [docUploads, setDocUploads] = useState<Record<string, 'idle' | 'uploading' | 'done'>>({});
+
   const [saving, setSaving] = useState(false);
 
   // Сохраняем исходные данные при загрузке (для сравнения current !== original)
@@ -348,11 +431,12 @@ export const SP06Company = () => {
       setBusiness(b);
       originalRef.current = b;
     });
+    getBnq().then(setBnq);
   }, []);
 
   if (!business) {
     return (
-      <ScreenV2 maxWidth="720px">
+      <ScreenV2>
         <LoadingText>{t.loadingText}</LoadingText>
       </ScreenV2>
     );
@@ -402,6 +486,13 @@ export const SP06Company = () => {
     setUploadedProofs((u) => ({ ...u, [fieldKey]: true }));
   };
 
+  // Загрузка документа из секции «Документы к загрузке» (лицензия, IEC)
+  const handleDocUpload = async (docType: 'Business Licence' | 'IEC') => {
+    setDocUploads((u) => ({ ...u, [docType]: 'uploading' }));
+    await uploadDocument(docType);
+    setDocUploads((u) => ({ ...u, [docType]: 'done' }));
+  };
+
   const handleConfirm = async () => {
     setSaving(true);
     // Собираем патч: верхнеуровневые поля + адрес (если менялся)
@@ -410,6 +501,10 @@ export const SP06Company = () => {
     if (hasAddrChanges) {
       patch.registeredAddress = { ...business.registeredAddress, ...addrDraft };
     }
+
+    // Доп. секция (B7/B8) — manual, без proof
+    patch.chequeBookRequired = chequeBook;
+    if (!corrSameAsReg && corrAddress) patch.correspondenceAddress = corrAddress;
 
     if (Object.keys(patch).length > 0) {
       const updated = await updateBusiness(patch);
@@ -429,6 +524,17 @@ export const SP06Company = () => {
   const hasAnyChanges =
     (Object.keys(draft) as (BasicKey | ActivityKey)[]).some(isFieldChanged) ||
     (Object.keys(addrDraft) as AddrKey[]).some(isAddrFieldChanged);
+
+  // Какие документы требуются — по ответам анкеты (перенесено из BNQ).
+  const q1 = bnq.find((a) => a.q === 'Q1');
+  const q9 = bnq.find((a) => a.q === 'Q9');
+  // open: OQ-6 — точный whitelist индустрий под лицензию у Марго; пока показываем при выбранной отрасли.
+  const needsLicence = !!q1?.value;
+  const needsIec = !!q9 && !/^no/i.test(q9.value.trim());
+  const requiredDocs = [
+    ...(needsLicence ? [{ key: 'Business Licence' as const, label: t.docLicence, reason: t.docLicenceReason }] : []),
+    ...(needsIec ? [{ key: 'IEC' as const, label: t.docIec, reason: t.docIecReason }] : []),
+  ];
 
   // Текущее значение поля: черновик или исходное
   const val = (key: BasicKey | ActivityKey): string => {
@@ -535,7 +641,7 @@ export const SP06Company = () => {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <ScreenV2 maxWidth="720px">
+    <ScreenV2>
       <Card>
         <CardHeader>
           <Eyebrow>{t.eyebrow}</Eyebrow>
@@ -605,32 +711,75 @@ export const SP06Company = () => {
             )}
           </Section>
 
-          {/* ── Секция: Деятельность ── */}
-          <Section>
-            <SectionTitle>{t.sectionActivity}</SectionTitle>
+          {/* Секция «Деятельность» убрана: industry/segment (BNQ Q1) и residency (Q3)
+              теперь подтверждаются в анкете ДО этого экрана (порядок Марго, 2026-06-09). */}
 
-            {mode === 'view' ? (
-              <>
-                <Row>
-                  {renderViewField(t.industry, business.industry, isRegistry('industry'))}
-                  {renderViewField(t.segment, business.segment, isRegistry('segment'))}
-                </Row>
-                {renderViewField(
-                  t.companyResidency,
-                  business.companyResidency,
-                  isRegistry('companyResidency'),
-                )}
-              </>
-            ) : (
-              <>
-                <Row>
-                  {renderEditField('industry', t.industry)}
-                  {renderEditField('segment', t.segment)}
-                </Row>
-                {renderEditField('companyResidency', t.companyResidency)}
-              </>
+          {/* ── Секция: Дополнительно (B7/B8, ручной ввод клиента) ── */}
+          <Section>
+            <SectionTitle>{t.sectionAdditional}</SectionTitle>
+
+            {/* B8 — нужна ли чековая книжка */}
+            {/* TODO свериться с MCP — Checkbox: label / checked / onChange */}
+            <Checkbox
+              label={t.chequeBookLabel}
+              checked={chequeBook}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setChequeBook(e.target.checked)
+              }
+            />
+
+            {/* B7 — корресп. адрес: спрашиваем только если отличается от юридического */}
+            <Checkbox
+              label={t.corrSameLabel}
+              checked={corrSameAsReg}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setCorrSameAsReg(e.target.checked)
+              }
+            />
+            {!corrSameAsReg && (
+              <FieldGroup>
+                <TextField
+                  label={t.corrAddrLabel}
+                  placeholder={t.corrAddrPlaceholder}
+                  value={corrAddress}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setCorrAddress(e.target.value)
+                  }
+                  size="m"
+                />
+              </FieldGroup>
             )}
           </Section>
+
+          {/* ── Секция: Документы к загрузке (собраны из анкеты — лицензия, IEC) ── */}
+          {requiredDocs.length > 0 && (
+            <Section>
+              <SectionTitle>{t.sectionDocs}</SectionTitle>
+              <CardSubtitle style={{ marginTop: '-0.25rem' }}>{t.sectionDocsHint}</CardSubtitle>
+              {requiredDocs.map((doc) => {
+                const st = docUploads[doc.key] ?? 'idle';
+                return (
+                  <DocRow key={doc.key}>
+                    <DocInfo>
+                      <DocName>{doc.label}</DocName>
+                      <DocReason>{doc.reason}</DocReason>
+                    </DocInfo>
+                    {st === 'done' ? (
+                      <UploadedLabel>{t.docUploaded}</UploadedLabel>
+                    ) : (
+                      <Button
+                        view="secondary"
+                        size="s"
+                        text={st === 'uploading' ? t.docUploading : t.docUploadBtn}
+                        disabled={st === 'uploading'}
+                        onClick={() => handleDocUpload(doc.key)}
+                      />
+                    )}
+                  </DocRow>
+                );
+              })}
+            </Section>
+          )}
 
           {/* ── Кнопки действий ── */}
           <Actions>

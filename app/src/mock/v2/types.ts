@@ -64,6 +64,9 @@ export interface Business {
   industry: string; // BNQ Q1
   segment: string; // BNQ Q1
   companyResidency: CompanyResidency; // BNQ Q3
+  // Доп. секция (ручной ввод клиента, Задача 10 B7/B8) — не из реестра:
+  correspondenceAddress?: string; // B7 — только если отличается от registered
+  chequeBookRequired?: boolean; // B8 — нужна ли чековая книжка
 }
 
 // --- BNQ: ответы опросника Q1…Q11 ---
@@ -198,4 +201,6 @@ export const businessFieldSources: Record<keyof Business, FieldSource> = {
   industry: 'manual',
   segment: 'manual',
   companyResidency: 'registry',
+  correspondenceAddress: 'manual',
+  chequeBookRequired: 'manual',
 };

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button } from '@salutejs/sdds-serv'; // TODO свериться с MCP — view="accent", size="l"
@@ -12,14 +13,17 @@ import {
 import { pageBackground, accentPanel, eyebrow, radii, enter, elevation } from '../../ui/designSystem';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
+import { getSession } from '../../mock/v2/api';
 
-// SP-02 — Превью email-приглашения. Иллюстративный шаг демо-потока v2 (Sole Proprietor).
-// Роут: /v2/email
+// SP-02 — Превью письма-подтверждения email. Шаг демо-потока v2 (Sole Proprietor).
+// Роут: /v2/email. Идёт ПОСЛЕ ввода email на SP-03 — адрес получателя берём из сессии.
+// Кнопка → /v2/login?step=otp (возврат на SP-03 в стадию ввода кода).
 
 const dict: Record<Lang, {
   eyebrow: string;
   from: string;
   fromValue: string;
+  to: string;
   subject: string;
   subjectValue: string;
   greeting: string;
@@ -31,6 +35,7 @@ const dict: Record<Lang, {
     eyebrow: 'ВХОДЯЩЕЕ ПИСЬМО',
     from: 'От:',
     fromValue: 'Сбербанк Индия <noreply@sberbank.in>',
+    to: 'Кому:',
     subject: 'Тема:',
     subjectValue: 'Подтвердите email для открытия счёта',
     greeting: 'Здравствуйте!',
@@ -42,6 +47,7 @@ const dict: Record<Lang, {
     eyebrow: 'INCOMING EMAIL',
     from: 'From:',
     fromValue: 'Sberbank India <noreply@sberbank.in>',
+    to: 'To:',
     subject: 'Subject:',
     subjectValue: 'Confirm your email to open an account',
     greeting: 'Hello!',
@@ -152,6 +158,14 @@ export const SP02Email = () => {
   const { lang } = useLanguage();
   const t = dict[lang];
 
+  // Адрес получателя — реально введённый на SP-03 (из mock-сессии).
+  const [recipient, setRecipient] = useState('');
+  useEffect(() => {
+    getSession().then((s) => {
+      if (s?.email) setRecipient(s.email);
+    });
+  }, []);
+
   return (
     <Page>
       <EmailCard>
@@ -161,6 +175,12 @@ export const SP02Email = () => {
             <MetaLabel>{t.from}</MetaLabel>
             <MetaValue>{t.fromValue}</MetaValue>
           </MetaRow>
+          {recipient && (
+            <MetaRow>
+              <MetaLabel>{t.to}</MetaLabel>
+              <MetaValue>{recipient}</MetaValue>
+            </MetaRow>
+          )}
           <MetaRow>
             <MetaLabel>{t.subject}</MetaLabel>
             <MetaValue>{t.subjectValue}</MetaValue>
@@ -176,7 +196,7 @@ export const SP02Email = () => {
               view="accent"
               size="l"
               text={t.cta}
-              onClick={() => navigate('/v2/login')}
+              onClick={() => navigate('/v2/login?step=otp')}
             />
           </CtaWrapper>
           <Disclaimer>{t.disclaimer}</Disclaimer>

@@ -43,9 +43,9 @@ const dict: Record<
   }
 > = {
   ru: {
-    title: 'Проверьте данные перед видеоидентификацией',
+    title: 'Согласие перед видеоидентификацией',
     subtitle:
-      'Пожалуйста, убедитесь, что все данные анкеты верны. После видеоидентификации внести изменения без подачи дополнительных документов будет невозможно.',
+      'Последний шаг перед видеоидентификацией. Ознакомьтесь с условиями и подтвердите согласие — после видеоидентификации изменить данные без подачи дополнительных документов будет невозможно.',
     summaryTitle: 'Краткая сводка заявки',
     summaryItems: [
       { label: 'Тип структуры', value: 'Sole Proprietorship' },
@@ -67,9 +67,9 @@ const dict: Record<
     loading: 'Сохранение…',
   },
   en: {
-    title: 'Review your details before video identification',
+    title: 'Consent before video identification',
     subtitle:
-      'Please make sure all application data is correct. After video identification, changes cannot be made without submitting additional documents.',
+      'The final step before video identification. Please review the terms and confirm your consent — after video identification, changes cannot be made without submitting additional documents.',
     summaryTitle: 'Application summary',
     summaryItems: [
       { label: 'Entity type', value: 'Sole Proprietorship' },
@@ -221,6 +221,8 @@ const ConsentRow = styled.div`
 
 const CtaWrapper = styled.div`
   ${enter(0.28)};
+  display: flex;
+  justify-content: flex-end;
 `;
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -245,7 +247,7 @@ export const SP08PreVcip = () => {
   };
 
   return (
-    <ScreenV2 maxWidth="560px">
+    <ScreenV2>
       <Card>
         <CardHeader>
           <Title>{t.title}</Title>
@@ -302,6 +304,7 @@ export const SP08PreVcip = () => {
               view="accent"
               size="l"
               text={loading ? t.loading : t.cta}
+              disabled={!checked || loading}
               onClick={handleProceed}
             />
           </CtaWrapper>

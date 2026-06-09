@@ -15,14 +15,18 @@ export interface StepDef {
   order: number;
 }
 
+// Порядок выверен по встрече с Марго (решение Дениса 2026-06-09): вопросы (BNQ) и согласия
+// идут ДО экрана подтверждения всех данных компании. Подтверждение — финальный обзор перед VCIP.
 export const STEPS: StepDef[] = [
-  { id: 'registry', route: '/v2/registry', order: 1, titleRu: 'Согласие на доступ к реестрам', titleEn: 'Registry access consent' },
-  { id: 'pan', route: '/v2/pan', order: 2, titleRu: 'PAN и проверки', titleEn: 'PAN & verification' },
-  { id: 'company', route: '/v2/company', order: 3, titleRu: 'Данные компании', titleEn: 'Company details' },
-  { id: 'data-consents', route: '/v2/data-consents', order: 4, titleRu: 'Согласия по данным', titleEn: 'Data consents' },
-  { id: 'bnq', route: '/v2/bnq', order: 5, titleRu: 'Бизнес-анкета', titleEn: 'Business questionnaire' },
-  { id: 'pre-vcip', route: '/v2/pre-vcip', order: 6, titleRu: 'Согласие перед видеоидентификацией', titleEn: 'Pre-video consent' },
-  { id: 'vcip', route: '/v2/vcip', order: 7, titleRu: 'Видеоидентификация и подписание', titleEn: 'Video ID & signing' },
+  // Шаг 1 объединяет согласие на реестры + ввод PAN (решение Дениса 2026-06-09).
+  { id: 'pan', route: '/v2/pan', order: 1, titleRu: 'Доступ к реестрам и PAN', titleEn: 'Registry access & PAN' },
+  { id: 'bnq', route: '/v2/bnq', order: 2, titleRu: 'Бизнес-анкета', titleEn: 'Business questionnaire' },
+  { id: 'data-consents', route: '/v2/data-consents', order: 3, titleRu: 'Согласия по данным', titleEn: 'Data consents' },
+  { id: 'company', route: '/v2/company', order: 4, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
+  { id: 'pre-vcip', route: '/v2/pre-vcip', order: 5, titleRu: 'Согласие перед видеоидентификацией', titleEn: 'Pre-video consent' },
+  { id: 'vcip', route: '/v2/vcip', order: 6, titleRu: 'Видеоидентификация', titleEn: 'Video identification' },
+  // Шаг 7 — Declarations Dashboard по BRD (Table A шаг 09): подписание деклараций кодом OTP после VKYC.
+  { id: 'sign', route: '/v2/sign', order: 7, titleRu: 'Подписание документов', titleEn: 'Sign documents' },
 ];
 
 export const DASHBOARD_ROUTE = '/v2/dashboard';

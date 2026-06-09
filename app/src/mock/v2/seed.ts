@@ -42,7 +42,7 @@ export const aaravSharmaExports: OnboardingCaseV2 = {
   // BNQ Q1…Q11. riskScore — внутренний, клиенту не показываем. source — подтянул ли Probe42.
   bnq: [
     { q: 'Q1', attribute: 'Business Industry / Segment', block: 1, source: 'available', value: 'Trading', riskScore: 2 },
-    { q: 'Q2', attribute: 'Company Vintage', block: 1, source: 'available', value: '> 1 year (с 07-02-2019)', riskScore: 1 },
+    { q: 'Q2', attribute: 'Company Vintage', block: 1, source: 'available', value: '2019-02-07', riskScore: 1 },
     { q: 'Q3', attribute: 'Company Residency', block: 1, source: 'available', value: 'Indian resident', riskScore: 0 },
     { q: 'Q4', attribute: 'Tax Residency', block: 1, source: 'not_available', value: 'Indian National', riskScore: 1 },
     { q: 'Q5', attribute: 'PEP', block: 1, source: 'not_available', value: 'No', riskScore: 0 },
@@ -110,12 +110,12 @@ export const aaravSharmaExports: OnboardingCaseV2 = {
   // Прогресс для дашборда-хаба. id совпадают с реестром STEPS (ui/v2/steps.ts).
   // Демо-состояние: первые два шага пройдены, на «данные компании» — текущий.
   progress: [
-    { id: 'registry', title: 'Согласие на доступ к реестрам', status: 'done' },
-    { id: 'pan', title: 'PAN и проверки', status: 'done' },
-    { id: 'company', title: 'Данные компании', status: 'current' },
+    { id: 'pan', title: 'Доступ к реестрам и PAN', status: 'done' },
+    { id: 'bnq', title: 'Бизнес-анкета', status: 'current' },
     { id: 'data-consents', title: 'Согласия по данным', status: 'pending' },
-    { id: 'bnq', title: 'Бизнес-анкета', status: 'pending' },
+    { id: 'company', title: 'Подтверждение данных компании', status: 'pending' },
     { id: 'pre-vcip', title: 'Согласие перед видеоидентификацией', status: 'pending' },
-    { id: 'vcip', title: 'Видеоидентификация и подписание', status: 'pending' },
+    { id: 'vcip', title: 'Видеоидентификация', status: 'pending' },
+    { id: 'sign', title: 'Подписание документов', status: 'pending' },
   ],
 };

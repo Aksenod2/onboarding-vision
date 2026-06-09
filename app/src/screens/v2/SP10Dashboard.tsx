@@ -47,6 +47,7 @@ type Dict = {
   actionNeededSubtitle: string;
   goToStep: string;
   steps: string;
+  stepsHint: string;
   statusLabel: Record<StepStatus, string>;
   loadingText: string;
   modeLabel: string;
@@ -72,6 +73,7 @@ const dict: Record<Lang, Dict> = {
       'Есть шаги, требующие вашего участия. Пожалуйста, выполните их, чтобы продолжить.',
     goToStep: 'Перейти',
     steps: 'Этапы онбординга',
+    stepsHint: 'Нажмите на любой этап, чтобы вернуться к нему',
     statusLabel: {
       done: 'Выполнено',
       current: 'В процессе',
@@ -104,6 +106,7 @@ const dict: Record<Lang, Dict> = {
       'Some steps require your attention. Please complete them to proceed.',
     goToStep: 'Open',
     steps: 'Onboarding Steps',
+    stepsHint: 'Tap any step to return to it',
     statusLabel: {
       done: 'Done',
       current: 'In Progress',
@@ -298,11 +301,26 @@ const ActionItemNote = styled.span`
 
 // ─── Список шагов ─────────────────────────────────────────────────────────────
 
+const SectionHeader = styled.div`
+  ${enter(0.18)};
+  margin-bottom: 0.75rem;
+`;
+
 const SectionLabel = styled.div`
   ${eyebrow};
   color: ${textSecondary};
-  margin-bottom: 0.75rem;
-  ${enter(0.18)};
+`;
+
+// №9: явный аффорданс «возврата в любую точку процесса» — заметная подпись
+// над списком шагов. Акцентный цвет + стрелка → читается как приглашение к навигации.
+const StepsHint = styled.div`
+  ${bodySBold};
+  font-size: 0.92rem;
+  color: ${textAccent};
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 `;
 
 const StepList = styled.div`
@@ -525,7 +543,7 @@ export const SP10Dashboard = () => {
     ms.progress?.status ?? 'pending';
 
   return (
-    <ScreenV2 maxWidth="720px">
+    <ScreenV2>
       {loading ? (
         <LoadingWrap>{t.loadingText}</LoadingWrap>
       ) : (
@@ -598,7 +616,10 @@ export const SP10Dashboard = () => {
           )}
 
           {/* ── Полный список шагов (все STEPS, по порядку, кликабельно) ── */}
-          <SectionLabel>{t.steps}</SectionLabel>
+          <SectionHeader>
+            <SectionLabel>{t.steps}</SectionLabel>
+            <StepsHint>↩ {t.stepsHint}</StepsHint>
+          </SectionHeader>
           <StepList>
             {mergedSteps.map((ms) => {
               const status = getStatus(ms);

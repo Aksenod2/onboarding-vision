@@ -255,7 +255,7 @@ export const SP01Landing = () => {
           <Subtitle>{t.subtitle}</Subtitle>
           <CtaRow>
             {/* TODO свериться с MCP — Button view="accent" size="l" text prop */}
-            <Button view="accent" size="l" text={t.cta} onClick={() => navigate('/v2/email')} />
+            <Button view="accent" size="l" text={t.cta} onClick={() => navigate('/v2/login')} />
           </CtaRow>
         </HeroLeft>
 

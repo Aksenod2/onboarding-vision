@@ -6,13 +6,11 @@ import { Button, Checkbox } from '@salutejs/sdds-serv';
 import {
   textPrimary,
   textSecondary,
-  textAccent,
   bodyM,
   bodySBold,
 } from '@salutejs/sdds-themes/tokens';
 import {
   accentPanel,
-  eyebrow,
   radii,
   elevation,
   enter,
@@ -49,13 +47,13 @@ const dict: Record<
     title: 'Согласия по данным',
     subtitle:
       'Перед заполнением бизнес-анкеты подтвердите согласия по данным. Переход работает в любом случае — согласия фиксируются по выбранным пунктам.',
-    consentAadhaarLabel: 'Согласие Aadhaar (Consent 6)',
+    consentAadhaarLabel: 'Согласие Aadhaar',
     consentAadhaarDesc:
       'Я подтверждаю, что мне предоставлены различные варианты подтверждения личности, и я добровольно предоставляю данные Aadhaar банку SBER. В случае если я предоставил данные Aadhaar других субъектов данных, я гарантирую, что такие лица уведомлены об обработке их данных Aadhaar в соответствии с Политикой конфиденциальности и я получил их явное согласие на такую обработку. Я ознакомился с условиями Согласия Aadhaar и принимаю их.',
-    consentDataPrincipalsLabel: 'Конфиденциальность субъектов данных (Consent 5)',
+    consentDataPrincipalsLabel: 'Конфиденциальность субъектов данных',
     consentDataPrincipalsDesc:
       'Я подтверждаю, что в случае предоставления персональных данных других субъектов данных, гарантирую: такие лица уведомлены об обработке их персональных данных банком SBER в соответствии с Политикой конфиденциальности, и я получил их явное согласие на такую обработку. Я обязуюсь освободить банк SBER от любой ответственности, связанной с такой передачей данных.',
-    consentKmpLabel: 'Данные ключевых руководителей (Consent 4)',
+    consentKmpLabel: 'Данные ключевых руководителей',
     consentKmpDesc:
       'Я подтверждаю, что предоставлю информацию по всем ключевым руководящим лицам (Key Managerial Personnel) данного предприятия.',
     cta: 'Продолжить',
@@ -65,13 +63,13 @@ const dict: Record<
     title: 'Data Consents',
     subtitle:
       'Before completing the business questionnaire, please confirm the data consents below. You may proceed regardless — consents are recorded for checked items only.',
-    consentAadhaarLabel: 'Aadhaar Consent (Consent 6)',
+    consentAadhaarLabel: 'Aadhaar Consent',
     consentAadhaarDesc:
       'I hereby acknowledge and confirm that I have been provided various options by Sberbank Branch in India for establishing my identity and I voluntarily submit my Aadhaar details. In case I have provided Aadhaar details of other Data Principals, I guarantee that such Data Principals are notified about Sberbank Branch in India processing of their Aadhaar details as described in the Privacy Notice and I obtained their explicit Aadhaar Consent for such processing. I have read and understood the Aadhaar Consent and terms governing this application form and hereby accept the same.',
-    consentDataPrincipalsLabel: 'Data Principals Privacy (Consent 5)',
+    consentDataPrincipalsLabel: 'Data Principals Privacy',
     consentDataPrincipalsDesc:
       'I hereby acknowledge and confirm that in case I have provided personal data of other Data Principals, I guarantee that such Data Principals are notified about Sberbank Branch in India processing of their personal data as described in the Privacy Notice and I obtained their explicit consent for such processing and shall keep Sberbank Branch in India indemnified and hold harmless against any loss, damage, liabilities, obligations caused to Sberbank Branch in India.',
-    consentKmpLabel: 'KMP Confirmation (Consent 4)',
+    consentKmpLabel: 'KMP Confirmation',
     consentKmpDesc:
       'I confirm that I will provide information for all Key Managerial Personnel in the entity.',
     cta: 'Continue',
@@ -127,13 +125,6 @@ const ConsentItem = styled.div`
   background: rgba(33, 160, 56, 0.03);
 `;
 
-const ConsentNumber = styled.span`
-  ${eyebrow};
-  font-size: 0.72rem;
-  color: ${textAccent};
-  margin-bottom: 0.35rem;
-`;
-
 const ConsentDesc = styled.p`
   margin: 0.5rem 0 0;
   ${bodyM};
@@ -153,6 +144,8 @@ const SectionLabel = styled.p`
 const CtaWrapper = styled.div`
   ${enter(0.3)};
   padding-top: 0.25rem;
+  display: flex;
+  justify-content: flex-end;
 `;
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -177,11 +170,11 @@ export const SPDataConsents = () => {
       await setStepStatus('data-consents', 'done');
     } catch (_) { /* игнорируем */ }
     setSaving(false);
-    navigate('/v2/bnq');
+    navigate('/v2/company'); // → подтверждение данных компании (финальный обзор перед VCIP)
   };
 
   return (
-    <ScreenV2 maxWidth="560px">
+    <ScreenV2>
       <Card>
         <CardHeader>
           <Title>{t.title}</Title>
@@ -193,9 +186,8 @@ export const SPDataConsents = () => {
             {lang === 'ru' ? 'Ознакомьтесь и отметьте применимые пункты:' : 'Review and check the applicable items:'}
           </SectionLabel>
 
-          {/* Consent 6 — Aadhaar */}
+          {/* Consent 6 — Aadhaar (внутренний номер банка клиенту не показываем) */}
           <ConsentItem>
-            <ConsentNumber>CONSENT 6</ConsentNumber>
             {/* TODO свериться с MCP — Checkbox: label / description / checked / onChange */}
             <Checkbox
               label={t.consentAadhaarLabel}
@@ -209,7 +201,6 @@ export const SPDataConsents = () => {
 
           {/* Consent 5 — Data Principals */}
           <ConsentItem>
-            <ConsentNumber>CONSENT 5</ConsentNumber>
             <Checkbox
               label={t.consentDataPrincipalsLabel}
               checked={consentDataPrincipals}
@@ -222,7 +213,6 @@ export const SPDataConsents = () => {
 
           {/* Consent 4 — KMP Confirmation */}
           <ConsentItem>
-            <ConsentNumber>CONSENT 4</ConsentNumber>
             <Checkbox
               label={t.consentKmpLabel}
               checked={consentKmp}

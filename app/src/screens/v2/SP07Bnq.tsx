@@ -16,12 +16,10 @@ import type { Lang } from '../../ui/v2/LanguageContext';
 import {
   getBnq,
   answerBnq,
-  uploadDocument,
   setStepStatus,
 } from '../../mock/v2/api';
 import type { BnqAnswer } from '../../mock/v2/types';
 import {
-  accentPanel,
   elevation,
   enter,
   radii,
@@ -31,8 +29,6 @@ import {
 // Роут: /v2/bnq
 
 // ─── Типы ────────────────────────────────────────────────────────────────────
-
-type UploadState = 'idle' | 'uploading' | 'done';
 
 // Индекс активного вопроса с учётом пропуска Q10/Q11 при Q9=No
 type QIndex = number;
@@ -56,9 +52,8 @@ const dict: Record<Lang, {
   uploadNow: string;
   // Q1
   q1Label: string;
+  q1IndustryField: string;
   q1SegmentLabel: string;
-  q1LicenceHint: string;
-  q1LicenceBtn: string;
   // Q2
   q2Label: string;
   // Q3
@@ -115,10 +110,8 @@ const dict: Record<Lang, {
     uploadLater: 'Загружу позже',
     uploadNow: 'Загрузить сейчас',
     q1Label: 'В какой отрасли работает ваш бизнес?',
-    q1SegmentLabel: 'Укажите сегмент бизнеса',
-    q1LicenceHint:
-      'Для вашей отрасли требуется лицензия. Загрузите её для продолжения проверки.',
-    q1LicenceBtn: 'Загрузить Business Licence',
+    q1IndustryField: 'Отрасль',
+    q1SegmentLabel: 'Сегмент',
     q2Label: 'Укажите дату регистрации бизнеса',
     q3Label: 'Подтвердите статус резидентности вашей компании',
     q3Opt1: 'Компания является резидентом Индии',
@@ -168,10 +161,8 @@ const dict: Record<Lang, {
     uploadLater: 'Upload later',
     uploadNow: 'Upload now',
     q1Label: 'What industry is your business in?',
-    q1SegmentLabel: 'Select the business segment',
-    q1LicenceHint:
-      'A business licence is required for your selected industry. Please upload it for verification.',
-    q1LicenceBtn: 'Upload Business Licence',
+    q1IndustryField: 'Industry',
+    q1SegmentLabel: 'Segment',
     q2Label: 'What is the date of commencement of your business?',
     q3Label: 'Please confirm the residency status for your company',
     q3Opt1: 'Company is an Indian resident',
@@ -296,6 +287,9 @@ const QBlock = styled.div`
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  /* Фиксированная высота блока вопроса — карточка не «прыгает» между вопросами
+     (взято по самому высокому вопросу — Q11 с дисклеймером). Решение Дениса 2026-06-09. */
+  min-height: 240px;
 `;
 
 const QLabel = styled.p`
@@ -303,6 +297,14 @@ const QLabel = styled.p`
   ${bodySBold};
   font-size: 1rem;
   color: ${textPrimary};
+  line-height: 1.5;
+`;
+
+const ProbeLine = styled.p`
+  margin: 0;
+  ${bodyM};
+  font-size: 0.9rem;
+  color: ${textSecondary};
   line-height: 1.5;
 `;
 
@@ -355,22 +357,6 @@ const RadioDot = styled.span<{ $selected: boolean }>`
   }
 `;
 
-const UploadBlock = styled.div`
-  ${accentPanel};
-  border-radius: ${radii.panel};
-  padding: 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-`;
-
-const UploadHint = styled.p`
-  margin: 0;
-  ${bodyM};
-  color: ${textSecondary};
-  font-size: 0.875rem;
-`;
-
 const DisclaimerBox = styled.div`
   background: rgba(255, 180, 0, 0.06);
   border: 1.5px solid rgba(255, 180, 0, 0.28);
@@ -404,8 +390,10 @@ const ConfirmRow = styled.div`
 // ─── Вспомогательная функция ──────────────────────────────────────────────────
 
 /**
- * Из массива BnqAnswer[11] строим «плоский» порядок шагов с учётом ветвления Q9.
- * Если Q9 answered с «No» — Q10/Q11 убираем из маршрута.
+ * Из массива BnqAnswer[11] строим «плоский» порядок шагов.
+ * Решение Дениса 2026-06-09: вопросы с данными из реестра (source='available') НЕ скрываем,
+ * а показываем предзаполненными для подтверждения («Мы определили: X. Верно?» — режим в renderQuestion).
+ * Единственное ветвление: Q10/Q11 убираем, если Q9 отвечен «No» (нет ВЭД).
  * Возвращаем массив индексов (0-based) исходного массива.
  */
 function buildStepOrder(bnq: BnqAnswer[], q9SkipTradeBloc: boolean): QIndex[] {
@@ -440,10 +428,8 @@ export const SP07Bnq = () => {
   // Доп. поля Q1
   const [industryVal, setIndustryVal] = useState('');
   const [segmentVal, setSegmentVal] = useState('');
-  const [licenceUpload, setLicenceUpload] = useState<UploadState>('idle');
 
-  // Доп. Q11
-  const [iecUpload, setIecUpload] = useState<UploadState>('idle');
+  // Доп. Q11 — намерение по IEC (сам файл грузится на «Подтверждении данных компании»)
   const [iecChoice, setIecChoice] = useState<'now' | 'later' | ''>('');
 
   // DVU / CRM алерт (тихий, после Q5 PEP=Yes)
@@ -473,6 +459,8 @@ export const SP07Bnq = () => {
     if (!currentQ) return;
     setLocalValue(currentQ.value ?? '');
     setEditingProbe(false);
+    // Предзаполняем поля из данных Probe42, чтобы клиент правил, а не вводил заново.
+    if (currentQ.q === 'Q1') setIndustryVal(currentQ.value ?? '');
   }, [stepIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Обработка ответа ───────────────────────────────────────────────────────
@@ -523,7 +511,7 @@ export const SP07Bnq = () => {
     const isLast = stepIdx === totalSteps - 1;
     if (isLast) {
       try { await setStepStatus('bnq', 'done'); } catch (_) { /* игнорируем */ }
-      navigate('/v2/pre-vcip');
+      navigate('/v2/data-consents');
     } else {
       setStepIdx((i) => i + 1);
     }
@@ -536,19 +524,14 @@ export const SP07Bnq = () => {
 
   // ─── Upload mock ────────────────────────────────────────────────────────────
 
-  const handleLicenceUpload = async () => {
-    setLicenceUpload('uploading');
-    await uploadDocument('Business Licence');
-    setLicenceUpload('done');
-  };
-
-  const handleIecUpload = async () => {
-    setIecUpload('uploading');
-    await uploadDocument('IEC');
-    setIecUpload('done');
-  };
-
   // ─── Рендер вопроса ─────────────────────────────────────────────────────────
+
+  // Заголовок (формулировка) каждого вопроса — единый источник для probe и редактирования.
+  const Q_TITLE: Record<string, string> = {
+    Q1: t.q1Label, Q2: t.q2Label, Q3: t.q3Label, Q4: t.q4Label,
+    Q5: t.q5Label, Q6: t.q6Label, Q7: t.q7Label, Q8: t.q8Label,
+    Q9: t.q9Label, Q10: t.q10Label, Q11: t.q11Label,
+  };
 
   const renderQuestion = () => {
     if (!currentQ) return null;
@@ -556,35 +539,16 @@ export const SP07Bnq = () => {
 
     // ── Двойной сценарий: Probe подтянул ──────────────────────────────────────
     if (source === 'available' && !editingProbe) {
-      // Разбиваем строку на части до/после значения для стилизации
       const labelParts = t.probeConfirm(value).split(value);
       return (
         <QBlock>
-          <QLabel>
+          {/* Заголовок вопроса — чтобы было понятно, ЧТО подтверждаем */}
+          <QLabel>{Q_TITLE[q]}</QLabel>
+          <ProbeLine>
             {labelParts[0]}
             <ProbeValue>{value}</ProbeValue>
             {labelParts[1]}
-          </QLabel>
-          <ConfirmRow>
-            {/* TODO свериться с MCP — Button view / size */}
-            <Button
-              view="accent"
-              size="m"
-              text={t.yes}
-              onClick={() => {
-                handleNext();
-              }}
-            />
-            <Button
-              view="secondary"
-              size="m"
-              text={t.change}
-              onClick={() => {
-                setEditingProbe(true);
-                setLocalValue(value);
-              }}
-            />
-          </ConfirmRow>
+          </ProbeLine>
         </QBlock>
       );
     }
@@ -603,10 +567,9 @@ export const SP07Bnq = () => {
                 setLocalValue(`${v} / ${segmentVal}`);
               }
             }}
-            label={t.q1Label}
+            label={t.q1IndustryField}
             items={INDUSTRIES.map((v) => ({ value: v, label: v }))}
           />
-          <QLabel>{t.q1SegmentLabel}</QLabel>
           {/* TODO свериться с MCP — Select items prop */}
           <Select
             value={segmentVal}
@@ -619,25 +582,8 @@ export const SP07Bnq = () => {
             label={t.q1SegmentLabel}
             items={INDUSTRIES.map((v) => ({ value: v, label: v }))}
           />
-          {industryVal && (
-            <UploadBlock>
-              <UploadHint>{t.q1LicenceHint}</UploadHint>
-              {licenceUpload === 'idle' && (
-                <Button
-                  view="secondary"
-                  size="m"
-                  text={t.q1LicenceBtn}
-                  onClick={handleLicenceUpload}
-                />
-              )}
-              {licenceUpload === 'uploading' && (
-                <Button view="secondary" size="m" text={t.uploading} />
-              )}
-              {licenceUpload === 'done' && (
-                <Button view="secondary" size="m" text={t.uploaded} />
-              )}
-            </UploadBlock>
-          )}
+          {/* Загрузка Business Licence перенесена на «Подтверждение данных компании»
+              (решение Дениса 2026-06-09): документы собираем в одной точке, не по ходу анкеты. */}
         </QBlock>
       );
     }
@@ -654,7 +600,6 @@ export const SP07Bnq = () => {
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               setLocalValue(e.target.value)
             }
-            label={t.q2Label}
           />
         </QBlock>
       );
@@ -864,24 +809,7 @@ export const SP07Bnq = () => {
               {t.uploadLater}
             </RadioOption>
           </RadioGroup>
-          {iecChoice === 'now' && (
-            <UploadBlock>
-              {iecUpload === 'idle' && (
-                <Button
-                  view="secondary"
-                  size="m"
-                  text={t.uploadBtn}
-                  onClick={handleIecUpload}
-                />
-              )}
-              {iecUpload === 'uploading' && (
-                <Button view="secondary" size="m" text={t.uploading} />
-              )}
-              {iecUpload === 'done' && (
-                <Button view="secondary" size="m" text={t.uploaded} />
-              )}
-            </UploadBlock>
-          )}
+          {/* Сам файл IEC грузится на «Подтверждении данных компании» — здесь только намерение (сейчас/позже). */}
         </QBlock>
       );
     }
@@ -906,7 +834,7 @@ export const SP07Bnq = () => {
 
   if (loading || !currentQ) {
     return (
-      <ScreenV2 maxWidth="640px">
+      <ScreenV2>
         <Wrap>
           <Card>
             <CardTitle>{lang === 'ru' ? 'Загружаем анкету...' : 'Loading questionnaire...'}</CardTitle>
@@ -928,7 +856,7 @@ export const SP07Bnq = () => {
   const visibleStepNum = stepIdx + 1;
 
   return (
-    <ScreenV2 maxWidth="640px">
+    <ScreenV2>
       <Wrap>
         {/* Прогресс по вопросам анкеты — подчинён верхнему StepProgress */}
         <ProgressBar>
@@ -957,40 +885,47 @@ export const SP07Bnq = () => {
 
           {renderQuestion()}
 
-          {/* Навигация: не показывать нижние кнопки «Далее» для probe-confirm (там свои) */}
-          {!isProbeAvailable && (
-            <NavRow>
-              {stepIdx > 0 ? (
-                <Button
-                  view="secondary"
-                  size="m"
-                  text={t.back}
-                  onClick={handleBack}
-                />
-              ) : (
-                <span />
-              )}
-              <Button
-                view="accent"
-                size="m"
-                text={isLastStep ? t.finish : t.next}
-                onClick={handleNext}
-              />
-            </NavRow>
-          )}
-
-          {/* В режиме probe: кнопка «Назад» отдельно */}
-          {isProbeAvailable && stepIdx > 0 && (
-            <NavRow>
+          {/* Единый ряд навигации: «Назад» слева, действия справа.
+              В probe-режиме справа [Изменить] [Да, верно], иначе [Далее/Завершить]. */}
+          <NavRow>
+            {stepIdx > 0 ? (
               <Button
                 view="secondary"
                 size="m"
                 text={t.back}
                 onClick={handleBack}
               />
+            ) : (
               <span />
-            </NavRow>
-          )}
+            )}
+
+            {isProbeAvailable ? (
+              <ConfirmRow>
+                <Button
+                  view="secondary"
+                  size="m"
+                  text={t.change}
+                  onClick={() => {
+                    setEditingProbe(true);
+                    setLocalValue(currentQ.value ?? '');
+                  }}
+                />
+                <Button
+                  view="accent"
+                  size="m"
+                  text={t.yes}
+                  onClick={handleNext}
+                />
+              </ConfirmRow>
+            ) : (
+              <Button
+                view="accent"
+                size="m"
+                text={isLastStep ? t.finish : t.next}
+                onClick={handleNext}
+              />
+            )}
+          </NavRow>
         </Card>
       </Wrap>
     </ScreenV2>

@@ -1,93 +1,64 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import styled, { keyframes, css } from 'styled-components';
-import { Button, TextField, Note } from '@salutejs/sdds-serv'; // TODO свериться с MCP — TextField props, view="accent"
+import styled, { keyframes } from 'styled-components';
+import { Button, TextField, Note, Checkbox } from '@salutejs/sdds-serv'; // TODO свериться с MCP — TextField / Checkbox props, view="accent"
 import {
   textPrimary,
   textSecondary,
   textAccent,
   bodyM,
-  bodySBold,
 } from '@salutejs/sdds-themes/tokens';
 import { accentPanel, eyebrow, radii, enter, elevation } from '../../ui/designSystem';
 import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
-import { getScreening, getBusiness, setStepStatus } from '../../mock/v2/api';
-import type { CheckType, CheckStatus } from '../../mock/v2/types';
+import { getBusiness, giveConsent, setStepStatus } from '../../mock/v2/api';
 
-// SP-05 — Ввод PAN + авто-скрининг.
-// Шаг 1: TextField PAN (формат AAAAA9999A, аптокейс), демо-значение ABFPS4321K, Button «Проверить».
-// Шаг 2: анимированный список проверок из getScreening(), авто-переход /v2/company.
-// Роут: /v2/pan
+// SP-05 — Согласие на доступ к реестрам + ввод PAN (объединённый экран, решение Дениса 2026-06-09).
+// Шаг 1: галочка-согласие (Registry Access) + TextField PAN (формат AAAAA9999A), CTA «Разрешить и продолжить».
+// Шаг 2: нейтральный индикатор загрузки (без перечисления проверок/источников), авто-переход /v2/company.
+// Роут: /v2/pan (бывший /v2/registry редиректится сюда).
 
 // ─── i18n ────────────────────────────────────────────────────────────────────
 
 const dict: Record<Lang, {
   title: string;
   subtitle: string;
+  consentLabel: string;
+  consentDescription: string;
   fieldLabel: string;
   fieldHint: string;
   fieldPlaceholder: string;
   cta: string;
   stepLabel: string;
-  screeningTitle: string;
-  screeningSubtitle: string;
-  checks: Record<CheckType, string>;
-  statusLabels: Record<CheckStatus, string>;
-  done: string;
+  verifyTitle: string;
+  verifySubtitle: string;
 }> = {
   ru: {
-    title: 'Введите PAN',
-    subtitle: 'Укажите Permanent Account Number — мы автоматически подтянем данные вашего бизнеса из реестров.',
+    title: 'Доступ к реестрам и PAN',
+    subtitle: 'Разрешите запрос данных из реестров и укажите PAN — мы автоматически проверим и заполним данные вашего бизнеса.',
+    consentLabel: 'Разрешаю запрашивать данные из реестров',
+    consentDescription: 'Я даю согласие на получение сведений из PAN-базы Налогового департамента и реестра CKYC в целях верификации при открытии счёта.',
     fieldLabel: 'PAN',
     fieldHint: 'Формат: 5 букв, 4 цифры, 1 буква — например ABCPS1234K',
     fieldPlaceholder: 'ABFPS4321K',
-    cta: 'Проверить',
+    cta: 'Разрешить и продолжить',
     stepLabel: 'ПРОВЕРКА',
-    screeningTitle: 'Подтягиваем данные из реестров…',
-    screeningSubtitle: 'Это займёт несколько секунд. Пожалуйста, не закрывайте страницу.',
-    checks: {
-      'PAN': 'Проверка PAN в налоговой базе',
-      'OFAC/Sanctions': 'Санкционный скрининг (OFAC)',
-      'Probe42': 'Получение данных из Probe42',
-      'CKYC': 'Центральный KYC-реестр (CKYC)',
-      'Stop-42': 'Стоп-лист Stop-42',
-    },
-    statusLabels: {
-      'Pass': 'Пройдено',
-      'Alert': 'Требует внимания',
-      'Fetched': 'Получено',
-      'Found': 'Найдено',
-      'NotFound': 'Не найдено',
-    },
-    done: 'Все проверки завершены',
+    verifyTitle: 'Проверяем ваши данные…',
+    verifySubtitle: 'Это займёт несколько секунд. Пожалуйста, не закрывайте страницу.',
   },
   en: {
-    title: 'Enter your PAN',
-    subtitle: 'Provide your Permanent Account Number — we will automatically fetch your business data from registries.',
+    title: 'Registry access & PAN',
+    subtitle: 'Allow us to query the registries and provide your PAN — we will verify and pre-fill your business details automatically.',
+    consentLabel: 'Allow registry data queries',
+    consentDescription: 'I consent to retrieving data from the Income Tax PAN database and the CKYC registry for the purpose of account-opening verification.',
     fieldLabel: 'PAN',
     fieldHint: 'Format: 5 letters, 4 digits, 1 letter — e.g. ABCPS1234K',
     fieldPlaceholder: 'ABFPS4321K',
-    cta: 'Verify',
+    cta: 'Allow and continue',
     stepLabel: 'VERIFICATION',
-    screeningTitle: 'Fetching data from registries…',
-    screeningSubtitle: 'This will take a few seconds. Please do not close this page.',
-    checks: {
-      'PAN': 'PAN verification (Income Tax)',
-      'OFAC/Sanctions': 'Sanctions screening (OFAC)',
-      'Probe42': 'Probe42 data retrieval',
-      'CKYC': 'Central KYC registry (CKYC)',
-      'Stop-42': 'Stop-42 watchlist',
-    },
-    statusLabels: {
-      'Pass': 'Passed',
-      'Alert': 'Alert',
-      'Fetched': 'Fetched',
-      'Found': 'Found',
-      'NotFound': 'Not found',
-    },
-    done: 'All checks completed',
+    verifyTitle: 'Verifying your details…',
+    verifySubtitle: 'This will take a few seconds. Please do not close this page.',
   },
 };
 
@@ -146,6 +117,20 @@ const CardBody = styled.div`
   gap: 1.25rem;
 `;
 
+const ConsentRow = styled.div`
+  ${enter(0.12)};
+  padding: 1rem 1.1rem;
+  border: 1.5px solid rgba(33, 160, 56, 0.25);
+  border-radius: ${radii.panel};
+  background: rgba(33, 160, 56, 0.03);
+`;
+
+// Кнопка «Продолжить» — у правого края (правило Дениса 2026-06-09)
+const ButtonRow = styled.div`
+  display: flex;
+  justify-content: flex-end;
+`;
+
 const FieldHint = styled.p`
   margin: -0.5rem 0 0;
   ${bodyM};
@@ -174,14 +159,9 @@ const PanTypeBadge = styled.div`
   }
 `;
 
-// ─── Screening list ───────────────────────────────────────────────────────────
+// ─── Verifying state (нейтральный индикатор) ───────────────────────────────────
 
-const dotPulse = keyframes`
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40%            { transform: scale(1.0); opacity: 1.0; }
-`;
-
-const ScreeningCard = styled.div`
+const VerifyCard = styled.div`
   background: #ffffff;
   border-radius: ${radii.card};
   box-shadow: ${elevation.card};
@@ -189,18 +169,18 @@ const ScreeningCard = styled.div`
   ${enter(0.08)};
 `;
 
-const ScreeningHeader = styled.div`
+const VerifyHeader = styled.div`
   ${accentPanel};
   padding: 1.25rem 1.75rem 1rem;
 `;
 
-const ScreeningEyebrow = styled.div`
+const VerifyEyebrow = styled.div`
   ${eyebrow};
   color: ${textAccent};
   margin-bottom: 0.5rem;
 `;
 
-const ScreeningTitle = styled.h2`
+const VerifyTitle = styled.h2`
   margin: 0 0 0.25rem;
   font-size: 1.2rem;
   font-weight: 700;
@@ -208,122 +188,33 @@ const ScreeningTitle = styled.h2`
   color: ${textPrimary};
 `;
 
-const ScreeningSubtitle = styled.p`
+const VerifySubtitle = styled.p`
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.5;
   color: ${textSecondary};
 `;
 
-const ChecksList = styled.ul`
-  margin: 0;
-  padding: 0;
-  list-style: none;
+const VerifyBody = styled.div`
+  padding: 2.5rem 1.75rem;
   display: flex;
   flex-direction: column;
-`;
-
-interface CheckItemProps {
-  $state: 'waiting' | 'loading' | 'done';
-  $delay: number;
-}
-
-const itemReveal = keyframes`
-  from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0); }
-`;
-
-const CheckItem = styled.li<CheckItemProps>`
-  display: flex;
   align-items: center;
-  gap: 0.9rem;
-  padding: 0.9rem 1.75rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-
-  &:last-child {
-    border-bottom: none;
-  }
-
-  ${({ $state, $delay }) =>
-    $state !== 'waiting' &&
-    css`
-      animation: ${itemReveal} 0.38s cubic-bezier(0.16, 1, 0.3, 1) ${$delay * 0.05}s both;
-    `}
-
-  opacity: ${({ $state }) => ($state === 'waiting' ? 0.35 : 1)};
-  transition: opacity 0.3s;
+  gap: 1.5rem;
 `;
 
-const CheckIcon = styled.span<{ $state: 'waiting' | 'loading' | 'done'; $ok: boolean }>`
-  width: 28px;
-  height: 28px;
+const spin = keyframes`
+  to { transform: rotate(360deg); }
+`;
+
+const Spinner = styled.span`
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
-  font-weight: 700;
-  transition: background 0.25s, color 0.25s;
-
-  ${({ $state, $ok }) => {
-    if ($state === 'waiting') return css`background: rgba(0,0,0,0.07); color: ${textSecondary};`;
-    if ($state === 'loading') return css`background: rgba(0,0,0,0.07); color: ${textSecondary};`;
-    if ($ok) return css`background: rgba(33, 160, 56, 0.15); color: rgb(33, 160, 56);`;
-    return css`background: rgba(200, 60, 60, 0.12); color: rgb(180, 40, 40);`;
-  }}
+  border: 3px solid rgba(33, 160, 56, 0.18);
+  border-top-color: rgb(33, 160, 56);
+  animation: ${spin} 0.9s linear infinite;
 `;
-
-const CheckContent = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-`;
-
-const CheckName = styled.span`
-  ${bodySBold};
-  font-size: 0.88rem;
-  color: ${textPrimary};
-`;
-
-const CheckStatusBadge = styled.span<{ $ok: boolean; $visible: boolean }>`
-  ${bodyM};
-  font-size: 0.75rem;
-  color: ${({ $ok }) => ($ok ? 'rgb(33, 160, 56)' : 'rgb(180, 40, 40)')};
-  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
-  transition: opacity 0.25s;
-`;
-
-const Dots = styled.span`
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-
-  span {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: ${textSecondary};
-    display: inline-block;
-    animation: ${dotPulse} 1.2s infinite ease-in-out;
-
-    &:nth-child(2) { animation-delay: 0.2s; }
-    &:nth-child(3) { animation-delay: 0.4s; }
-  }
-`;
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type ItemState = 'waiting' | 'loading' | 'done';
-
-interface CheckRow {
-  checkType: CheckType;
-  status: CheckStatus;
-}
-
-const isOkStatus = (s: CheckStatus): boolean =>
-  s === 'Pass' || s === 'Fetched';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -332,14 +223,13 @@ export const SP05Pan = () => {
   const { lang } = useLanguage();
   const t = dict[lang];
 
-  // Шаг 1 — ввод PAN
+  // Шаг 1 — согласие на реестры + ввод PAN
+  const [consent, setConsent] = useState(false);
   const [pan, setPan] = useState('ABFPS4321K');
   const [panError, setPanError] = useState('');
 
-  // Шаг 2 — скрининг
-  const [phase, setPhase] = useState<'input' | 'screening'>('input');
-  const [checks, setChecks] = useState<CheckRow[]>([]);
-  const [itemStates, setItemStates] = useState<ItemState[]>([]);
+  // Шаг 2 — проверка данных
+  const [phase, setPhase] = useState<'input' | 'verifying'>('input');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // Очищаем таймеры при размонтировании
@@ -364,57 +254,24 @@ export const SP05Pan = () => {
       // не return — продолжаем
     }
 
-    // (loading state removed — free-check mode)
+    // Фиксируем согласие на доступ к реестрам (объединено с PAN на этом экране)
+    try { await giveConsent('Registry Access', new Date().toISOString()); } catch (_) { /* игнорируем */ }
 
-    // Параллельно грузим скрининг и данные бизнеса (getBusiness нужен для следующего экрана)
-    const [screeningData] = await Promise.all([
-      getScreening(),
-      getBusiness(),
-    ]);
+    // Подгружаем данные бизнеса (нужны для следующего экрана)
+    await getBusiness();
 
-    const rows: CheckRow[] = screeningData.map((s) => ({
-      checkType: s.checkType,
-      status: s.status,
-    }));
+    setPhase('verifying');
 
-    setChecks(rows);
-    setItemStates(rows.map(() => 'waiting'));
-    setPhase('screening');
-
-    // Анимируем проверки по очереди: loading → done с задержкой 600ms на каждую
-    const STEP_MS = 650;
-
-    rows.forEach((_, idx) => {
-      const loadTimer = setTimeout(() => {
-        setItemStates((prev) => {
-          const next = [...prev];
-          next[idx] = 'loading';
-          return next;
-        });
-      }, idx * STEP_MS);
-
-      const doneTimer = setTimeout(() => {
-        setItemStates((prev) => {
-          const next = [...prev];
-          next[idx] = 'done';
-          return next;
-        });
-      }, idx * STEP_MS + 420);
-
-      timersRef.current.push(loadTimer, doneTimer);
-    });
-
-    // Авто-переход после того как все проверки «загорятся»
-    const totalMs = rows.length * STEP_MS + 600;
+    // Нейтральная пауза с индикатором, затем авто-переход
     const navTimer = setTimeout(async () => {
       try { await setStepStatus('pan', 'done'); } catch (_) { /* игнорируем */ }
-      navigate('/v2/company');
-    }, totalMs);
+      navigate('/v2/bnq');
+    }, 2400);
     timersRef.current.push(navTimer);
   };
 
   return (
-    <ScreenV2 maxWidth="560px">
+    <ScreenV2>
       {phase === 'input' && (
         <Card>
           <CardHeader>
@@ -446,47 +303,44 @@ export const SP05Pan = () => {
               : <FieldHint>{t.fieldHint}</FieldHint>
             }
 
-            <Button
-              view="accent"
-              size="l"
-              text={t.cta}
-              onClick={handleVerify}
-            />
+            {/* Согласие на реестры — всегда внизу, перед кнопкой; гейтит CTA */}
+            {/* TODO свериться с MCP — Checkbox: label / description / checked / onChange */}
+            <ConsentRow>
+              <Checkbox
+                label={t.consentLabel}
+                description={t.consentDescription}
+                checked={consent}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setConsent(e.target.checked)
+                }
+              />
+            </ConsentRow>
+
+            <ButtonRow>
+              <Button
+                view="accent"
+                size="l"
+                text={t.cta}
+                disabled={!consent}
+                onClick={handleVerify}
+              />
+            </ButtonRow>
           </CardBody>
         </Card>
       )}
 
-      {phase === 'screening' && (
-        <ScreeningCard>
-          <ScreeningHeader>
-            <ScreeningEyebrow>{t.stepLabel}</ScreeningEyebrow>
-            <ScreeningTitle>{t.screeningTitle}</ScreeningTitle>
-            <ScreeningSubtitle>{t.screeningSubtitle}</ScreeningSubtitle>
-          </ScreeningHeader>
+      {phase === 'verifying' && (
+        <VerifyCard>
+          <VerifyHeader>
+            <VerifyEyebrow>{t.stepLabel}</VerifyEyebrow>
+            <VerifyTitle>{t.verifyTitle}</VerifyTitle>
+            <VerifySubtitle>{t.verifySubtitle}</VerifySubtitle>
+          </VerifyHeader>
 
-          <ChecksList>
-            {checks.map((row, idx) => {
-              const state = itemStates[idx] ?? 'waiting';
-              const ok = isOkStatus(row.status);
-              return (
-                <CheckItem key={row.checkType} $state={state} $delay={idx}>
-                  <CheckIcon $state={state} $ok={ok}>
-                    {state === 'waiting' && '○'}
-                    {state === 'loading' && <Dots><span /><span /><span /></Dots>}
-                    {state === 'done' && (ok ? '✓' : '!')}
-                  </CheckIcon>
-
-                  <CheckContent>
-                    <CheckName>{t.checks[row.checkType]}</CheckName>
-                    <CheckStatusBadge $ok={ok} $visible={state === 'done'}>
-                      {t.statusLabels[row.status]}
-                    </CheckStatusBadge>
-                  </CheckContent>
-                </CheckItem>
-              );
-            })}
-          </ChecksList>
-        </ScreeningCard>
+          <VerifyBody>
+            <Spinner />
+          </VerifyBody>
+        </VerifyCard>
       )}
     </ScreenV2>
   );

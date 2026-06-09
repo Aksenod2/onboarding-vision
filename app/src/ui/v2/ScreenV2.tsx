@@ -87,12 +87,15 @@ const Content = styled.main<{ $maxWidth: string }>`
   }
 `;
 
+// Единая ширина контентной области для ВСЕХ шагов (решение Дениса 2026-06-09):
+// одинаковая ширина везде — никаких «прыжков» между шагами. 880px (выбор Дениса по анкете).
+const CONTENT_MAX_WIDTH = '880px';
+
 interface ScreenV2Props {
   children: ReactNode;
-  maxWidth?: string; // ширина контентной области; по умолчанию 720px
 }
 
-export const ScreenV2 = ({ children, maxWidth = '720px' }: ScreenV2Props) => {
+export const ScreenV2 = ({ children }: ScreenV2Props) => {
   const { lang, setLang } = useLanguage();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -113,7 +116,7 @@ export const ScreenV2 = ({ children, maxWidth = '720px' }: ScreenV2Props) => {
           </LangBtn>
         </LangSwitcher>
       </Header>
-      <Content $maxWidth={maxWidth}>
+      <Content $maxWidth={CONTENT_MAX_WIDTH}>
         {currentStep && <StepProgress currentStepId={currentStep.id} />}
         {children}
       </Content>

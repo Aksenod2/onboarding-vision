@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 // TODO свериться с MCP — Button view/size, TextField, Mask, CodeField, Checkbox, Note props
 import { Button, TextField, Mask, CodeField, Checkbox, Note } from '@salutejs/sdds-serv';
@@ -13,13 +13,14 @@ import {
 import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
-import { createSession, verifyOtp, giveConsent } from '../../mock/v2/api';
+import { createSession, verifyOtp, giveConsent, getSession } from '../../mock/v2/api';
 import { accentPanel, radii, elevation, eyebrow, enter } from '../../ui/designSystem';
 
 // SP-03 — Регистрация / авторизация + стартовые согласия (Sole Proprietor).
-// Роут: /v2/login
-// Шаг 1: email + телефон (+91 маска) + 3 чекбокса согласий → createSession + giveConsent → OTP.
-// Шаг 2: CodeField 4 знака → verifyOtp('0000') → navigate('/v2/registry').
+// Роут: /v2/login  (OTP-стадия: /v2/login?step=otp — возврат из письма SP-02)
+// Шаг 1: email + телефон (+91 маска) + 3 чекбокса согласий → createSession + giveConsent → SP-02 (письмо).
+// Шаг 2: возврат из письма (?step=otp) → CodeField 4 знака → verifyOtp('0000') → navigate('/v2/pan').
+// Телефон в OTP-стадии берётся из mock-сессии (компонент перемонтирован после SP-02).
 
 // ─── Словарь ─────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ const dict: Record<
   ru: {
     stepLabel: 'ШАГ 1 ИЗ 2',
     title: 'Создание входа',
-    subtitle: 'Введите email и телефон — пришлём одноразовый код подтверждения.',
+    subtitle: 'Введите email и телефон — отправим письмо для подтверждения адреса.',
     emailLabel: 'Email',
     emailPlaceholder: 'name@company.in',
     phoneLabel: 'Телефон',
@@ -67,7 +68,7 @@ const dict: Record<
     privacyLabel: 'Я ознакомился с ',
     privacyLink: 'Политикой конфиденциальности',
     tcLink: 'Условиями и положениями',
-    ctaSend: 'Получить код',
+    ctaSend: 'Продолжить',
     ctaSending: 'Отправляем…',
     step2Label: 'ШАГ 2 ИЗ 2',
     step2Title: 'Подтверждение кода',
@@ -82,7 +83,7 @@ const dict: Record<
   en: {
     stepLabel: 'STEP 1 OF 2',
     title: 'Create your login',
-    subtitle: 'Enter your email and phone number — we will send a one-time confirmation code.',
+    subtitle: 'Enter your email and phone number — we will send an email to confirm your address.',
     emailLabel: 'Email',
     emailPlaceholder: 'name@company.in',
     phoneLabel: 'Phone',
@@ -94,7 +95,7 @@ const dict: Record<
     privacyLabel: 'I acknowledge I have read the ',
     privacyLink: 'Privacy Notice',
     tcLink: 'Terms & Conditions',
-    ctaSend: 'Get code',
+    ctaSend: 'Continue',
     ctaSending: 'Sending…',
     step2Label: 'STEP 2 OF 2',
     step2Title: 'Confirm your code',
@@ -229,6 +230,7 @@ const Actions = styled.div`
 
 export const SP03Register = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { lang } = useLanguage();
   const t = dict[lang];
 
@@ -245,6 +247,18 @@ export const SP03Register = () => {
   const [otpError, setOtpError] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
+  // Возврат из письма SP-02 (?step=otp): открыть OTP-стадию, подтянуть телефон из сессии.
+  // Без сессии (прямой заход на ссылку) — остаёмся на форме.
+  useEffect(() => {
+    if (searchParams.get('step') !== 'otp') return;
+    getSession().then((s) => {
+      if (!s) return;
+      setEmail(s.email);
+      setPhone(s.phone.replace(/^\+91\s*/, ''));
+      setStage('otp');
+    });
+  }, [searchParams]);
+
   const handleSendCode = async () => {
     setSending(true);
     try {
@@ -255,7 +269,7 @@ export const SP03Register = () => {
       if (consentCookie) await giveConsent('Cookie', ist);
     } catch (_) { /* игнорируем ошибки api */ }
     setSending(false);
-    setStage('otp');
+    navigate('/v2/email');
   };
 
   const handleVerify = async (code: string) => {
@@ -266,11 +280,11 @@ export const SP03Register = () => {
       await verifyOtp(code);
     } catch (_) { /* игнорируем */ }
     setConfirming(false);
-    navigate('/v2/registry');
+    navigate('/v2/pan'); // объединённый экран «Доступ к реестрам и PAN»
   };
 
   return (
-    <ScreenV2 maxWidth="520px">
+    <ScreenV2>
       <Card>
         <CardHeader>
           <StepLabel>{stage === 'form' ? t.stepLabel : t.step2Label}</StepLabel>
