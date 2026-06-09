@@ -9,18 +9,6 @@ import { reset } from '../mock/api';
 
 type Node = { l: string; p?: string; ghost?: boolean };
 
-const CLIENT: Node[] = [
-  { l: '1 Лендинг', p: '/' },
-  { l: '2 Вход', p: '/login' },
-  { l: '3 Компания', p: '/company' },
-  { l: '4 Анкета', p: '/business' },
-  { l: '5 Видео-ID', p: '/vcip-invite' },
-  { l: '6 Видео-сессия', p: '/vcip-session?sig=SIG-1' },
-  { l: '7 Документы', p: '/documents' },
-  { l: '8 Подтверждение', p: '/confirm' },
-  { l: '9 Результат (STP)', p: '/result' },
-];
-
 const MANAGER: Node[] = [
   { l: 'Очередь DVU', p: '/rm/queue' },
   { l: 'Карточка · OBO', p: '/rm/task?id=DVU-1042' },
@@ -33,16 +21,16 @@ const V2: Node[] = [
   { l: '1 Лендинг', p: '/v2' },
   { l: '2 Письмо', p: '/v2/email' },
   { l: '3 Регистрация', p: '/v2/login' },
-  { l: '4 Согласие реестры', p: '/v2/registry' },
-  { l: '5 PAN', p: '/v2/pan' },
-  { l: '6 Данные компании', p: '/v2/company' },
-  { l: '7 Анкета BNQ', p: '/v2/bnq' },
-  { l: '8 Согласие VCIP', p: '/v2/pre-vcip' },
-  { l: '9 Видео-ID', p: '/v2/vcip' },
-  { l: '10 Дашборд', p: '/v2/dashboard' },
+  { l: '4 Дашборд', p: '/v2/dashboard' },
+  { l: '5 Реестры и PAN', p: '/v2/pan' },
+  { l: '6 Анкета BNQ', p: '/v2/bnq' },
+  { l: '7 Согласия по данным', p: '/v2/data-consents' },
+  { l: '8 Данные компании', p: '/v2/company' },
+  { l: '9 Согласие перед видео', p: '/v2/pre-vcip' },
+  { l: '10 Видеоидентификация', p: '/v2/vcip' },
+  { l: '11 Подписание', p: '/v2/sign' },
 ];
 
-const BLUE = '#2563EB';
 const INK = '#111827';
 const LINE = 'rgba(255,255,255,0.12)';
 const GREEN = '#21A038';
@@ -50,8 +38,8 @@ const ORANGE = '#F5811F';
 
 const Fab = styled.button`
   position: fixed;
-  right: 1.5rem;
-  bottom: 1.5rem;
+  right: 5.25rem; /* левее кнопки чата 💬, чтобы не перекрывались */
+  bottom: 1.25rem;
   z-index: 9999;
   width: 3rem;
   height: 3rem;
@@ -250,8 +238,8 @@ export const DemoNav = () => {
             </Header>
 
             <Lane>
-              <RoleLabel c={GREEN}>Клиент</RoleLabel>
-              <Flow>{renderFlow(CLIENT, GREEN)}</Flow>
+              <RoleLabel c={GREEN}>Клиент · Sole Prop</RoleLabel>
+              <Flow>{renderFlow(V2, GREEN)}</Flow>
             </Lane>
 
             <Branch>↳ Hybrid: клиент видит «на проверке», менеджер разбирает →</Branch>
@@ -259,11 +247,6 @@ export const DemoNav = () => {
             <Lane>
               <RoleLabel c={ORANGE}>Менеджер · DVU</RoleLabel>
               <Flow>{renderFlow(MANAGER, ORANGE)}</Flow>
-            </Lane>
-
-            <Lane>
-              <RoleLabel c={BLUE}>Онбординг v2 · Sole Prop</RoleLabel>
-              <Flow>{renderFlow(V2, BLUE)}</Flow>
             </Lane>
 
             <Footer>

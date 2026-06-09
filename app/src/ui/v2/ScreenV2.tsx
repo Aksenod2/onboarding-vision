@@ -11,6 +11,7 @@ import { pageBackground } from '../designSystem';
 import { useLanguage } from './LanguageContext';
 import { STEPS } from './steps';
 import { StepProgress } from './StepProgress';
+import { CommentLayer } from './CommentLayer';
 
 // Общий каркас экранов v2 (кроме лендинга SP-01 — у него своя расширенная шапка).
 // Шапка: логотип «SBER Банк» + переключатель RU/EN. Контент — по центру, ограничен шириной.
@@ -120,6 +121,8 @@ export const ScreenV2 = ({ children }: ScreenV2Props) => {
         {currentStep && <StepProgress currentStepId={currentStep.id} />}
         {children}
       </Content>
+      {/* Режим комментариев для аналитиков — кнопка снизу справа на всех экранах */}
+      <CommentLayer />
     </Page>
   );
 };

@@ -19,7 +19,7 @@ import { getBusiness, updateBusiness, uploadDocument, setStepStatus, getBnq } fr
 import { businessFieldSources } from '../../mock/v2/types';
 import type { Business, BnqAnswer } from '../../mock/v2/types';
 import { radii, elevation, enter, eyebrow, accentPanel } from '../../ui/designSystem';
-import { nextStepRoute } from '../../ui/v2/steps';
+import { nextStepRoute, prevStepRoute, DASHBOARD_ROUTE } from '../../ui/v2/steps';
 
 // SP-06 · Подтверждение данных компании (+ Edit/proof)
 // Роут: /v2/company
@@ -35,6 +35,7 @@ const dict: Record<
     editBtn: string;
     cancelBtn: string;
     confirmBtn: string;
+    backBtn: string;
     saving: string;
     loadingText: string;
     // Метки полей
@@ -91,6 +92,7 @@ const dict: Record<
     editBtn: 'Изменить',
     cancelBtn: 'Отмена',
     confirmBtn: 'Подтвердить и продолжить',
+    backBtn: 'Назад',
     saving: 'Сохраняем…',
     loadingText: 'Загрузка данных…',
     tradeName: 'Наименование бизнеса (Trade Name)',
@@ -140,6 +142,7 @@ const dict: Record<
     editBtn: 'Edit',
     cancelBtn: 'Cancel',
     confirmBtn: 'Confirm and continue',
+    backBtn: 'Back',
     saving: 'Saving…',
     loadingText: 'Loading data…',
     tradeName: 'Business Trade Name',
@@ -370,8 +373,15 @@ const Actions = styled.div`
   gap: 0.75rem;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding-top: 0.5rem;
+`;
+
+const ActionsRight = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
 `;
 
 const LoadingText = styled(BodyM)`
@@ -515,6 +525,8 @@ export const SP06Company = () => {
     setSaving(false);
     navigate(nextStepRoute('company')); // → /v2/data-consents (линейная навигация)
   };
+
+  const handleBack = () => navigate(prevStepRoute('company') ?? DASHBOARD_ROUTE);
 
   // ── Render helpers ──────────────────────────────────────────────────────────
 
@@ -781,31 +793,37 @@ export const SP06Company = () => {
             </Section>
           )}
 
-          {/* ── Кнопки действий ── */}
+          {/* ── Кнопки действий: «Назад» слева, действия справа ── */}
           <Actions>
-            {mode === 'view' ? (
-              <>
-                {/* TODO свериться с MCP — Button view="secondary" */}
-                <Button view="secondary" size="m" text={t.editBtn} onClick={enterEdit} />
-                {/* CTA — accent, главная; не блокируем */}
-                <Button
-                  view="accent"
-                  size="m"
-                  text={saving ? t.saving : t.confirmBtn}
-                  onClick={handleConfirm}
-                />
-              </>
-            ) : (
-              <>
-                <Button view="secondary" size="m" text={t.cancelBtn} onClick={cancelEdit} />
-                <Button
-                  view="accent"
-                  size="m"
-                  text={saving ? t.saving : t.confirmBtn}
-                  onClick={handleConfirm}
-                />
-              </>
-            )}
+            {/* Назад на предыдущий шаг — только в режиме просмотра (в edit есть «Отмена») */}
+            {mode === 'view'
+              ? <Button view="secondary" size="m" text={t.backBtn} onClick={handleBack} />
+              : <span />}
+            <ActionsRight>
+              {mode === 'view' ? (
+                <>
+                  {/* TODO свериться с MCP — Button view="secondary" */}
+                  <Button view="secondary" size="m" text={t.editBtn} onClick={enterEdit} />
+                  {/* CTA — accent, главная; не блокируем */}
+                  <Button
+                    view="accent"
+                    size="m"
+                    text={saving ? t.saving : t.confirmBtn}
+                    onClick={handleConfirm}
+                  />
+                </>
+              ) : (
+                <>
+                  <Button view="secondary" size="m" text={t.cancelBtn} onClick={cancelEdit} />
+                  <Button
+                    view="accent"
+                    size="m"
+                    text={saving ? t.saving : t.confirmBtn}
+                    onClick={handleConfirm}
+                  />
+                </>
+              )}
+            </ActionsRight>
           </Actions>
         </CardBody>
       </Card>

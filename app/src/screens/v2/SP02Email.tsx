@@ -13,6 +13,7 @@ import {
 import { pageBackground, accentPanel, eyebrow, radii, enter, elevation } from '../../ui/designSystem';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
+import { CommentLayer } from '../../ui/v2/CommentLayer';
 import { getSession } from '../../mock/v2/api';
 
 // SP-02 — Превью письма-подтверждения email. Шаг демо-потока v2 (Sole Proprietor).
@@ -202,6 +203,7 @@ export const SP02Email = () => {
           <Disclaimer>{t.disclaimer}</Disclaimer>
         </EmailBody>
       </EmailCard>
+      <CommentLayer />
     </Page>
   );
 };

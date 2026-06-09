@@ -19,6 +19,7 @@ import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
 import { giveConsent, setStepStatus } from '../../mock/v2/api';
+import { prevStepRoute, DASHBOARD_ROUTE } from '../../ui/v2/steps';
 
 // SP-08 · Privacy notice + подтверждение достоверности данных перед VCIP (BR-02 + Consent 7).
 // Роут: /v2/pre-vcip
@@ -39,6 +40,7 @@ const dict: Record<
     consentLabel: string;
     consentDescription: string;
     cta: string;
+    back: string;
     loading: string;
   }
 > = {
@@ -64,6 +66,7 @@ const dict: Record<
     consentDescription:
       'Я ознакомился(-лась) и проверил(-а) сведения и документы, внесённые мной в электронную анкету клиента (Customer Application Form). Я подтверждаю, что указанные сведения и загруженные документы являются достоверными, полными и актуальными, и я не скрыл(-а) никакой существенной информации.',
     cta: 'Перейти к видеоидентификации',
+    back: 'Назад',
     loading: 'Сохранение…',
   },
   en: {
@@ -88,6 +91,7 @@ const dict: Record<
     consentDescription:
       'I have reviewed and verified the details and documents entered by me in the electronic Customer Application Form. I further confirm that the information/documents so uploaded or entered by me to be true, correct, complete and up to date in all aspects and I have not withheld any information and nothing material has been concealed therefrom.',
     cta: 'Proceed to video identification',
+    back: 'Back',
     loading: 'Saving…',
   },
 };
@@ -222,7 +226,8 @@ const ConsentRow = styled.div`
 const CtaWrapper = styled.div`
   ${enter(0.28)};
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
 `;
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -245,6 +250,8 @@ export const SP08PreVcip = () => {
     setLoading(false);
     navigate('/v2/vcip');
   };
+
+  const handleBack = () => navigate(prevStepRoute('pre-vcip') ?? DASHBOARD_ROUTE);
 
   return (
     <ScreenV2>
@@ -300,6 +307,7 @@ export const SP08PreVcip = () => {
           {/* CTA */}
           {/* TODO свериться с MCP — Button view="accent" size="l" disabled / isLoading props */}
           <CtaWrapper>
+            <Button view="secondary" size="l" text={t.back} onClick={handleBack} />
             <Button
               view="accent"
               size="l"

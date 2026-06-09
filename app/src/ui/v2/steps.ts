@@ -37,3 +37,13 @@ export const nextStepRoute = (currentId: string): string => {
   if (idx === -1 || idx === STEPS.length - 1) return DASHBOARD_ROUTE;
   return STEPS[idx + 1].route;
 };
+
+// Хелпер: предыдущий шаг (для кнопки «Назад»). null — если шаг первый/не найден.
+export const prevStepRoute = (currentId: string): string | null => {
+  const idx = STEPS.findIndex((s) => s.id === currentId);
+  if (idx <= 0) return null;
+  return STEPS[idx - 1].route;
+};
+
+// Необратимые шаги: прыжки по прогрессу заблокированы (BRD — точки невозврата: видео, подписание).
+export const isIrreversibleStep = (id: string): boolean => id === 'vcip' || id === 'sign';

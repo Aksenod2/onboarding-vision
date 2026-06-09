@@ -13,6 +13,7 @@ import {
 import { pageBackground, accentPanel, eyebrow, radii, enter, elevation } from '../../ui/designSystem';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
+import { CommentLayer } from '../../ui/v2/CommentLayer';
 
 // SP-01 — Hero-лендинг v2 (India–Russia trade). Источник: спека «Лендинг (CL-01) — спека.md».
 // Заменяет CL-01 в потоке v2. Роут: /v2.
@@ -264,6 +265,7 @@ export const SP01Landing = () => {
           <IllustrationCaption>Иллюстрация India–Russia trade</IllustrationCaption>
         </IllustrationPlaceholder>
       </Main>
+      <CommentLayer />
     </Page>
   );
 };

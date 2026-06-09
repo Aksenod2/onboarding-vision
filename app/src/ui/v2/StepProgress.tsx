@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { textPrimary, textSecondary, textAccent, bodyM } from '@salutejs/sdds-themes/tokens';
-import { STEPS, DASHBOARD_ROUTE } from './steps';
+import { STEPS, DASHBOARD_ROUTE, isIrreversibleStep } from './steps';
 import { useLanguage } from './LanguageContext';
 
 // Единый блок навигации онбординга v2 (верхний уровень): «Обзор заявки» +
@@ -71,6 +71,10 @@ const Seg = styled.button<{ $state: 'done' | 'active' | 'pending' }>`
   display: flex;
   align-items: center;
 
+  &:disabled {
+    cursor: default;
+  }
+
   &::after {
     content: '';
     flex: 1;
@@ -85,7 +89,7 @@ const Seg = styled.button<{ $state: 'done' | 'active' | 'pending' }>`
           : 'rgba(0, 0, 0, 0.12)'};
   }
 
-  &:hover::after {
+  &:not(:disabled):hover::after {
     background: ${textAccent};
     transform: scaleY(1.35);
   }
@@ -131,16 +135,21 @@ export const StepProgress = ({ currentStepId }: StepProgressProps) => {
         {lang === 'ru' ? '← Обзор заявки' : '← Application overview'}
       </BackLink>
       <Segments>
-        {STEPS.map((s) => (
-          <Seg
-            key={s.id}
-            type="button"
-            $state={s.order < current.order ? 'done' : s.order === current.order ? 'active' : 'pending'}
-            onClick={() => navigate(s.route)}
-            title={lang === 'ru' ? s.titleRu : s.titleEn}
-            aria-label={lang === 'ru' ? `Перейти к шагу: ${s.titleRu}` : `Go to step: ${s.titleEn}`}
-          />
-        ))}
+        {STEPS.map((s) => {
+          // На необратимых шагах (видео, подписание) прыжки по прогрессу заблокированы
+          const locked = isIrreversibleStep(current.id) && s.id !== current.id;
+          return (
+            <Seg
+              key={s.id}
+              type="button"
+              disabled={locked}
+              $state={s.order < current.order ? 'done' : s.order === current.order ? 'active' : 'pending'}
+              onClick={() => { if (!locked) navigate(s.route); }}
+              title={lang === 'ru' ? s.titleRu : s.titleEn}
+              aria-label={lang === 'ru' ? `Перейти к шагу: ${s.titleRu}` : `Go to step: ${s.titleEn}`}
+            />
+          );
+        })}
       </Segments>
       <StepName>
         {lang === 'ru' ? current.titleRu : current.titleEn}

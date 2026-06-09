@@ -19,6 +19,7 @@ import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
 import { giveConsent, setStepStatus } from '../../mock/v2/api';
+import { prevStepRoute, DASHBOARD_ROUTE } from '../../ui/v2/steps';
 
 // SP-DATA-CONSENTS — Согласия по данным лица (KMP Confirmation, Data Principals, Aadhaar).
 // Роут: /v2/data-consents
@@ -40,6 +41,7 @@ const dict: Record<
     consentKmpLabel: string;
     consentKmpDesc: string;
     cta: string;
+    back: string;
     saving: string;
   }
 > = {
@@ -57,6 +59,7 @@ const dict: Record<
     consentKmpDesc:
       'Я подтверждаю, что предоставлю информацию по всем ключевым руководящим лицам (Key Managerial Personnel) данного предприятия.',
     cta: 'Продолжить',
+    back: 'Назад',
     saving: 'Сохранение…',
   },
   en: {
@@ -73,6 +76,7 @@ const dict: Record<
     consentKmpDesc:
       'I confirm that I will provide information for all Key Managerial Personnel in the entity.',
     cta: 'Continue',
+    back: 'Back',
     saving: 'Saving…',
   },
 };
@@ -120,6 +124,7 @@ const ConsentItem = styled.div`
   flex-direction: column;
   gap: 0;
   padding: 1rem 1.1rem;
+  cursor: pointer; /* вся область кликабельна — переключает согласие */
   border: 1.5px solid rgba(33, 160, 56, 0.2);
   border-radius: ${radii.panel};
   background: rgba(33, 160, 56, 0.03);
@@ -145,7 +150,8 @@ const CtaWrapper = styled.div`
   ${enter(0.3)};
   padding-top: 0.25rem;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
 `;
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -173,6 +179,8 @@ export const SPDataConsents = () => {
     navigate('/v2/company'); // → подтверждение данных компании (финальный обзор перед VCIP)
   };
 
+  const handleBack = () => navigate(prevStepRoute('data-consents') ?? DASHBOARD_ROUTE);
+
   return (
     <ScreenV2>
       <Card>
@@ -186,44 +194,29 @@ export const SPDataConsents = () => {
             {lang === 'ru' ? 'Ознакомьтесь и отметьте применимые пункты:' : 'Review and check the applicable items:'}
           </SectionLabel>
 
+          {/* Вся область кликабельна — клик по ConsentItem переключает согласие.
+              Checkbox только отображает состояние (onChange-noop гасит React-warning). */}
           {/* Consent 6 — Aadhaar (внутренний номер банка клиенту не показываем) */}
-          <ConsentItem>
-            {/* TODO свериться с MCP — Checkbox: label / description / checked / onChange */}
-            <Checkbox
-              label={t.consentAadhaarLabel}
-              checked={consentAadhaar}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setConsentAadhaar(e.target.checked)
-              }
-            />
+          <ConsentItem onClick={() => setConsentAadhaar((v) => !v)}>
+            {/* TODO свериться с MCP — Checkbox: label / checked */}
+            <Checkbox label={t.consentAadhaarLabel} checked={consentAadhaar} onChange={() => {}} />
             <ConsentDesc>{t.consentAadhaarDesc}</ConsentDesc>
           </ConsentItem>
 
           {/* Consent 5 — Data Principals */}
-          <ConsentItem>
-            <Checkbox
-              label={t.consentDataPrincipalsLabel}
-              checked={consentDataPrincipals}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setConsentDataPrincipals(e.target.checked)
-              }
-            />
+          <ConsentItem onClick={() => setConsentDataPrincipals((v) => !v)}>
+            <Checkbox label={t.consentDataPrincipalsLabel} checked={consentDataPrincipals} onChange={() => {}} />
             <ConsentDesc>{t.consentDataPrincipalsDesc}</ConsentDesc>
           </ConsentItem>
 
           {/* Consent 4 — KMP Confirmation */}
-          <ConsentItem>
-            <Checkbox
-              label={t.consentKmpLabel}
-              checked={consentKmp}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setConsentKmp(e.target.checked)
-              }
-            />
+          <ConsentItem onClick={() => setConsentKmp((v) => !v)}>
+            <Checkbox label={t.consentKmpLabel} checked={consentKmp} onChange={() => {}} />
             <ConsentDesc>{t.consentKmpDesc}</ConsentDesc>
           </ConsentItem>
 
           <CtaWrapper>
+            <Button view="secondary" size="l" text={t.back} onClick={handleBack} />
             {/* TODO свериться с MCP — Button view="accent" size="l" */}
             <Button
               view="accent"

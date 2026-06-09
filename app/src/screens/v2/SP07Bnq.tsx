@@ -19,6 +19,7 @@ import {
   setStepStatus,
 } from '../../mock/v2/api';
 import type { BnqAnswer } from '../../mock/v2/types';
+import { prevStepRoute, DASHBOARD_ROUTE } from '../../ui/v2/steps';
 import {
   elevation,
   enter,
@@ -460,7 +461,10 @@ export const SP07Bnq = () => {
     setLocalValue(currentQ.value ?? '');
     setEditingProbe(false);
     // Предзаполняем поля из данных Probe42, чтобы клиент правил, а не вводил заново.
-    if (currentQ.q === 'Q1') setIndustryVal(currentQ.value ?? '');
+    if (currentQ.q === 'Q1') {
+      setIndustryVal(currentQ.value ?? '');
+      setSegmentVal(currentQ.value ?? ''); // сегмент тоже из Probe42
+    }
   }, [stepIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Обработка ответа ───────────────────────────────────────────────────────
@@ -518,7 +522,9 @@ export const SP07Bnq = () => {
   };
 
   const handleBack = () => {
+    // Между вопросами — на предыдущий вопрос; на первом — на предыдущий шаг потока.
     if (stepIdx > 0) setStepIdx((i) => i - 1);
+    else navigate(prevStepRoute('bnq') ?? DASHBOARD_ROUTE);
   };
 
 
@@ -888,16 +894,13 @@ export const SP07Bnq = () => {
           {/* Единый ряд навигации: «Назад» слева, действия справа.
               В probe-режиме справа [Изменить] [Да, верно], иначе [Далее/Завершить]. */}
           <NavRow>
-            {stepIdx > 0 ? (
-              <Button
-                view="secondary"
-                size="m"
-                text={t.back}
-                onClick={handleBack}
-              />
-            ) : (
-              <span />
-            )}
+            {/* «Назад» есть всегда: между вопросами — на пред. вопрос, на первом — на пред. шаг */}
+            <Button
+              view="secondary"
+              size="m"
+              text={t.back}
+              onClick={handleBack}
+            />
 
             {isProbeAvailable ? (
               <ConfirmRow>
