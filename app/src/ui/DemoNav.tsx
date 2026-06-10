@@ -206,7 +206,7 @@ export const DemoNav = () => {
   };
   const doReset = () => {
     reset();
-    navigate('/');
+    navigate('/v2'); // корень — лендинг v2 (клиентская v1 заархивирована)
     setOpen(false);
   };
 

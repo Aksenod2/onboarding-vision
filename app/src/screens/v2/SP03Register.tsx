@@ -35,10 +35,12 @@ const dict: Record<
     phoneLabel: string;
     phonePlaceholder: string;
     cookieLabel: string;
+    cookieLinkText: string;
+    cookieTail: string;
     tcLabel: string;
     privacyLabel: string;
+    privacyTail: string;
     privacyLink: string;
-    tcLink: string;
     ctaSend: string;
     ctaSending: string;
     // Step 2
@@ -62,12 +64,15 @@ const dict: Record<
     phoneLabel: 'Телефон',
     phonePlaceholder: '00000 00000',
     cookieLabel:
-      'Sberbank Branch in India использует cookie для персонализации сервисов. Вы можете заблокировать cookie в настройках браузера.',
+      'Sberbank Branch in India использует cookie (файлы с данными о прошлых посещениях сайта) для персонализации сервисов и удобства пользователей. Sberbank Branch in India обязуется защищать персональные данные. ',
+    cookieLinkText: 'Ознакомьтесь с условиями и принципами обработки данных.',
+    cookieTail: ' Вы можете запретить сохранение cookie в настройках браузера.',
     tcLabel:
-      'Настоящим я уполномачиваю Sberbank Branch in India проверить мои данные в цифровом или ином порядке по усмотрению банка.',
-    privacyLabel: 'Я ознакомился с ',
+      'Настоящим я уполномочиваю Sberbank Branch in India проверить мои данные в цифровом или ином порядке по усмотрению банка.',
+    privacyLabel: 'Я подтверждаю, что ознакомился с ',
+    privacyTail:
+      ' и даю явное согласие на обработку моих персональных данных в целях представления моей компании в клиентских отношениях с Sberbank Branch in India и в соответствии с условиями, изложенными в вышеуказанных документах.',
     privacyLink: 'Политикой конфиденциальности',
-    tcLink: 'Условиями и положениями',
     ctaSend: 'Продолжить',
     ctaSending: 'Отправляем…',
     step2Label: 'ШАГ 2 ИЗ 2',
@@ -88,13 +93,17 @@ const dict: Record<
     emailPlaceholder: 'name@company.in',
     phoneLabel: 'Phone',
     phonePlaceholder: '00000 00000',
+    // Тексты согласий 1 / 2b / 3 — VERBATIM из docs/Consents — список (current).md, не редактировать
     cookieLabel:
-      'Sberbank Branch in India uses cookies for service personalisation. You can disable cookies in your browser settings.',
+      'Sberbank Branch in India uses cookies (files with data about previous visits to the site) for personalization of services and convenience of users. Sberbank Branch in India is committed to protect personal data. ',
+    cookieLinkText: 'Please read the terms and principles of data processing.',
+    cookieTail: ' You can prevent cookies from being stored in your browser settings.',
     tcLabel:
-      'I hereby authorise Sberbank Branch in India to verify my details digitally or otherwise in any manner that Sberbank Branch in India may deem fit.',
-    privacyLabel: 'I acknowledge I have read the ',
+      'I hereby authorize Sberbank Branch in India to verify my details digitally or otherwise in any manner that Sberbank Branch in India may deem fit.',
+    privacyLabel: 'I acknowledge I have read ',
+    privacyTail:
+      ' and hereby provide explicit consent to process my personal data for the purpose of representing my company in a client relationship with the Sberbank Branch in India and in accordance with the terms set out in the aforementioned documents.',
     privacyLink: 'Privacy Notice',
-    tcLink: 'Terms & Conditions',
     ctaSend: 'Continue',
     ctaSending: 'Sending…',
     step2Label: 'STEP 2 OF 2',
@@ -330,25 +339,28 @@ export const SP03Register = () => {
                     checked={consentCookie}
                     onChange={() => setConsentCookie((v) => !v)}
                   />
-                  <CheckText>{t.cookieLabel}</CheckText>
+                  <CheckText>
+                    {t.cookieLabel}
+                    {/* «terms and principles of data processing» — гиперссылка по канону */}
+                    <ConsentLink
+                      href="https://sberbank.co.in/customer-information/privacy-notice"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {t.cookieLinkText}
+                    </ConsentLink>
+                    {t.cookieTail}
+                  </CheckText>
                 </CheckRow>
 
-                {/* 2b. T&C — обязательное */}
+                {/* 2b. T&C (MVP) — обязательное; в каноне 2b ссылки на T&C НЕТ (она в полном 2a) */}
                 <CheckRow>
                   <Checkbox
                     checked={consentTc}
                     onChange={() => setConsentTc((v) => !v)}
                   />
                   <CheckText>
-                    {t.tcLabel}{' '}
-                    <ConsentLink
-                      href="https://sberbank.co.in/terms-and-conditions"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {t.tcLink}
-                    </ConsentLink>
-                    {lang === 'ru' ? '.' : '.'}
+                    {t.tcLabel}
                     {' '}
                     <span style={{ color: textAccent, fontWeight: 700 }}>*</span>
                   </CheckText>
@@ -369,9 +381,7 @@ export const SP03Register = () => {
                     >
                       {t.privacyLink}
                     </ConsentLink>
-                    {lang === 'ru'
-                      ? ' и даю явное согласие на обработку моих персональных данных в целях представления моей компании в отношениях с Sberbank Branch in India.'
-                      : ' and hereby provide explicit consent to process my personal data for the purpose of representing my company in a client relationship with the Sberbank Branch in India.'}
+                    {t.privacyTail}
                     {' '}
                     <span style={{ color: textAccent, fontWeight: 700 }}>*</span>
                   </CheckText>

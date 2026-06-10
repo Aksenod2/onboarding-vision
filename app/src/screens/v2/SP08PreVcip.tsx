@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button, Checkbox } from '@salutejs/sdds-serv'; // TODO свериться с MCP — Checkbox props (label / description / checked / onChange); Button view="accent" size="l"
@@ -18,7 +18,8 @@ import {
 import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
-import { giveConsent, setStepStatus } from '../../mock/v2/api';
+import { giveConsent, setStepStatus, getBusiness } from '../../mock/v2/api';
+import type { Business } from '../../mock/v2/types';
 import { prevStepRoute, DASHBOARD_ROUTE } from '../../ui/v2/steps';
 
 // SP-08 · Privacy notice + подтверждение достоверности данных перед VCIP (BR-02 + Consent 7).
@@ -33,7 +34,7 @@ const dict: Record<
     title: string;
     subtitle: string;
     summaryTitle: string;
-    summaryItems: { label: string; value: string }[];
+    summaryLabels: { entityType: string; pan: string; name: string; gstin: string; udyam: string; address: string };
     privacyTitle: string;
     privacyText: string;
     privacyLinkLabel: string;
@@ -49,14 +50,7 @@ const dict: Record<
     subtitle:
       'Последний шаг перед видеоидентификацией. Ознакомьтесь с условиями и подтвердите согласие — после видеоидентификации изменить данные без подачи дополнительных документов будет невозможно.',
     summaryTitle: 'Краткая сводка заявки',
-    summaryItems: [
-      { label: 'Тип структуры', value: 'Sole Proprietorship' },
-      { label: 'PAN', value: 'ABFPS4321K' },
-      { label: 'Бизнес', value: 'Aarav Sharma Exports' },
-      { label: 'GSTIN', value: '27ABFPS4321K1Z5' },
-      { label: 'Udyam', value: 'UDYAM-MH-12-0012345' },
-      { label: 'Адрес', value: 'Shop 4, Dharavi Main Road, Mumbai — 400017, MH' },
-    ],
+    summaryLabels: { entityType: 'Тип структуры', pan: 'PAN', name: 'Бизнес', gstin: 'GSTIN', udyam: 'Udyam', address: 'Адрес' },
     privacyTitle: 'Уведомление о конфиденциальности',
     privacyText:
       'В ходе видеоидентификации (VCIP) Сбербанк Индия произведёт видеозапись сессии и проверит ваш документ, удостоверяющий личность (Aadhaar / PAN). Данные обрабатываются исключительно в целях KYC-верификации в соответствии с ',
@@ -64,7 +58,7 @@ const dict: Record<
     consentLabel: 'Подтверждаю достоверность предоставленных данных',
     // Текст Consent 7 verbatim из docs/Consents — список (current).md §7
     consentDescription:
-      'Я ознакомился(-лась) и проверил(-а) сведения и документы, внесённые мной в электронную анкету клиента (Customer Application Form). Я подтверждаю, что указанные сведения и загруженные документы являются достоверными, полными и актуальными, и я не скрыл(-а) никакой существенной информации.',
+      'Я ознакомился(-лась) и проверил(-а) сведения и документы, внесённые мной в электронную анкету клиента (Customer Application Form). Я подтверждаю, что указанные сведения и загруженные документы являются достоверными, полными и актуальными во всех аспектах, я не утаил(-а) никакой информации и ничего существенного не было сокрыто.',
     cta: 'Перейти к видеоидентификации',
     back: 'Назад',
     loading: 'Сохранение…',
@@ -74,14 +68,7 @@ const dict: Record<
     subtitle:
       'The final step before video identification. Please review the terms and confirm your consent — after video identification, changes cannot be made without submitting additional documents.',
     summaryTitle: 'Application summary',
-    summaryItems: [
-      { label: 'Entity type', value: 'Sole Proprietorship' },
-      { label: 'PAN', value: 'ABFPS4321K' },
-      { label: 'Business name', value: 'Aarav Sharma Exports' },
-      { label: 'GSTIN', value: '27ABFPS4321K1Z5' },
-      { label: 'Udyam', value: 'UDYAM-MH-12-0012345' },
-      { label: 'Address', value: 'Shop 4, Dharavi Main Road, Mumbai — 400017, MH' },
-    ],
+    summaryLabels: { entityType: 'Entity type', pan: 'PAN', name: 'Business name', gstin: 'GSTIN', udyam: 'Udyam', address: 'Address' },
     privacyTitle: 'Privacy notice',
     privacyText:
       'During video identification (VCIP), Sberbank India will record the session and verify your identity document (Aadhaar / PAN). Data is processed solely for KYC verification purposes in accordance with the ',
@@ -240,6 +227,29 @@ export const SP08PreVcip = () => {
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Живые данные бизнеса — сводка отражает реальные (в т.ч. отредактированные) значения,
+  // а не захардкоженный дамп (находка Веры, QA-проход 2026-06-10)
+  const [business, setBusiness] = useState<Business | null>(null);
+  useEffect(() => {
+    getBusiness().then(setBusiness);
+  }, []);
+
+  const summaryItems = business
+    ? [
+        { label: t.summaryLabels.entityType, value: business.entityType },
+        { label: t.summaryLabels.pan, value: business.pan },
+        { label: t.summaryLabels.name, value: business.tradeName },
+        { label: t.summaryLabels.gstin, value: business.gstin },
+        { label: t.summaryLabels.udyam, value: business.udyam },
+        {
+          label: t.summaryLabels.address,
+          value: [business.registeredAddress.line, business.registeredAddress.city, business.registeredAddress.state, business.registeredAddress.pin]
+            .filter(Boolean)
+            .join(', '),
+        },
+      ]
+    : [];
+
   const handleProceed = async () => {
     setLoading(true);
     try {
@@ -266,11 +276,11 @@ export const SP08PreVcip = () => {
           <SummaryBlock>
             <SummaryTitle>{t.summaryTitle}</SummaryTitle>
             <SummaryGrid>
-              {t.summaryItems.map((item) => (
-                <>
-                  <SummaryLabel key={`label-${item.label}`}>{item.label}</SummaryLabel>
-                  <SummaryValue key={`value-${item.label}`}>{item.value}</SummaryValue>
-                </>
+              {summaryItems.map((item) => (
+                <Fragment key={item.label}>
+                  <SummaryLabel>{item.label}</SummaryLabel>
+                  <SummaryValue>{item.value}</SummaryValue>
+                </Fragment>
               ))}
             </SummaryGrid>
           </SummaryBlock>

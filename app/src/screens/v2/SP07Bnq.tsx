@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 // TODO свериться с MCP — Button, TextField, Select, Note
@@ -93,7 +93,6 @@ const dict: Record<Lang, {
   q11Label: string;
   q11Disclaimer: string;
   // DVU alert note
-  dvuNote: string;
 }> = {
   ru: {
     title: 'Бизнес-анкета',
@@ -144,7 +143,6 @@ const dict: Record<Lang, {
     q11Label: 'Документ IEC (Importer Exporter Code)',
     q11Disclaimer:
       '⚠️ Для обработки международных платежей и торговых операций SBER Банк требует ваш IEC в соответствии с нормами FEMA. Без действительного IEC мы не сможем обработать ваши трансграничные платежи. Вы можете загрузить IEC сейчас или позже в интернет-банке после открытия счёта. Загрузка позже не влияет на открытие счёта, но мы рекомендуем загрузить сейчас.',
-    dvuNote: 'Информация передана на проверку (DVU). Мы уведомим вас о результатах.',
   },
   en: {
     title: 'Business Questionnaire',
@@ -195,7 +193,6 @@ const dict: Record<Lang, {
     q11Label: 'IEC Document (Importer Exporter Code)',
     q11Disclaimer:
       '⚠️ For processing international payments and trade transactions, your IEC is required by SberBank under FEMA regulations. Without a valid IEC, we may not be able to process your cross-border payments. You can upload your IEC document now, or upload it later through the online bank after account opening. Upload-later will not affect account opening, although we recommend uploading now.',
-    dvuNote: 'Information has been forwarded for DVU review. We will notify you of the results.',
   },
 };
 
@@ -390,18 +387,22 @@ const ConfirmRow = styled.div`
 
 // ─── Вспомогательная функция ──────────────────────────────────────────────────
 
+// «Нет» в обоих языках (RU «Нет, не …» / EN «No, I don't …»)
+const isNoAnswer = (value: string) => /^\s*(no|нет)/i.test(value);
+
 /**
  * Из массива BnqAnswer[11] строим «плоский» порядок шагов.
  * Решение Дениса 2026-06-09: вопросы с данными из реестра (source='available') НЕ скрываем,
  * а показываем предзаполненными для подтверждения («Мы определили: X. Верно?» — режим в renderQuestion).
- * Единственное ветвление: Q10/Q11 убираем, если Q9 отвечен «No» (нет ВЭД).
+ * Ветвления: Q8 убираем при Q7=«No» (кредит не нужен); Q10/Q11 убираем при Q9=«No» (нет ВЭД).
  * Возвращаем массив индексов (0-based) исходного массива.
  */
-function buildStepOrder(bnq: BnqAnswer[], q9SkipTradeBloc: boolean): QIndex[] {
+function buildStepOrder(bnq: BnqAnswer[], skipQ8: boolean, skipTrade: boolean): QIndex[] {
   const order: QIndex[] = [];
   for (let i = 0; i < bnq.length; i++) {
     const q = bnq[i].q;
-    if (q9SkipTradeBloc && (q === 'Q10' || q === 'Q11')) continue;
+    if (skipQ8 && q === 'Q8') continue;
+    if (skipTrade && (q === 'Q10' || q === 'Q11')) continue;
     order.push(i);
   }
   return order;
@@ -420,7 +421,8 @@ export const SP07Bnq = () => {
 
   // Навигация по шагам
   const [stepIdx, setStepIdx] = useState(0); // индекс в stepOrder[]
-  const [q9SkipTrade, setQ9SkipTrade] = useState(false);
+  const [skipQ8, setSkipQ8] = useState(false); // Q7=«No» → сумму кредита не спрашиваем
+  const [skipTrade, setSkipTrade] = useState(false); // Q9=«No» → Q10/Q11 не спрашиваем
 
   // Локальные ответы (до answerBnq)
   const [localValue, setLocalValue] = useState('');
@@ -433,12 +435,6 @@ export const SP07Bnq = () => {
   // Доп. Q11 — намерение по IEC (сам файл грузится на «Подтверждении данных компании»)
   const [iecChoice, setIecChoice] = useState<'now' | 'later' | ''>('');
 
-  // DVU / CRM алерт (тихий, после Q5 PEP=Yes)
-  const [showDvuNote, setShowDvuNote] = useState(false);
-
-  // Сохранение ответа (чтобы не вызывать answerBnq дважды)
-  const answeredSteps = useRef<Set<number>>(new Set());
-
   // ─── Загрузка BNQ ───────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -450,12 +446,12 @@ export const SP07Bnq = () => {
 
   // ─── Порядок шагов ──────────────────────────────────────────────────────────
 
-  const stepOrder = buildStepOrder(bnq, q9SkipTrade);
+  const stepOrder = buildStepOrder(bnq, skipQ8, skipTrade);
   const totalSteps = stepOrder.length;
   const currentBnqIdx = stepOrder[stepIdx] ?? 0;
   const currentQ = bnq[currentBnqIdx];
 
-  // При переходе к новому вопросу — сбрасываем поля ввода
+  // При переходе к новому вопросу (и после загрузки данных) — заполняем поля ввода
   useEffect(() => {
     if (!currentQ) return;
     setLocalValue(currentQ.value ?? '');
@@ -465,29 +461,22 @@ export const SP07Bnq = () => {
       setIndustryVal(currentQ.value ?? '');
       setSegmentVal(currentQ.value ?? ''); // сегмент тоже из Probe42
     }
-  }, [stepIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stepIdx, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  // loading в зависимостях: данные приходят асинхронно, без этого первый вопрос оставался пустым
 
-  // ─── Обработка ответа ───────────────────────────────────────────────────────
+  // ─── Сохранение ответа ──────────────────────────────────────────────────────
+  // Без блокировки повторов: вернулся «Назад» и поменял ответ — пересохраняем
+  // (answerBnq идемпотентен), ветвления пересчитываются.
 
   const handleAnswer = async (value: string) => {
     if (!currentQ) return;
-    if (answeredSteps.current.has(stepIdx)) return;
-    answeredSteps.current.add(stepIdx);
-
     await answerBnq(currentQ.q, value);
 
-    // Ветвление Q9: если «No» — пропускаем Q10/Q11
-    if (currentQ.q === 'Q9') {
-      const isNo = value.toLowerCase().startsWith('no') || value === 'Q9_NO';
-      setQ9SkipTrade(isNo);
-    }
-
-    // Q5 PEP=Yes → тихий DVU-алерт
-    if (currentQ.q === 'Q5' && value.toLowerCase() === 'yes') {
-      setShowDvuNote(true);
-      // Скрываем через 5 с
-      setTimeout(() => setShowDvuNote(false), 5000);
-    }
+    // Ветвление Q7: «No» — сумму кредита (Q8) не спрашиваем
+    if (currentQ.q === 'Q7') setSkipQ8(isNoAnswer(value));
+    // Ветвление Q9: «No» — пропускаем Q10/Q11
+    if (currentQ.q === 'Q9') setSkipTrade(isNoAnswer(value));
+    // Q5 PEP=Yes: алерт DVU-Compliance уходит ФОНОМ, клиенту не показываем (Задача 10, п.5)
 
     setBnq((prev) =>
       prev.map((a) =>
@@ -508,11 +497,17 @@ export const SP07Bnq = () => {
         : localValue;
 
     // Режим свободной проверки: сохраняем ответ только если он есть, не блокируем переход
-    if (value && !answeredSteps.current.has(stepIdx)) {
+    if (value) {
       try { await handleAnswer(value); } catch (_) { /* игнорируем */ }
     }
 
-    const isLast = stepIdx === totalSteps - 1;
+    // Порядок пересчитываем ЛОКАЛЬНО с учётом только что данного ответа:
+    // setState асинхронный, а решение «последний ли шаг» нужно сейчас (фикс «вопрос 10 из 9»).
+    const nextSkipQ8 = currentQ.q === 'Q7' && value ? isNoAnswer(value) : skipQ8;
+    const nextSkipTrade = currentQ.q === 'Q9' && value ? isNoAnswer(value) : skipTrade;
+    const nextOrder = buildStepOrder(bnq, nextSkipQ8, nextSkipTrade);
+
+    const isLast = stepIdx >= nextOrder.length - 1;
     if (isLast) {
       try { await setStepStatus('bnq', 'done'); } catch (_) { /* игнорируем */ }
       navigate('/v2/data-consents');
@@ -872,15 +867,7 @@ export const SP07Bnq = () => {
           </ProgressTrack>
         </ProgressBar>
 
-        {/* DVU-алерт (тихий): появляется если Q5=Yes */}
-        {showDvuNote && (
-          <Note
-            view="warning"
-            size="s"
-            title={lang === 'ru' ? 'Проверка данных' : 'Data review'}
-            text={t.dvuNote}
-          />
-        )}
+        {/* Триггеры DVU/CRM (Q5 PEP, Q7 кредит) уходят фоном — клиенту НЕ показываем (Задача 10, п.5) */}
 
         {/* Карточка вопроса */}
         <Card>
