@@ -29,7 +29,10 @@ const dict: Record<
     docDeclarationDesc: string;
     docSoleProp: string;
     docSolePropDesc: string;
-    docPdfStub: string;
+    docPreviewBtn: string;
+    docPreviewClose: string;
+    docDeclarationFull: string;
+    docSolePropFull: string;
     btnAuthorize: string;
     otpLabel: string;
     otpHint: string;
@@ -52,7 +55,13 @@ const dict: Record<
     docSoleProp: 'Заявление индивидуального предпринимателя',
     docSolePropDesc:
       'Подтверждаю статус индивидуального предпринимателя и принимаю условия обслуживания Сбербанк Индия.',
-    docPdfStub: 'Предпросмотр PDF появится здесь',
+    docPreviewBtn: 'Просмотреть документ',
+    docPreviewClose: 'Закрыть',
+    // Mock-тексты деклараций (финальные verbatim — у Марго «в работе», чек-лист п.2)
+    docDeclarationFull:
+      'Я, нижеподписавшийся, подтверждаю, что все сведения и документы, предоставленные мной в рамках заявления на открытие расчётного счёта, являются полными, достоверными и актуальными на дату подписания. Я понимаю, что предоставление недостоверных сведений может повлечь отказ в открытии счёта или его последующую блокировку в соответствии с применимым законодательством и внутренними правилами банка. Я обязуюсь уведомлять банк об изменении предоставленных сведений.',
+    docSolePropFull:
+      'Я подтверждаю, что осуществляю предпринимательскую деятельность в статусе индивидуального предпринимателя (Sole Proprietor) и являюсь единственным владельцем и распорядителем указанного бизнеса. Я ознакомился(-лась) с условиями обслуживания, тарифами и правилами банка и принимаю их в полном объёме. Я подтверждаю свои полномочия на открытие и распоряжение расчётным счётом от имени данного бизнеса.',
     btnAuthorize: 'Подписать по OTP',
     otpLabel: 'Введите код',
     otpHint: 'Мы отправили одноразовый код на ваш телефон. Введите его, чтобы подписать документы.',
@@ -75,7 +84,12 @@ const dict: Record<
     docSoleProp: 'Sole Proprietor Declaration',
     docSolePropDesc:
       'I confirm my status as a sole proprietor and accept the terms of service of Sberbank India.',
-    docPdfStub: 'PDF preview will appear here',
+    docPreviewBtn: 'Preview document',
+    docPreviewClose: 'Close',
+    docDeclarationFull:
+      'I, the undersigned, confirm that all information and documents provided by me as part of the account-opening application are complete, accurate and up to date as of the date of signing. I understand that providing inaccurate information may result in refusal to open the account or its subsequent suspension in accordance with applicable law and the bank’s internal rules. I undertake to notify the bank of any changes to the information provided.',
+    docSolePropFull:
+      'I confirm that I conduct business as a Sole Proprietor and am the sole owner and operator of the said business. I have read and accept in full the terms of service, tariffs and rules of the bank. I confirm my authority to open and operate a current account on behalf of this business.',
     btnAuthorize: 'Sign by OTP', // формулировка Марго (демо 2026-06-10)
     otpLabel: 'Enter the code',
     otpHint: 'We sent a one-time code to your phone. Enter it to sign the documents.',
@@ -182,25 +196,72 @@ const DocDesc = styled.p`
   line-height: 1.45;
 `;
 
-const DocPdfStub = styled.div`
-  align-self: flex-start;
-  margin-top: 0.5rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: ${radii.field};
-  border: 1px dashed rgba(0, 0, 0, 0.18);
-  background: rgba(0, 0, 0, 0.02);
-  font-size: 0.76rem;
-  color: ${textSecondary};
-
-  .ic { font-size: 0.85rem; }
-`;
-
 const ButtonRow = styled.div`
   display: flex;
   justify-content: flex-end;
+`;
+
+// Кнопка-ссылка «Просмотреть документ» — открывает лайтбокс (фидбек Марго, демо 2026-06-10)
+const DocPreviewLink = styled.button`
+  align-self: flex-start;
+  margin-top: 0.4rem;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: ${textAccent};
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover { opacity: 0.8; }
+`;
+
+// Лайтбокс предпросмотра декларации: тёмный фон + «лист документа»
+const LightboxBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 10010;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+`;
+
+const LightboxDoc = styled.div`
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  width: min(640px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 2.5rem 2.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+`;
+
+const LightboxTitle = styled.h2`
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: ${textPrimary};
+`;
+
+const LightboxText = styled.p`
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: ${textPrimary};
+`;
+
+const LightboxFoot = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
 `;
 
 const OtpSection = styled.div`
@@ -281,10 +342,11 @@ export const SPSign = () => {
 
   const [phase, setPhase] = useState<'review' | 'otp' | 'done'>('review');
   const [otpError, setOtpError] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<number | null>(null); // лайтбокс предпросмотра
 
   const docs = [
-    { title: t.docDeclaration, desc: t.docDeclarationDesc, icon: '📄' },
-    { title: t.docSoleProp, desc: t.docSolePropDesc, icon: '📋' },
+    { title: t.docDeclaration, desc: t.docDeclarationDesc, full: t.docDeclarationFull, icon: '📄' },
+    { title: t.docSoleProp, desc: t.docSolePropDesc, full: t.docSolePropFull, icon: '📋' },
   ];
 
   const handleOtp = async (code: string) => {
@@ -295,7 +357,9 @@ export const SPSign = () => {
     setOtpError(false);
     try {
       await passVcip();
-      await setStepStatus('sign', 'done');
+      // После подписания заявка уходит в проверку банком (BR-15: статус Verifying,
+      // не мгновенный «счёт открыт») — шаг помечаем verifying, не done.
+      await setStepStatus('sign', 'verifying');
     } catch (_) { /* игнорируем */ }
     setPhase('done');
   };
@@ -330,17 +394,17 @@ export const SPSign = () => {
         <CardBody>
           {/* Документы к подписанию (open: В-4 — для Sole Prop нет Board Resolution, используем декларации) */}
           <DocList>
-            {docs.map((doc) => (
+            {docs.map((doc, i) => (
               <DocItem key={doc.title}>
                 <DocIconWrap>{doc.icon}</DocIconWrap>
                 <DocContent>
                   <DocTitle>{doc.title}</DocTitle>
                   <DocDesc>{doc.desc}</DocDesc>
-                  {/* Предпросмотр PDF — заглушка, не кликабельна (реального документа в прототипе нет) */}
-                  <DocPdfStub aria-disabled="true">
-                    <span className="ic">📄</span>
-                    {t.docPdfStub}
-                  </DocPdfStub>
+                  {/* Лайтбокс-предпросмотр (фидбек Марго): клиент видит, что подписывает.
+                      Текст mock — финальные verbatim-декларации у Марго «в работе». */}
+                  <DocPreviewLink onClick={() => setPreviewDoc(i)}>
+                    {t.docPreviewBtn}
+                  </DocPreviewLink>
                 </DocContent>
               </DocItem>
             ))}
@@ -376,6 +440,24 @@ export const SPSign = () => {
           )}
         </CardBody>
       </Card>
+
+      {/* Лайтбокс предпросмотра декларации */}
+      {previewDoc !== null && (
+        <LightboxBackdrop onClick={() => setPreviewDoc(null)}>
+          <LightboxDoc onClick={(e) => e.stopPropagation()}>
+            <LightboxTitle>{docs[previewDoc].title}</LightboxTitle>
+            <LightboxText>{docs[previewDoc].full}</LightboxText>
+            <LightboxFoot>
+              <Button
+                view="secondary"
+                size="m"
+                text={t.docPreviewClose}
+                onClick={() => setPreviewDoc(null)}
+              />
+            </LightboxFoot>
+          </LightboxDoc>
+        </LightboxBackdrop>
+      )}
     </ScreenV2>
   );
 };

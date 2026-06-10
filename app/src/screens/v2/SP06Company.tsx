@@ -276,8 +276,9 @@ const RegistryBadge = styled.span`
   }
 `;
 
-const ProofBlock = styled.div`
-  background: ${surfaceSolidSecondary};
+const ProofBlock = styled.div<{ $error?: boolean }>`
+  background: ${({ $error }) => ($error ? 'rgba(255, 59, 48, 0.06)' : surfaceSolidSecondary)};
+  border: 1.5px solid ${({ $error }) => ($error ? 'rgba(255, 59, 48, 0.55)' : 'transparent')};
   border-radius: ${radii.panel};
   padding: 0.875rem 1rem;
   display: flex;
@@ -421,6 +422,8 @@ export const SP06Company = () => {
 
   // uploadedProofs — per-field: загружен ли подтверждающий документ
   const [uploadedProofs, setUploadedProofs] = useState<UploadedProofs>({});
+  // Попытка продолжить без обязательного документа — подсвечиваем незакрытые proof-блоки
+  const [proofError, setProofError] = useState(false);
 
   // Доп. секция (B7/B8) — ручной ввод, не из реестра, без proof/DVU
   const [corrSameAsReg, setCorrSameAsReg] = useState(true);
@@ -459,6 +462,7 @@ export const SP06Company = () => {
     setDraft({});
     setAddrDraft({});
     setUploadedProofs({});
+    setProofError(false);
     setMode('edit');
   };
 
@@ -466,6 +470,7 @@ export const SP06Company = () => {
     setDraft({});
     setAddrDraft({});
     setUploadedProofs({});
+    setProofError(false);
     setMode('view');
   };
 
@@ -495,6 +500,7 @@ export const SP06Company = () => {
     // TODO open: В-1 — уточнить маппинг fieldKey → DocType (нет в спеке); пока 'Address Proof'
     await uploadDocument('Address Proof');
     setUploadedProofs((u) => ({ ...u, [fieldKey]: true }));
+    setProofError(false); // документ загружен — снимаем красную подсветку
   };
 
   // Загрузка документа из секции «Документы к загрузке» (лицензия, IEC)
@@ -505,6 +511,12 @@ export const SP06Company = () => {
   };
 
   const handleConfirm = async () => {
+    // Документ при правке ОБЯЗАТЕЛЕН (Марго, демо 2026-06-10): без него не пускаем,
+    // незакрытые proof-блоки подсвечиваем красным.
+    if (mode === 'edit' && missingProofKeys.length > 0) {
+      setProofError(true);
+      return;
+    }
     setSaving(true);
     // Собираем патч: верхнеуровневые поля + адрес (если менялся)
     const patch: Partial<Business> = { ...draft };
@@ -537,6 +549,16 @@ export const SP06Company = () => {
     (Object.keys(draft) as (BasicKey | ActivityKey)[]).some(isFieldChanged) ||
     (Object.keys(addrDraft) as AddrKey[]).some(isAddrFieldChanged);
 
+  // Изменённые поля БЕЗ загруженного подтверждающего документа — блокируют Confirm
+  const missingProofKeys = [
+    ...(Object.keys(draft) as (BasicKey | ActivityKey)[]).filter(
+      (k) => isFieldChanged(k) && !uploadedProofs[k],
+    ),
+    ...(Object.keys(addrDraft) as AddrKey[]).filter(
+      (k) => isAddrFieldChanged(k) && !uploadedProofs[`addr_${k}`],
+    ),
+  ];
+
   // Какие документы требуются — по ответам анкеты (перенесено из BNQ).
   const q1 = bnq.find((a) => a.q === 'Q1');
   const q9 = bnq.find((a) => a.q === 'Q9');
@@ -566,7 +588,7 @@ export const SP06Company = () => {
     if (mode !== 'edit' || !changed) return null;
     const done = !!uploadedProofs[fieldKey];
     return (
-      <ProofBlock>
+      <ProofBlock $error={proofError && !done}>
         <ProofLabel>{t.uploadProof}</ProofLabel>
         {done ? (
           <UploadedLabel>{t.uploadedLabel}</UploadedLabel>

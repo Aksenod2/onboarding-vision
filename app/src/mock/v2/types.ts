@@ -155,7 +155,8 @@ export interface ImportExport {
 }
 
 // --- Прогресс онбординга (для дашборда SP-10: живая карта с «Requires Action») ---
-export type StepStatus = 'done' | 'current' | 'pending' | 'requires_action';
+// verifying — банк проверяет, от клиента ничего не требуется (BR-15, спокойный сине-серый, не warning)
+export type StepStatus = 'done' | 'current' | 'pending' | 'requires_action' | 'verifying';
 export interface ProgressStep {
   id: string; // 'SP-05'
   title: string;

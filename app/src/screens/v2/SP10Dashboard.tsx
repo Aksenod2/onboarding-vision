@@ -49,6 +49,7 @@ type Dict = {
   steps: string;
   stepsHint: string;
   statusLabel: Record<StepStatus, string>;
+  verifyingNote: string;
   loadingText: string;
   modeLabel: string;
   mode: Record<string, string>;
@@ -79,7 +80,9 @@ const dict: Record<Lang, Dict> = {
       current: 'В процессе',
       pending: 'Ожидает',
       requires_action: 'Требует действия',
+      verifying: 'Проверяем',
     },
+    verifyingNote: 'Проверяем данные — от вас ничего не требуется',
     loadingText: 'Загрузка…',
     modeLabel: 'Режим',
     mode: {
@@ -112,7 +115,9 @@ const dict: Record<Lang, Dict> = {
       current: 'In Progress',
       pending: 'Pending',
       requires_action: 'Action Required',
+      verifying: 'Verifying',
     },
+    verifyingNote: 'We are reviewing your details — no action needed from you',
     loadingText: 'Loading…',
     modeLabel: 'Mode',
     mode: {
@@ -135,6 +140,7 @@ const STATUS_ICON: Record<StepStatus, string> = {
   current: '●',
   pending: '○',
   requires_action: '⚠',
+  verifying: '⟳', // банк проверяет — спокойный сине-серый, НЕ warning (UX-правило Ульяны)
 };
 
 // ─── Styled-components ────────────────────────────────────────────────────────
@@ -396,6 +402,11 @@ const StepOrderBadge = styled.div<{ $status: StepStatus }>`
         background: rgba(234, 140, 30, 0.18);
         color: #b85f00;
       `;
+    if ($status === 'verifying')
+      return css`
+        background: rgba(100, 116, 139, 0.14);
+        color: #475569;
+      `;
     // pending
     return css`
       background: rgba(0, 0, 0, 0.05);
@@ -436,6 +447,11 @@ const StatusOverlay = styled.span<{ $status: StepStatus }>`
         color: white;
         font-size: 0.45rem;
       `;
+    if ($status === 'verifying')
+      return css`
+        background: #64748b;
+        color: white;
+      `;
     return css`display: none;`;
   }}
 `;
@@ -459,6 +475,7 @@ const StepStatusLabel = styled.span<{ $status: StepStatus }>`
     if ($status === 'done') return css`color: #1a7a28;`;
     if ($status === 'current') return css`color: #1e5ec9;`;
     if ($status === 'requires_action') return css`color: #b85f00; font-weight: 700;`;
+    if ($status === 'verifying') return css`color: #475569;`;
     return css`color: ${textSecondary};`;
   }}
 `;
@@ -652,6 +669,10 @@ export const SP10Dashboard = () => {
                     {/* note показываем при requires_action */}
                     {status === 'requires_action' && ms.progress?.note && (
                       <StepNote>{ms.progress.note}</StepNote>
+                    )}
+                    {/* verifying — успокаиваем: банк работает, клиент не нужен */}
+                    {status === 'verifying' && (
+                      <StepNote>{ms.progress?.note ?? t.verifyingNote}</StepNote>
                     )}
                   </StepContent>
 
