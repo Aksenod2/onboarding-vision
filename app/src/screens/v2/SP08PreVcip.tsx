@@ -40,6 +40,8 @@ const dict: Record<
     privacyLinkLabel: string;
     consentLabel: string;
     consentDescription: string;
+    aadhaarLabel: string;
+    aadhaarDescription: string;
     cta: string;
     back: string;
     loading: string;
@@ -59,6 +61,9 @@ const dict: Record<
     // Текст Consent 7 verbatim из docs/Consents — список (current).md §7
     consentDescription:
       'Я ознакомился(-лась) и проверил(-а) сведения и документы, внесённые мной в электронную анкету клиента (Customer Application Form). Я подтверждаю, что указанные сведения и загруженные документы являются достоверными, полными и актуальными во всех аспектах, я не утаил(-а) никакой информации и ничего существенного не было сокрыто.',
+    aadhaarLabel: 'Согласие на Aadhaar eKYC',
+    aadhaarDescription:
+      'Я добровольно даю согласие на аутентификацию через Aadhaar eKYC с использованием сервиса UIDAI. Мне будет предложено отсканировать QR-код через приложение Aadhaar; при успехе банк получит мои персональные данные и фото из UIDAI. Я разрешаю использовать данные Aadhaar для KYC и для цифрового подписания документов об открытии счёта.',
     cta: 'Перейти к видеоидентификации',
     back: 'Назад',
     loading: 'Сохранение…',
@@ -77,6 +82,10 @@ const dict: Record<
     // Consent 7 verbatim from docs/Consents — список (current).md §7
     consentDescription:
       'I have reviewed and verified the details and documents entered by me in the electronic Customer Application Form. I further confirm that the information/documents so uploaded or entered by me to be true, correct, complete and up to date in all aspects and I have not withheld any information and nothing material has been concealed therefrom.',
+    // Текст из BRD 9-Consents-Dashboard → future «Aadhaar eKYC Consent» (suggested, не финальный verbatim — ждём от банка)
+    aadhaarLabel: 'Aadhaar eKYC Consent',
+    aadhaarDescription:
+      'I voluntarily consent to authenticate via Aadhaar eKYC using the UIDAI service. I will be prompted to scan a QR code via the Aadhaar App; on success, the Bank receives my personal data and photo from UIDAI. I authorise the use of my Aadhaar data for KYC and for digitally signing account opening documents.',
     cta: 'Proceed to video identification',
     back: 'Back',
     loading: 'Saving…',
@@ -225,6 +234,7 @@ export const SP08PreVcip = () => {
   const t = dict[lang];
 
   const [checked, setChecked] = useState(false);
+  const [aadhaarChecked, setAadhaarChecked] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Живые данные бизнеса — сводка отражает реальные (в т.ч. отредактированные) значения,
@@ -255,6 +265,7 @@ export const SP08PreVcip = () => {
     try {
       const timestamp = new Date().toISOString();
       await giveConsent('Data Accuracy', timestamp);
+      await giveConsent('Aadhaar', timestamp); // Aadhaar eKYC — перед видео (BRD «Before VCIP starts»)
       await setStepStatus('pre-vcip', 'done');
     } catch (_) { /* игнорируем */ }
     setLoading(false);
@@ -314,6 +325,18 @@ export const SP08PreVcip = () => {
             />
           </ConsentRow>
 
+          {/* Aadhaar eKYC Consent — перед видео, до QR-сканирования (Марго 2026-06-10 + BRD «Before VCIP starts») */}
+          <ConsentRow>
+            <Checkbox
+              label={t.aadhaarLabel}
+              description={t.aadhaarDescription}
+              checked={aadhaarChecked}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setAadhaarChecked(e.target.checked)
+              }
+            />
+          </ConsentRow>
+
           {/* CTA */}
           {/* TODO свериться с MCP — Button view="accent" size="l" disabled / isLoading props */}
           <CtaWrapper>
@@ -322,7 +345,7 @@ export const SP08PreVcip = () => {
               view="accent"
               size="l"
               text={loading ? t.loading : t.cta}
-              disabled={!checked || loading}
+              disabled={!checked || !aadhaarChecked || loading}
               onClick={handleProceed}
             />
           </CtaWrapper>

@@ -90,35 +90,35 @@ export const RM03KycTask = () => {
 
   return (
     <RmLayout
-      title={task ? `KYC-алерт · ${task.id}` : 'KYC-алерт'}
+      title={task ? `KYC alert · ${task.id}` : 'KYC alert'}
       subtitle={task ? `${task.companyName} · ${task.reason}` : undefined}
       onBack={() => navigate('/rm/queue')}
     >
       {task && <ApplicationPath companyName={task.companyName} current="KYC" />}
 
       {done && (
-        <Note view="positive" title="Алерт закрыт" text="Данные подтверждены, KYC-проверка продолжается." />
+        <Note view="positive" title="Alert closed" text="Data confirmed, KYC verification continues." />
       )}
 
       <Grid>
         <Col>
           {company && (
             <Block>
-              <BlockTitle>Компания</BlockTitle>
+              <BlockTitle>Company</BlockTitle>
               <Muted>
                 {company.companyName} · PAN {company.pan}
               </Muted>
             </Block>
           )}
           <Block>
-            <BlockTitle>Результаты KYC-проверок</BlockTitle>
+            <BlockTitle>KYC check results</BlockTitle>
             {checks.map((c) => {
               const alerted = c.checkType === ALERTED;
               return (
                 <CheckRow key={c.checkType}>
                   <CheckMain>
                     <Muted>
-                      {c.checkType} {alerted ? '· требует проверки' : ''}
+                      {c.checkType} {alerted ? '· requires review' : ''}
                     </Muted>
                     <Muted>{c.detail}</Muted>
                   </CheckMain>
@@ -131,15 +131,15 @@ export const RM03KycTask = () => {
 
         <Col>
           <Panel>
-            <BlockTitle>Решение по алерту</BlockTitle>
+            <BlockTitle>Decision</BlockTitle>
             <TextArea
-              label="Комментарий"
-              placeholder="Например: CRILC-нагрузка в пределах нормы, подтверждено выпиской"
+              label="Comment"
+              placeholder="E.g.: CRILC exposure within limits, confirmed by bank statement"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
             />
-            <Button view="accent" size="m" text="Закрыть алерт (данные валидны)" disabled={done} onClick={handleResolve} />
-            <Button view="secondary" size="m" text="Связаться с клиентом" disabled={done} />
+            <Button view="accent" size="m" text="Close alert (data valid)" disabled={done} onClick={handleResolve} />
+            <Button view="secondary" size="m" text="Contact client" disabled={done} />
           </Panel>
         </Col>
       </Grid>

@@ -50,9 +50,9 @@ const Panel = styled.div`
 `;
 
 const SLOTS = [
-  { value: '02-06 10:00', label: '2 июня, 10:00' },
-  { value: '02-06 14:30', label: '2 июня, 14:30' },
-  { value: '03-06 11:00', label: '3 июня, 11:00' },
+  { value: '02-06 10:00', label: '2 June, 10:00' },
+  { value: '02-06 14:30', label: '2 June, 14:30' },
+  { value: '03-06 11:00', label: '3 June, 11:00' },
 ];
 
 type Stage = 'plan' | 'scheduled' | 'done';
@@ -82,46 +82,46 @@ export const RM05Session = () => {
 
   return (
     <RmLayout
-      title={task ? `Сессия VKYC/F2F · ${task.id}` : 'Сессия VKYC/F2F'}
-      subtitle={signatory ? `Подписант: ${signatory.fullName}` : undefined}
+      title={task ? `VKYC/F2F session · ${task.id}` : 'VKYC/F2F session'}
+      subtitle={signatory ? `Signatory: ${signatory.fullName}` : undefined}
       onBack={() => navigate('/rm/queue')}
     >
       {task && <ApplicationPath companyName={task.companyName} current="VKYC" />}
 
       {stage === 'done' && (
-        <Note view="positive" title="Сессия проведена" text="Видеоидентификация завершена (VKYC complete), задача закрыта." />
+        <Note view="positive" title="Session completed" text="Video identification finished (VKYC complete), task resolved." />
       )}
       {stage === 'scheduled' && (
         <Note
           view="info"
-          title="Сессия назначена"
-          text={`${format === 'VKYC' ? 'Видео-сессия VKYC' : 'Очная встреча F2F'} · ${slotLabel}. Приглашение отправлено подписанту.`}
+          title="Session scheduled"
+          text={`${format === 'VKYC' ? 'VKYC video session' : 'F2F in-person meeting'} · ${slotLabel}. Invitation sent to the signatory.`}
         />
       )}
 
       <Grid>
         <Col>
           <Block>
-            <BlockTitle>Формат</BlockTitle>
+            <BlockTitle>Format</BlockTitle>
             <Radiobox
               name="format"
-              label="VKYC — видеосессия"
+              label="VKYC — video session"
               checked={format === 'VKYC'}
               onChange={() => setFormat('VKYC')}
               disabled={stage !== 'plan'}
             />
             <Radiobox
               name="format"
-              label="F2F — очная встреча"
+              label="F2F — in-person meeting"
               checked={format === 'F2F'}
               onChange={() => setFormat('F2F')}
               disabled={stage !== 'plan'}
             />
           </Block>
           <Block>
-            <BlockTitle>Слот</BlockTitle>
+            <BlockTitle>Time slot</BlockTitle>
             <Select
-              label="Дата и время"
+              label="Date and time"
               items={SLOTS}
               value={slot}
               onChange={(v: string) => setSlot(v)}
@@ -133,12 +133,12 @@ export const RM05Session = () => {
 
         <Col>
           <Panel>
-            <BlockTitle>Действие</BlockTitle>
+            <BlockTitle>Action</BlockTitle>
             {stage === 'plan' ? (
               <Button
                 view="accent"
                 size="m"
-                text="Назначить сессию"
+                text="Schedule session"
                 disabled={!slot}
                 onClick={() => setStage('scheduled')}
               />
@@ -146,12 +146,12 @@ export const RM05Session = () => {
               <Button
                 view="accent"
                 size="m"
-                text="Завершить (проведено)"
+                text="Mark as completed"
                 disabled={stage === 'done'}
                 onClick={handleComplete}
               />
             )}
-            <Muted>{format === 'VKYC' ? 'Видеосессия' : 'Очная встреча'}{slot ? ` · ${slotLabel}` : ''}</Muted>
+            <Muted>{format === 'VKYC' ? 'Video session' : 'In-person meeting'}{slot ? ` · ${slotLabel}` : ''}</Muted>
           </Panel>
         </Col>
       </Grid>

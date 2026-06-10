@@ -99,20 +99,20 @@ export const RM02Task = () => {
 
   return (
     <RmLayout
-      title={task ? `Задача ${task.id}` : 'Задача'}
+      title={task ? `Task ${task.id}` : 'Task'}
       subtitle={task ? `${task.companyName} · ${task.reason}` : undefined}
       onBack={() => navigate('/rm/queue')}
     >
       {task && <ApplicationPath companyName={task.companyName} current="OBO" />}
 
       {done === 'resolved' && (
-        <Note view="positive" title="Задача закрыта" text="Данные и документы помечены валидными. Поток онбординга продолжается." />
+        <Note view="positive" title="Task resolved" text="Data and documents marked as valid. The onboarding flow continues." />
       )}
       {done === 'requested' && (
         <Note
           view="warning"
-          title="Документы запрошены у клиента"
-          text="Клиенту отправлена нотификация. Задача переведена в статус «Запрошены документы» и ждёт ответа."
+          title="Documents requested from client"
+          text="A notification has been sent to the client. The task has been set to “Documents requested” and is awaiting a response."
         />
       )}
 
@@ -121,7 +121,7 @@ export const RM02Task = () => {
         <Col>
           {company && (
             <Block>
-              <BlockTitle>Компания</BlockTitle>
+              <BlockTitle>Company</BlockTitle>
               <Muted>{company.companyName}</Muted>
               <Muted>
                 PAN {company.pan} · CIN {company.cin}
@@ -134,7 +134,7 @@ export const RM02Task = () => {
           )}
 
           <Block>
-            <BlockTitle>Подписанты</BlockTitle>
+            <BlockTitle>Authorized signatories</BlockTitle>
             {signatories.map((s) => (
               <Muted key={s.id}>
                 {s.fullName} · {s.designation} · PAN {s.pan}
@@ -143,12 +143,12 @@ export const RM02Task = () => {
           </Block>
 
           <Block>
-            <BlockTitle>Документы</BlockTitle>
+            <BlockTitle>Documents</BlockTitle>
             {docs.map((d) => (
               <DocRow key={d.docType}>
                 <Muted>{d.docType}</Muted>
                 <Pill tone={d.status === 'Pending' ? 'warning' : 'positive'}>
-                  {d.status === 'Pending' ? 'Не загружен' : 'Загружен'}
+                  {d.status === 'Pending' ? 'Not uploaded' : 'Uploaded'}
                 </Pill>
               </DocRow>
             ))}
@@ -158,10 +158,10 @@ export const RM02Task = () => {
         {/* Правая колонка — решение */}
         <Col>
           <Panel>
-            <BlockTitle>Решение по задаче</BlockTitle>
+            <BlockTitle>Decision</BlockTitle>
             <TextArea
-              label="Комментарий"
-              placeholder="Например: подписи на Board Resolution совпадают с PAN-картами"
+              label="Comment"
+              placeholder="E.g.: signatures on the Board Resolution match the PAN cards"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
             />
@@ -169,14 +169,14 @@ export const RM02Task = () => {
               <Button
                 view="accent"
                 size="m"
-                text="Подтвердить валидность"
+                text="Mark as valid"
                 disabled={!!done}
                 onClick={handleResolve}
               />
               <Button
                 view="secondary"
                 size="m"
-                text="Запросить документы"
+                text="Request documents"
                 disabled={!!done}
                 onClick={handleRequest}
               />

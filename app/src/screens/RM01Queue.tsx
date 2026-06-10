@@ -81,19 +81,19 @@ const CheckReason = styled.span`
 `;
 
 const DOMAIN_LABEL: Record<DVUDomain, string> = {
-  OBO: 'OBO · данные',
-  KYC: 'KYC-проверки',
-  VKYC: 'Видеоидентификация',
+  OBO: 'OBO · Data',
+  KYC: 'KYC checks',
+  VKYC: 'VKYC',
 };
 const DOMAIN_ORDER: DVUDomain[] = ['OBO', 'KYC', 'VKYC'];
 const PRIORITY_RANK: Record<DVUPriority, number> = { High: 3, Medium: 2, Low: 1 };
 
 const statusTone = (s: DVUStatus) => (s === 'Resolved' ? 'positive' : s === 'New' ? 'warning' : 'neutral');
 const statusLabel: Record<DVUStatus, string> = {
-  New: 'ожидает',
-  InProgress: 'в работе',
-  Resolved: 'закрыто',
-  DocumentsRequested: 'запрос данных',
+  New: 'Pending',
+  InProgress: 'In progress',
+  Resolved: 'Resolved',
+  DocumentsRequested: 'Docs requested',
 };
 const domainRoute = (d: DVUDomain) => (d === 'KYC' ? '/rm/kyc' : d === 'VKYC' ? '/rm/vkyc' : '/rm/task');
 
@@ -120,8 +120,8 @@ export const RM01Queue = () => {
 
   return (
     <RmLayout
-      title="Очередь заявок DVU"
-      subtitle="Заявки на ручной проверке. У каждой — путь проверок по доменам (OBO · KYC · VKYC). Откройте нужную проверку."
+      title="DVU Application Queue"
+      subtitle="Applications under manual review. Each follows a verification path across domains (OBO · KYC · VKYC). Open a check to start."
     >
       {[...apps.entries()].map(([company, list]) => {
         const checks = [...list].sort((a, b) => DOMAIN_ORDER.indexOf(a.domain) - DOMAIN_ORDER.indexOf(b.domain));
@@ -139,8 +139,8 @@ export const RM01Queue = () => {
               </Pill>
             </AppHead>
             <Sub>
-              ↩ Из онбординга клиента · Hybrid · отправлена {checks[0].createdAt} · на проверке{' '}
-              {openCount} из {checks.length} ({checks.map((c) => c.domain).join(' · ')})
+              ↩ From client onboarding · Hybrid · submitted {checks[0].createdAt} · {openCount} of{' '}
+              {checks.length} checks open ({checks.map((c) => c.domain).join(' · ')})
             </Sub>
             <Checks>
               {checks.map((t) => (

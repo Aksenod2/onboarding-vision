@@ -8,14 +8,13 @@ import {
   textSecondary,
   textInfo,
   textPositive,
-  surfaceTransparentInfo,
   textWarning,
   surfaceSolidSecondary,
 } from '@salutejs/sdds-themes/tokens';
 import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
-import { getBusiness, updateBusiness, uploadDocument, setStepStatus, getBnq } from '../../mock/v2/api';
+import { getBusiness, updateBusiness, uploadDocument, setStepStatus, getBnq, getProprietor } from '../../mock/v2/api';
 import { businessFieldSources } from '../../mock/v2/types';
 import type { Business, BnqAnswer } from '../../mock/v2/types';
 import { radii, elevation, enter, eyebrow, accentPanel } from '../../ui/designSystem';
@@ -40,6 +39,7 @@ const dict: Record<
     loadingText: string;
     // Метки полей
     tradeName: string;
+    ownerName: string;
     pan: string;
     gstin: string;
     udyam: string;
@@ -69,7 +69,6 @@ const dict: Record<
     corrSameLabel: string;
     corrAddrLabel: string;
     corrAddrPlaceholder: string;
-    chequeBookLabel: string;
     // Секция документов
     sectionDocs: string;
     sectionDocsHint: string;
@@ -95,7 +94,9 @@ const dict: Record<
     backBtn: 'Назад',
     saving: 'Сохраняем…',
     loadingText: 'Загрузка данных…',
-    tradeName: 'Наименование бизнеса (Trade Name)',
+    // Legal name, не Trade: Probe тянет юридическое имя (Марго, демо 2026-06-10)
+    tradeName: 'Юридическое наименование (Legal name)',
+    ownerName: 'Владелец',
     pan: 'PAN',
     gstin: 'GSTIN',
     udyam: 'Udyam Registration',
@@ -122,7 +123,6 @@ const dict: Record<
     corrSameLabel: 'Корреспондентский адрес совпадает с юридическим',
     corrAddrLabel: 'Корреспондентский адрес',
     corrAddrPlaceholder: 'Укажите адрес для корреспонденции',
-    chequeBookLabel: 'Нужна чековая книжка',
     sectionDocs: 'Документы к загрузке',
     sectionDocsHint: 'На основе ваших ответов нужно приложить следующие документы. Можно загрузить все сразу.',
     docLicence: 'Лицензия на деятельность (Business Licence)',
@@ -145,7 +145,8 @@ const dict: Record<
     backBtn: 'Back',
     saving: 'Saving…',
     loadingText: 'Loading data…',
-    tradeName: 'Business Trade Name',
+    tradeName: 'Legal name',
+    ownerName: 'Owner',
     pan: 'PAN',
     gstin: 'GSTIN',
     udyam: 'Udyam Registration',
@@ -172,7 +173,6 @@ const dict: Record<
     corrSameLabel: 'Correspondence address is the same as registered',
     corrAddrLabel: 'Correspondence address',
     corrAddrPlaceholder: 'Enter your correspondence address',
-    chequeBookLabel: 'Cheque book required',
     sectionDocs: 'Documents to upload',
     sectionDocsHint: 'Based on your answers, the following documents are required. You can upload them all at once.',
     docLicence: 'Business Licence',
@@ -257,17 +257,17 @@ const Row = styled.div`
   }
 `;
 
+// Pre-filled — приглушённый серый текст без плашки (фидбек демо 2026-06-10:
+// «слишком много акцента, пользы мало»; caption справа SDDS не умеет — оставляем снизу серым)
 const RegistryBadge = styled.span`
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
   gap: 0.3rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.375rem;
-  background-color: ${surfaceTransparentInfo};
-  color: ${textInfo};
+  color: ${textSecondary};
+  opacity: 0.75;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.01em;
 
   &::before {
@@ -412,6 +412,7 @@ export const SP06Company = () => {
   const t = dict[lang];
 
   const [business, setBusiness] = useState<Business | null>(null);
+  const [ownerName, setOwnerName] = useState(''); // имя владельца — из реестра (фидбек демо 2026-06-10)
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
   // Черновик правок (накапливаем изменения до сохранения)
@@ -422,7 +423,6 @@ export const SP06Company = () => {
   const [uploadedProofs, setUploadedProofs] = useState<UploadedProofs>({});
 
   // Доп. секция (B7/B8) — ручной ввод, не из реестра, без proof/DVU
-  const [chequeBook, setChequeBook] = useState(false);
   const [corrSameAsReg, setCorrSameAsReg] = useState(true);
   const [corrAddress, setCorrAddress] = useState('');
 
@@ -441,6 +441,7 @@ export const SP06Company = () => {
       setBusiness(b);
       originalRef.current = b;
     });
+    getProprietor().then((p) => setOwnerName(p.fullName));
     getBnq().then(setBnq);
   }, []);
 
@@ -512,8 +513,7 @@ export const SP06Company = () => {
       patch.registeredAddress = { ...business.registeredAddress, ...addrDraft };
     }
 
-    // Доп. секция (B7/B8) — manual, без proof
-    patch.chequeBookRequired = chequeBook;
+    // Доп. секция (B7) — manual, без proof. Чек-бук убран (Марго, демо 2026-06-10).
     if (!corrSameAsReg && corrAddress) patch.correspondenceAddress = corrAddress;
 
     if (Object.keys(patch).length > 0) {
@@ -676,7 +676,11 @@ export const SP06Company = () => {
 
             {mode === 'view' ? (
               <>
-                {renderViewField(t.tradeName, business.tradeName, isRegistry('tradeName'))}
+                <Row>
+                  {renderViewField(t.tradeName, business.tradeName, isRegistry('tradeName'))}
+                  {/* Имя владельца — из реестра, read-only (фидбек демо 2026-06-10) */}
+                  {renderViewField(t.ownerName, ownerName, true)}
+                </Row>
                 <Row>
                   {renderViewField(t.pan, business.pan, isRegistry('pan'))}
                   {renderViewField(t.gstin, business.gstin, isRegistry('gstin'))}
@@ -692,7 +696,11 @@ export const SP06Company = () => {
               </>
             ) : (
               <>
-                {renderEditField('tradeName', t.tradeName)}
+                <Row>
+                  {renderEditField('tradeName', t.tradeName)}
+                  {/* Владелец не редактируется — идентичность из PAN/реестра */}
+                  {renderViewField(t.ownerName, ownerName, true)}
+                </Row>
                 <Row>
                   {renderEditField('pan', t.pan)}
                   {renderEditField('gstin', t.gstin)}
@@ -726,21 +734,12 @@ export const SP06Company = () => {
           {/* Секция «Деятельность» убрана: industry/segment (BNQ Q1) и residency (Q3)
               теперь подтверждаются в анкете ДО этого экрана (порядок Марго, 2026-06-09). */}
 
-          {/* ── Секция: Дополнительно (B7/B8, ручной ввод клиента) ── */}
+          {/* ── Секция: Дополнительно (B7, ручной ввод клиента) ── */}
+          {/* Чек-бук УБРАН совсем — Марго, демо 2026-06-10: «никакого чек-бука больше не будет» */}
           <Section>
             <SectionTitle>{t.sectionAdditional}</SectionTitle>
 
-            {/* B8 — нужна ли чековая книжка */}
-            {/* TODO свериться с MCP — Checkbox: label / checked / onChange */}
-            <Checkbox
-              label={t.chequeBookLabel}
-              checked={chequeBook}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setChequeBook(e.target.checked)
-              }
-            />
-
-            {/* B7 — корресп. адрес: спрашиваем только если отличается от юридического */}
+            {/* B7 — корресп. адрес: same по умолчанию (~90% случаев), иначе клиент вводит */}
             <Checkbox
               label={t.corrSameLabel}
               checked={corrSameAsReg}

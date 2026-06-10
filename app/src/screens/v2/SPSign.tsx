@@ -53,7 +53,7 @@ const dict: Record<
     docSolePropDesc:
       'Подтверждаю статус индивидуального предпринимателя и принимаю условия обслуживания Сбербанк Индия.',
     docPdfStub: 'Предпросмотр PDF появится здесь',
-    btnAuthorize: 'Подписать кодом из SMS',
+    btnAuthorize: 'Подписать по OTP',
     otpLabel: 'Введите код',
     otpHint: 'Мы отправили одноразовый код на ваш телефон. Введите его, чтобы подписать документы.',
     otpDemoHint: 'Демо-код: 0000',
@@ -76,7 +76,7 @@ const dict: Record<
     docSolePropDesc:
       'I confirm my status as a sole proprietor and accept the terms of service of Sberbank India.',
     docPdfStub: 'PDF preview will appear here',
-    btnAuthorize: 'Sign with SMS code',
+    btnAuthorize: 'Sign by OTP', // формулировка Марго (демо 2026-06-10)
     otpLabel: 'Enter the code',
     otpHint: 'We sent a one-time code to your phone. Enter it to sign the documents.',
     otpDemoHint: 'Demo code: 0000',

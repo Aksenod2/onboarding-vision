@@ -95,8 +95,8 @@ const dict: Record<Lang, {
   // DVU alert note
 }> = {
   ru: {
-    title: 'Бизнес-анкета',
-    subtitle: 'Ответьте на несколько вопросов о вашем бизнесе',
+    title: 'Расскажите подробнее о вашем бизнесе',
+    subtitle: 'Ответьте на несколько вопросов — это поможет нам подобрать условия',
     stepOf: (c, t) => `Вопрос ${c} из ${t}`,
     probeConfirm: (v) => `Мы определили: ${v}. Верно?`,
     yes: 'Да, верно',
@@ -145,8 +145,8 @@ const dict: Record<Lang, {
       '⚠️ Для обработки международных платежей и торговых операций SBER Банк требует ваш IEC в соответствии с нормами FEMA. Без действительного IEC мы не сможем обработать ваши трансграничные платежи. Вы можете загрузить IEC сейчас или позже в интернет-банке после открытия счёта. Загрузка позже не влияет на открытие счёта, но мы рекомендуем загрузить сейчас.',
   },
   en: {
-    title: 'Business Questionnaire',
-    subtitle: 'Please answer a few questions about your business',
+    title: 'Tell us more about your business',
+    subtitle: 'Answer a few questions — this helps us tailor the right setup for you',
     stepOf: (c, t) => `Question ${c} of ${t}`,
     probeConfirm: (v) => `We have identified: ${v}. Is that correct?`,
     yes: 'Yes, correct',

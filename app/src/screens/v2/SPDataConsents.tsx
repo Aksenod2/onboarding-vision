@@ -21,10 +21,11 @@ import type { Lang } from '../../ui/v2/LanguageContext';
 import { giveConsent, setStepStatus } from '../../mock/v2/api';
 import { prevStepRoute, DASHBOARD_ROUTE } from '../../ui/v2/steps';
 
-// SP-DATA-CONSENTS — Согласия по данным лица (KMP Confirmation, Data Principals, Aadhaar).
+// SP-DATA-CONSENTS — Согласия по данным лица (KMP Confirmation, Data Principals).
+// Aadhaar-согласие перенесено на «Согласие перед видео» (Марго + BRD «Before VCIP starts», 2026-06-10).
 // Роут: /v2/data-consents
 // Собираем ЕДИНЫМ блоком перед бизнес-анкетой (BNQ).
-// Consents: 4 — KMP Confirmation, 5 — Data Principals, 6 — Aadhaar
+// Consents: 4 — KMP Confirmation, 5 — Data Principals
 // API: giveConsent(type, timestamp) для отмеченных + setStepStatus('data-consents','done') → navigate(DASHBOARD_ROUTE)
 
 // ─── i18n ────────────────────────────────────────────────────────────────────
@@ -34,8 +35,7 @@ const dict: Record<
   {
     title: string;
     subtitle: string;
-    consentAadhaarLabel: string;
-    consentAadhaarDesc: string;
+    selectAll: string;
     consentDataPrincipalsLabel: string;
     consentDataPrincipalsDesc: string;
     consentKmpLabel: string;
@@ -49,9 +49,7 @@ const dict: Record<
     title: 'Согласия по данным',
     subtitle:
       'Перед заполнением бизнес-анкеты подтвердите согласия по данным. Переход работает в любом случае — согласия фиксируются по выбранным пунктам.',
-    consentAadhaarLabel: 'Согласие Aadhaar',
-    consentAadhaarDesc:
-      'Я подтверждаю, что Sberbank Branch in India предоставил мне различные варианты подтверждения личности в целях, описанных в Политике конфиденциальности, и я добровольно предоставляю данные Aadhaar Sberbank Branch in India. В случае если я предоставил данные Aadhaar других субъектов данных, я гарантирую, что такие лица уведомлены об обработке их данных Aadhaar в соответствии с Политикой конфиденциальности и я получил их явное согласие на такую обработку. Я ознакомился с условиями Согласия Aadhaar и данной формы заявления/запроса и принимаю их.',
+    selectAll: 'Выбрать все',
     consentDataPrincipalsLabel: 'Конфиденциальность субъектов данных',
     consentDataPrincipalsDesc:
       'Я подтверждаю, что в случае предоставления персональных данных других субъектов данных, гарантирую: такие лица уведомлены об обработке их персональных данных Sberbank Branch in India в соответствии с Политикой конфиденциальности, и я получил их явное согласие на такую обработку. Я обязуюсь освободить Sberbank Branch in India от любой ответственности, убытков и обязательств, связанных с такой передачей данных.',
@@ -66,10 +64,8 @@ const dict: Record<
     title: 'Data Consents',
     subtitle:
       'Before completing the business questionnaire, please confirm the data consents below. You may proceed regardless — consents are recorded for checked items only.',
-    // Тексты согласий 4 / 5 / 6 — VERBATIM из docs/Consents — список (current).md, не редактировать
-    consentAadhaarLabel: 'Aadhaar Consent',
-    consentAadhaarDesc:
-      'I hereby acknowledge and confirm that I have been provided various options by Sberbank Branch in India for establishing my identity for the purposes as described in the Privacy Notice and I voluntarily submit my Aadhaar details to the Sberbank Branch in India. In case I have provided Aadhaar details of other Data Principals, I guarantee that such Data Principals are notified about Sberbank Branch in India processing of their Aadhaar details as described in the Privacy Notice and I obtained their explicit Aadhaar Consent for such processing. I have read and understood the Aadhaar Consent and terms governing this application form/request and hereby accept the same.',
+    // Тексты согласий 4 / 5 — VERBATIM из docs/Consents — список (current).md, не редактировать
+    selectAll: 'Select all',
     consentDataPrincipalsLabel: 'Data Principals Privacy',
     consentDataPrincipalsDesc:
       'I hereby acknowledge and confirm that in case I have provided personal data of other Data Principals, I guarantee that such Data Principals are notified about Sberbank Branch in India processing of their personal data as described in the Privacy Notice and I obtained their explicit consent for such processing and shall keep Sberbank Branch in India indemnified and hold harmless against any loss, damage, liabilities, obligations caused to the Sberbank Branch in India.',
@@ -121,6 +117,14 @@ const CardBody = styled.div`
   gap: 1.25rem;
 `;
 
+// Select all — отдельная строка над списком согласий
+const SelectAllRow = styled.div`
+  ${enter(0.08)};
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+`;
+
 const ConsentItem = styled.div`
   ${enter(0.1)};
   display: flex;
@@ -164,16 +168,22 @@ export const SPDataConsents = () => {
   const { lang } = useLanguage();
   const t = dict[lang];
 
-  const [consentAadhaar, setConsentAadhaar] = useState(false);
   const [consentDataPrincipals, setConsentDataPrincipals] = useState(false);
   const [consentKmp, setConsentKmp] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Select all (фидбек Марго, демо 2026-06-10)
+  const allChecked = consentDataPrincipals && consentKmp;
+  const toggleAll = () => {
+    const next = !allChecked;
+    setConsentDataPrincipals(next);
+    setConsentKmp(next);
+  };
 
   const handleContinue = async () => {
     setSaving(true);
     try {
       const ts = new Date().toISOString();
-      if (consentAadhaar) await giveConsent('Aadhaar', ts);
       if (consentDataPrincipals) await giveConsent('Data Principals', ts);
       if (consentKmp) await giveConsent('KMP Confirmation', ts);
       await setStepStatus('data-consents', 'done');
@@ -197,14 +207,15 @@ export const SPDataConsents = () => {
             {lang === 'ru' ? 'Ознакомьтесь и отметьте применимые пункты:' : 'Review and check the applicable items:'}
           </SectionLabel>
 
+          {/* Select all — фидбек Марго (демо 2026-06-10): не прокликивать каждое согласие отдельно */}
+          <SelectAllRow onClick={toggleAll}>
+            <Checkbox label={t.selectAll} checked={allChecked} onChange={() => {}} />
+          </SelectAllRow>
+
           {/* Вся область кликабельна — клик по ConsentItem переключает согласие.
               Checkbox только отображает состояние (onChange-noop гасит React-warning). */}
-          {/* Consent 6 — Aadhaar (внутренний номер банка клиенту не показываем) */}
-          <ConsentItem onClick={() => setConsentAadhaar((v) => !v)}>
-            {/* TODO свериться с MCP — Checkbox: label / checked */}
-            <Checkbox label={t.consentAadhaarLabel} checked={consentAadhaar} onChange={() => {}} />
-            <ConsentDesc>{t.consentAadhaarDesc}</ConsentDesc>
-          </ConsentItem>
+          {/* Aadhaar-согласие перенесено на «Согласие перед видео» (Марго + BRD TO-BE
+              «Before VCIP starts»: Aadhaar eKYC Consent собирается перед видео, до QR). */}
 
           {/* Consent 5 — Data Principals */}
           <ConsentItem onClick={() => setConsentDataPrincipals((v) => !v)}>

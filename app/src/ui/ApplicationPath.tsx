@@ -10,16 +10,16 @@ import type { DVUDomain, DVUTask } from '../mock/types';
 // разрозненные задачи. Подсвечивает текущий домен, переключает между проверками.
 
 const ORDER: { domain: DVUDomain; label: string; route: string }[] = [
-  { domain: 'OBO', label: 'Данные · OBO', route: '/rm/task' },
-  { domain: 'KYC', label: 'KYC-проверки', route: '/rm/kyc' },
-  { domain: 'VKYC', label: 'Видеоидентификация', route: '/rm/vkyc' },
+  { domain: 'OBO', label: 'Data · OBO', route: '/rm/task' },
+  { domain: 'KYC', label: 'KYC checks', route: '/rm/kyc' },
+  { domain: 'VKYC', label: 'VKYC', route: '/rm/vkyc' },
 ];
 
 const statusShort: Record<DVUTask['status'], string> = {
-  New: 'ожидает',
-  InProgress: 'в работе',
-  Resolved: '✓ закрыто',
-  DocumentsRequested: 'запрос данных',
+  New: 'Pending',
+  InProgress: 'In progress',
+  Resolved: '✓ Resolved',
+  DocumentsRequested: 'Docs requested',
 };
 
 const Wrap = styled.div`
@@ -103,8 +103,8 @@ export const ApplicationPath = ({ companyName, current }: Props) => {
 
   return (
     <Wrap>
-      <Caption>Путь заявки · {companyName}</Caption>
-      <Origin>↩ Поступила из онбординга клиента · сценарий Hybrid (не прошла авто-проверку)</Origin>
+      <Caption>Application path · {companyName}</Caption>
+      <Origin>↩ Received from client onboarding · Hybrid scenario (failed auto-verification)</Origin>
       <Row>
         {steps.map((s, i) => (
           <Fragment key={s.domain}>

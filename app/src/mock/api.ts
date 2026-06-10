@@ -33,11 +33,11 @@ let uploads: DocumentRecord[] = structuredClone(REQUIRED_UPLOADS);
 
 // RM (Менеджер): очередь DVU-задач. Порождены провалом авто-проверок (домен OBO).
 const DVU_SEED: DVUTask[] = [
-  { id: 'DVU-1042', domain: 'OBO', companyName: 'Saanvi Textiles Private Limited', reason: 'Board Resolution требует ручной сверки подписей', priority: 'High', status: 'New', createdAt: '01-06-2026' },
-  { id: 'DVU-1051', domain: 'KYC', companyName: 'Saanvi Textiles Private Limited', reason: 'CRILC: кредитная нагрузка требует ручной проверки', priority: 'High', status: 'New', createdAt: '01-06-2026' },
-  { id: 'DVU-1055', domain: 'VKYC', companyName: 'Saanvi Textiles Private Limited', reason: 'selfVKYC подписанта Priya Sharma не прошёл — нужен review', priority: 'Medium', status: 'New', createdAt: '01-06-2026' },
-  { id: 'DVU-1043', domain: 'OBO', companyName: 'Meridian Exports LLP', reason: 'Адрес не совпал с реестром (Probe42)', priority: 'Medium', status: 'New', createdAt: '01-06-2026' },
-  { id: 'DVU-1039', domain: 'OBO', companyName: 'Kapoor Trading Co.', reason: 'Address Proof нечитаемый — нужен повтор', priority: 'Low', status: 'InProgress', createdAt: '31-05-2026' },
+  { id: 'DVU-1042', domain: 'OBO', companyName: 'Saanvi Textiles Private Limited', reason: 'Board Resolution: signatures require manual verification', priority: 'High', status: 'New', createdAt: '01-06-2026' },
+  { id: 'DVU-1051', domain: 'KYC', companyName: 'Saanvi Textiles Private Limited', reason: 'CRILC: credit exposure requires manual review', priority: 'High', status: 'New', createdAt: '01-06-2026' },
+  { id: 'DVU-1055', domain: 'VKYC', companyName: 'Saanvi Textiles Private Limited', reason: 'Signatory Priya Sharma failed selfVKYC — review required', priority: 'Medium', status: 'New', createdAt: '01-06-2026' },
+  { id: 'DVU-1043', domain: 'OBO', companyName: 'Meridian Exports LLP', reason: 'Address mismatch with registry (Probe42)', priority: 'Medium', status: 'New', createdAt: '01-06-2026' },
+  { id: 'DVU-1039', domain: 'OBO', companyName: 'Kapoor Trading Co.', reason: 'Address Proof illegible — re-upload required', priority: 'Low', status: 'InProgress', createdAt: '31-05-2026' },
 ];
 let dvuTasks: DVUTask[] = structuredClone(DVU_SEED);
 

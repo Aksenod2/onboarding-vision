@@ -98,13 +98,13 @@ export const RM04VkycMeeting = () => {
       {task && <ApplicationPath companyName={task.companyName} current="VKYC" />}
 
       {done === 'confirmed' && (
-        <Note view="positive" title="Личность подтверждена" text="VKYC закрыт вручную, видеоидентификация пройдена." />
+        <Note view="positive" title="Identity confirmed" text="VKYC closed manually, video identification passed." />
       )}
 
       <Grid>
         <Col>
           <Block>
-            <BlockTitle>Подписант на проверке</BlockTitle>
+            <BlockTitle>Signatory under review</BlockTitle>
             {signatory && (
               <>
                 <Muted>
@@ -116,25 +116,25 @@ export const RM04VkycMeeting = () => {
             <StatusPill tone="warning">selfVKYC: {session?.status ?? 'Failed'}</StatusPill>
           </Block>
           <Block>
-            <BlockTitle>Запись видеовстречи</BlockTitle>
-            <Video>▶ Запись self-VKYC сессии (демо-плейсхолдер)</Video>
+            <BlockTitle>Meeting recording</BlockTitle>
+            <Video>▶ Self-VKYC session recording (demo placeholder)</Video>
           </Block>
         </Col>
 
         <Col>
           <Panel>
-            <BlockTitle>Вердикт</BlockTitle>
+            <BlockTitle>Verdict</BlockTitle>
             <TextArea
-              label="Комментарий"
-              placeholder="Например: лицо совпадает с документом, освещение слабое — подтверждаю вручную"
+              label="Comment"
+              placeholder="E.g.: face matches the ID document, poor lighting — confirming manually"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
             />
-            <Button view="accent" size="m" text="Подтвердить личность" disabled={!!done} onClick={handleConfirm} />
+            <Button view="accent" size="m" text="Confirm identity" disabled={!!done} onClick={handleConfirm} />
             <Button
               view="secondary"
               size="m"
-              text="Назначить VKYC / F2F-сессию"
+              text="Schedule VKYC / F2F session"
               disabled={!!done}
               onClick={() => navigate(`/rm/session?id=${id}`)}
             />
