@@ -115,6 +115,7 @@ export const aaravSharmaExports: OnboardingCaseV2 = {
     { id: 'data-consents', title: 'Согласия по данным', status: 'pending' },
     { id: 'company', title: 'Подтверждение данных компании', status: 'pending' },
     { id: 'pre-vcip', title: 'Согласие перед видеоидентификацией', status: 'pending' },
+    { id: 'aadhaar-qr', title: 'Aadhaar eKYC', status: 'pending' },
     { id: 'vcip', title: 'Видеоидентификация', status: 'pending' },
     { id: 'sign', title: 'Подписание документов', status: 'pending' },
   ],

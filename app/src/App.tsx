@@ -13,6 +13,7 @@ import { SP06Company } from './screens/v2/SP06Company';
 import { SPDataConsents } from './screens/v2/SPDataConsents';
 import { SP07Bnq } from './screens/v2/SP07Bnq';
 import { SP08PreVcip } from './screens/v2/SP08PreVcip';
+import { SPAadhaarQr } from './screens/v2/SPAadhaarQr';
 import { SP09Vcip } from './screens/v2/SP09Vcip';
 import { SPSign } from './screens/v2/SPSign';
 import { SP10Dashboard } from './screens/v2/SP10Dashboard';
@@ -55,6 +56,8 @@ export const App = () => {
               <Route path="data-consents" element={<SPDataConsents />} />
               <Route path="bnq" element={<SP07Bnq />} />
               <Route path="pre-vcip" element={<SP08PreVcip />} />
+              {/* QR-шаг Aadhaar eKYC — между согласием перед видео и VKYC (BRD Table A 04–05) */}
+              <Route path="aadhaar-qr" element={<SPAadhaarQr />} />
               <Route path="vcip" element={<SP09Vcip />} />
               <Route path="sign" element={<SPSign />} />
               <Route path="dashboard" element={<SP10Dashboard />} />

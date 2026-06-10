@@ -24,9 +24,12 @@ export const STEPS: StepDef[] = [
   { id: 'data-consents', route: '/v2/data-consents', order: 3, titleRu: 'Согласия по данным', titleEn: 'Data consents' },
   { id: 'company', route: '/v2/company', order: 4, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
   { id: 'pre-vcip', route: '/v2/pre-vcip', order: 5, titleRu: 'Согласие перед видеоидентификацией', titleEn: 'Pre-video consent' },
-  { id: 'vcip', route: '/v2/vcip', order: 6, titleRu: 'Видеоидентификация', titleEn: 'Video identification' },
-  // Шаг 7 — Declarations Dashboard по BRD (Table A шаг 09): подписание деклараций кодом OTP после VKYC.
-  { id: 'sign', route: '/v2/sign', order: 7, titleRu: 'Подписание документов', titleEn: 'Sign documents' },
+  // Шаг 6 — Aadhaar QR / eKYC (BRD 1.1-SOP Table A шаги 04–05; фидбек Марго, демо 2026-06-10).
+  // Шаг обратим — в isIrreversibleStep НЕ входит.
+  { id: 'aadhaar-qr', route: '/v2/aadhaar-qr', order: 6, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
+  { id: 'vcip', route: '/v2/vcip', order: 7, titleRu: 'Видеоидентификация', titleEn: 'Video identification' },
+  // Шаг 8 — Declarations Dashboard по BRD (Table A шаг 09): подписание деклараций кодом OTP после VKYC.
+  { id: 'sign', route: '/v2/sign', order: 8, titleRu: 'Подписание документов', titleEn: 'Sign documents' },
 ];
 
 export const DASHBOARD_ROUTE = '/v2/dashboard';

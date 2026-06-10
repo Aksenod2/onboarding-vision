@@ -64,7 +64,7 @@ const dict: Record<
     aadhaarLabel: 'Согласие на Aadhaar eKYC',
     aadhaarDescription:
       'Я добровольно даю согласие на аутентификацию через Aadhaar eKYC с использованием сервиса UIDAI. Мне будет предложено отсканировать QR-код через приложение Aadhaar; при успехе банк получит мои персональные данные и фото из UIDAI. Я разрешаю использовать данные Aadhaar для KYC и для цифрового подписания документов об открытии счёта.',
-    cta: 'Перейти к видеоидентификации',
+    cta: 'Продолжить к Aadhaar eKYC',
     back: 'Назад',
     loading: 'Сохранение…',
   },
@@ -86,7 +86,7 @@ const dict: Record<
     aadhaarLabel: 'Aadhaar eKYC Consent',
     aadhaarDescription:
       'I voluntarily consent to authenticate via Aadhaar eKYC using the UIDAI service. I will be prompted to scan a QR code via the Aadhaar App; on success, the Bank receives my personal data and photo from UIDAI. I authorise the use of my Aadhaar data for KYC and for digitally signing account opening documents.',
-    cta: 'Proceed to video identification',
+    cta: 'Continue to Aadhaar eKYC',
     back: 'Back',
     loading: 'Saving…',
   },
@@ -269,7 +269,8 @@ export const SP08PreVcip = () => {
       await setStepStatus('pre-vcip', 'done');
     } catch (_) { /* игнорируем */ }
     setLoading(false);
-    navigate('/v2/vcip');
+    // После согласий — QR-шаг Aadhaar eKYC до видео (BRD Table A 03→04)
+    navigate('/v2/aadhaar-qr');
   };
 
   const handleBack = () => navigate(prevStepRoute('pre-vcip') ?? DASHBOARD_ROUTE);
