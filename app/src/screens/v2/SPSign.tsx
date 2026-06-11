@@ -49,19 +49,19 @@ const dict: Record<
     title: 'Подписание документов',
     subtitle:
       'Последний шаг. Ознакомьтесь с документами и подпишите их кодом из SMS — после этого мы откроем счёт.',
-    docDeclaration: 'Декларация достоверности',
+    docDeclaration: 'Декларация',
     docDeclarationDesc:
-      'Подтверждаю, что все предоставленные мной сведения являются полными, достоверными и актуальными.',
-    docSoleProp: 'Заявление индивидуального предпринимателя',
+      'Подтверждаю достоверность сведений и ответственность за операции по счёту.',
+    docSoleProp: 'Согласие и уполномочие на банковские операции',
     docSolePropDesc:
-      'Подтверждаю статус индивидуального предпринимателя и принимаю условия обслуживания Сбербанк Индия.',
+      'Заявляю, что являюсь единоличным владельцем бизнеса, и уполномочиваю банк открыть счёт и провести проверки KYC.',
     docPreviewBtn: 'Просмотреть документ',
     docPreviewClose: 'Закрыть',
-    // Mock-тексты деклараций (финальные verbatim — у Марго «в работе», чек-лист п.2)
+    // Тексты деклараций VERBATIM из юзер-кейсов Марго (2026-06-11, IMG_6964); RU — перевод
     docDeclarationFull:
-      'Я, нижеподписавшийся, подтверждаю, что все сведения и документы, предоставленные мной в рамках заявления на открытие расчётного счёта, являются полными, достоверными и актуальными на дату подписания. Я понимаю, что предоставление недостоверных сведений может повлечь отказ в открытии счёта или его последующую блокировку в соответствии с применимым законодательством и внутренними правилами банка. Я обязуюсь уведомлять банк об изменении предоставленных сведений.',
+      'Я подтверждаю, что:\n• Сведения, предоставленные банку, являются достоверными, точными и полными.\n• Я несу единоличную ответственность за все операции по счёту (счетам).\n• О любом изменении владения, статуса бизнеса или уполномоченного подписанта я немедленно сообщу банку в письменной форме.\n• Все операции, совершённые по физическим или электронным каналам, имеют для меня обязательную силу.',
     docSolePropFull:
-      'Я подтверждаю, что осуществляю предпринимательскую деятельность в статусе индивидуального предпринимателя (Sole Proprietor) и являюсь единственным владельцем и распорядителем указанного бизнеса. Я ознакомился(-лась) с условиями обслуживания, тарифами и правилами банка и принимаю их в полном объёме. Я подтверждаю свои полномочия на открытие и распоряжение расчётным счётом от имени данного бизнеса.',
+      'Я, Aarav Sharma, сын/дочь [____________], проживающий(-ая) по адресу [Адрес], настоящим заявляю, что являюсь единоличным владельцем Aarav Sharma Exports с основным местом ведения деятельности: Shop 14, Crystal Plaza, Link Road, Malad West, Mumbai — 400064.\n\nСОГЛАСИЕ И УПОЛНОМОЧИЕ\n\nНастоящим я даю согласие и уполномочиваю [Sber Bank]:\n• Открыть и вести банковский продукт или услугу по моему заявлению на имя Aarav Sharma Exports.\n• Предоставить и обеспечить ведение счёта и использование продуктов и услуг Sber Bank, включая, помимо прочего, интернет-банк, услуги в рамках FEMA, депозиты, кредиты, учёт/дисконтирование векселей, аккредитивы, банковские гарантии и иные банковские услуги, в соответствии с условиями Sber Bank https://sberbank.co.in/.\n• Проводить проверки KYC, CKYC, AML и регуляторные проверки, включая проверку личности, адреса и сведений о бизнесе.',
     btnAuthorize: 'Подписать по OTP',
     otpLabel: 'Введите код',
     otpHint: 'Мы отправили одноразовый код на ваш телефон. Введите его, чтобы подписать документы.',
@@ -78,18 +78,20 @@ const dict: Record<
     title: 'Sign documents',
     subtitle:
       'The final step. Review the documents and sign them with the code from SMS — after that we will open your account.',
-    docDeclaration: 'Declaration of Accuracy',
+    // Тексты деклараций VERBATIM из юзер-кейсов Марго (2026-06-11, IMG_6964) — не редактировать.
+    // Плейсхолдеры шаблона [Full Name]/[Firm] заполнены mock-данными; неизвестные — прочерки.
+    docDeclaration: 'Declaration',
     docDeclarationDesc:
-      'I confirm that all information I have provided is complete, accurate and up to date.',
-    docSoleProp: 'Sole Proprietor Declaration',
+      'I confirm the information is true, correct and complete, and accept responsibility for account transactions.',
+    docSoleProp: 'Consent and Authorisation for Banking Operations',
     docSolePropDesc:
-      'I confirm my status as a sole proprietor and accept the terms of service of Sberbank India.',
+      'I declare I am the sole proprietor and authorise the Bank to open the account and carry out KYC checks.',
     docPreviewBtn: 'Preview document',
     docPreviewClose: 'Close',
     docDeclarationFull:
-      'I, the undersigned, confirm that all information and documents provided by me as part of the account-opening application are complete, accurate and up to date as of the date of signing. I understand that providing inaccurate information may result in refusal to open the account or its subsequent suspension in accordance with applicable law and the bank’s internal rules. I undertake to notify the bank of any changes to the information provided.',
+      'I confirm that:\n• The information provided to the Bank is true, correct and complete.\n• I shall be solely responsible for all transactions carried out in the account(s).\n• Any change in ownership, business status or authorised signatory shall be immediately informed to the Bank in writing.\n• All transactions executed through physical or electronic channels shall be binding on me.',
     docSolePropFull:
-      'I confirm that I conduct business as a Sole Proprietor and am the sole owner and operator of the said business. I have read and accept in full the terms of service, tariffs and rules of the bank. I confirm my authority to open and operate a current account on behalf of this business.',
+      'I, Aarav Sharma, son/daughter of [____________], residing at [Address], do hereby declare that I am the sole proprietor of Aarav Sharma Exports, having its principal place of business at Shop 14, Crystal Plaza, Link Road, Malad West, Mumbai — 400064.\n\nCONSENT & AUTHORISATION\n\nI hereby give my consent and authorise [Sber Bank] to:\n• Open and maintain Banking product or service as per my request in the name of Aarav Sharma Exports.\n• Provide and enable to operate the account and avail and utilise the products and services of Sber Bank, including but not limited to Internet Banking, FEMA-related services, deposits, loans, bill purchase/discounting, letters of credit, bank guarantees, and other banking facilities, in accordance with the terms and conditions of Sber Bank https://sberbank.co.in/.\n• Carry out KYC, CKYC, AML, and regulatory checks, including verification of identity, address and business details.',
     btnAuthorize: 'Sign by OTP', // формулировка Марго (демо 2026-06-10)
     otpLabel: 'Enter the code',
     otpHint: 'We sent a one-time code to your phone. Enter it to sign the documents.',
@@ -256,6 +258,7 @@ const LightboxText = styled.p`
   font-size: 0.9rem;
   line-height: 1.7;
   color: ${textPrimary};
+  white-space: pre-line; /* verbatim-текст с абзацами и пунктами */
 `;
 
 const LightboxFoot = styled.div`
