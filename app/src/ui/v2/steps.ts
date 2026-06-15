@@ -17,18 +17,21 @@ export interface StepDef {
 
 // Порядок выверен по встрече с Марго (решение Дениса 2026-06-09): вопросы (BNQ) и согласия
 // идут ДО экрана подтверждения всех данных компании. Подтверждение — финальный обзор перед VCIP.
+// Порядок выверен по ответу Марго 2026-06-15: Aadhaar eKYC — в начало (для всех кейсов);
+// согласия в 3 точках (перед PAN / перед Aadhaar / перед VKYC); подтверждение достоверности
+// и подписание деклараций — финальным шагом по OTP.
 export const STEPS: StepDef[] = [
-  // Шаг 1 объединяет согласие на реестры + ввод PAN (решение Дениса 2026-06-09).
+  // Шаг 1 объединяет согласие на реестры + ввод PAN (решение Дениса 2026-06-09). PAN тянет данные бизнеса.
   { id: 'pan', route: '/v2/pan', order: 1, titleRu: 'Доступ к реестрам и PAN', titleEn: 'Registry access & PAN' },
-  { id: 'bnq', route: '/v2/bnq', order: 2, titleRu: 'Бизнес-анкета', titleEn: 'Business questionnaire' },
-  { id: 'data-consents', route: '/v2/data-consents', order: 3, titleRu: 'Согласия по данным', titleEn: 'Data consents' },
-  { id: 'company', route: '/v2/company', order: 4, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
-  { id: 'pre-vcip', route: '/v2/pre-vcip', order: 5, titleRu: 'Согласие перед видеоидентификацией', titleEn: 'Pre-video consent' },
-  // Шаг 6 — Aadhaar QR / eKYC (BRD 1.1-SOP Table A шаги 04–05; фидбек Марго, демо 2026-06-10).
-  // Шаг обратим — в isIrreversibleStep НЕ входит.
-  { id: 'aadhaar-qr', route: '/v2/aadhaar-qr', order: 6, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
+  // Шаг 2 — Aadhaar eKYC: согласие на Aadhaar + QR-скан, верификация личности владельца (Марго 2026-06-15).
+  // Обратим — в isIrreversibleStep НЕ входит.
+  { id: 'aadhaar-qr', route: '/v2/aadhaar-qr', order: 2, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
+  { id: 'bnq', route: '/v2/bnq', order: 3, titleRu: 'Бизнес-анкета', titleEn: 'Business questionnaire' },
+  { id: 'data-consents', route: '/v2/data-consents', order: 4, titleRu: 'Согласия по данным', titleEn: 'Data consents' },
+  { id: 'company', route: '/v2/company', order: 5, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
+  { id: 'pre-vcip', route: '/v2/pre-vcip', order: 6, titleRu: 'Согласие на видеоидентификацию', titleEn: 'Video identification consent' },
   { id: 'vcip', route: '/v2/vcip', order: 7, titleRu: 'Видеоидентификация', titleEn: 'Video identification' },
-  // Шаг 8 — Declarations Dashboard по BRD (Table A шаг 09): подписание деклараций кодом OTP после VKYC.
+  // Шаг 8 — подписание декларации и анкеты по OTP + подтверждение достоверности (Data Accuracy).
   { id: 'sign', route: '/v2/sign', order: 8, titleRu: 'Подписание документов', titleEn: 'Sign documents' },
 ];
 

@@ -40,53 +40,44 @@ const dict: Record<
     privacyLinkLabel: string;
     consentLabel: string;
     consentDescription: string;
-    aadhaarLabel: string;
-    aadhaarDescription: string;
     cta: string;
     back: string;
     loading: string;
   }
 > = {
   ru: {
-    title: 'Согласие перед видеоидентификацией',
+    title: 'Согласие на видеоидентификацию',
     subtitle:
-      'Последний шаг перед видеоидентификацией. Ознакомьтесь с условиями и подтвердите согласие — после видеоидентификации изменить данные без подачи дополнительных документов будет невозможно.',
+      'Перед видеоидентификацией ознакомьтесь с условиями и подтвердите согласие на проведение видеосессии.',
     summaryTitle: 'Краткая сводка заявки',
     summaryLabels: { entityType: 'Тип структуры', pan: 'PAN', name: 'Бизнес', gstin: 'GSTIN', udyam: 'Udyam', address: 'Адрес' },
     privacyTitle: 'Уведомление о конфиденциальности',
     privacyText:
-      'В ходе видеоидентификации (VCIP) Сбербанк Индия произведёт видеозапись сессии и проверит ваш документ, удостоверяющий личность (Aadhaar / PAN). Данные обрабатываются исключительно в целях KYC-верификации в соответствии с ',
+      'В ходе видеоидентификации Сбербанк Индия произведёт видеозапись сессии и проверит ваш документ, удостоверяющий личность. Данные обрабатываются исключительно в целях KYC-верификации в соответствии с ',
     privacyLinkLabel: 'Политикой конфиденциальности',
-    consentLabel: 'Подтверждаю достоверность предоставленных данных',
-    // Текст Consent 7 verbatim из docs/Consents — список (current).md §7
+    // Согласие на VKYC (текст из BRD 9-Consents-Dashboard → «Consent for VKYC», suggested)
+    consentLabel: 'Согласие на проведение видеоидентификации (VKYC)',
     consentDescription:
-      'Я ознакомился(-лась) и проверил(-а) сведения и документы, внесённые мной в электронную анкету клиента (Customer Application Form). Я подтверждаю, что указанные сведения и загруженные документы являются достоверными, полными и актуальными во всех аспектах, я не утаил(-а) никакой информации и ничего существенного не было сокрыто.',
-    aadhaarLabel: 'Согласие на Aadhaar eKYC',
-    aadhaarDescription:
-      'Я добровольно даю согласие на аутентификацию через Aadhaar eKYC с использованием сервиса UIDAI. Мне будет предложено отсканировать QR-код через приложение Aadhaar; при успехе банк получит мои персональные данные и фото из UIDAI. Я разрешаю использовать данные Aadhaar для KYC и для цифрового подписания документов об открытии счёта.',
-    cta: 'Продолжить к Aadhaar eKYC',
+      'Я даю согласие на проведение сессии видеоидентификации (Video KYC) для подтверждения моей личности: запись фото/видео, проверки на живость и дипфейк, фиксацию документа и подписи, хранение записи и извлечённых данных. Я добровольно соглашаюсь предоставить биометрические и персональные данные; обработка — в соответствии с Политикой конфиденциальности.',
+    cta: 'Перейти к видеоидентификации',
     back: 'Назад',
     loading: 'Сохранение…',
   },
   en: {
-    title: 'Consent before video identification',
+    title: 'Video identification consent',
     subtitle:
-      'The final step before video identification. Please review the terms and confirm your consent — after video identification, changes cannot be made without submitting additional documents.',
+      'Before video identification, review the terms and confirm your consent to the video session.',
     summaryTitle: 'Application summary',
     summaryLabels: { entityType: 'Entity type', pan: 'PAN', name: 'Business name', gstin: 'GSTIN', udyam: 'Udyam', address: 'Address' },
     privacyTitle: 'Privacy notice',
     privacyText:
-      'During video identification (VCIP), Sberbank India will record the session and verify your identity document (Aadhaar / PAN). Data is processed solely for KYC verification purposes in accordance with the ',
+      'During video identification, Sberbank India will record the session and verify your identity document. Data is processed solely for KYC verification purposes in accordance with the ',
     privacyLinkLabel: 'Privacy Notice',
-    consentLabel: 'I confirm the accuracy of the information provided',
-    // Consent 7 verbatim from docs/Consents — список (current).md §7
+    // Consent for VKYC — текст из BRD 9-Consents-Dashboard (suggested, не финальный verbatim)
+    consentLabel: 'Consent to conduct Video KYC (VKYC)',
     consentDescription:
-      'I have reviewed and verified the details and documents entered by me in the electronic Customer Application Form. I further confirm that the information/documents so uploaded or entered by me to be true, correct, complete and up to date in all aspects and I have not withheld any information and nothing material has been concealed therefrom.',
-    // Текст из BRD 9-Consents-Dashboard → future «Aadhaar eKYC Consent» (suggested, не финальный verbatim — ждём от банка)
-    aadhaarLabel: 'Aadhaar eKYC Consent',
-    aadhaarDescription:
-      'I voluntarily consent to authenticate via Aadhaar eKYC using the UIDAI service. I will be prompted to scan a QR code via the Aadhaar App; on success, the Bank receives my personal data and photo from UIDAI. I authorise the use of my Aadhaar data for KYC and for digitally signing account opening documents.',
-    cta: 'Continue to Aadhaar eKYC',
+      'I provide consent to conduct a Video KYC session to establish my identity: capturing live photo/video, liveness & deepfake checks, recording of the identity document and signature, storage of the recording and extracted data. I voluntarily agree to provide biometric and personal data; processed per the Privacy Notice.',
+    cta: 'Proceed to video identification',
     back: 'Back',
     loading: 'Saving…',
   },
@@ -234,7 +225,6 @@ export const SP08PreVcip = () => {
   const t = dict[lang];
 
   const [checked, setChecked] = useState(false);
-  const [aadhaarChecked, setAadhaarChecked] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Живые данные бизнеса — сводка отражает реальные (в т.ч. отредактированные) значения,
@@ -264,13 +254,13 @@ export const SP08PreVcip = () => {
     setLoading(true);
     try {
       const timestamp = new Date().toISOString();
-      await giveConsent('Data Accuracy', timestamp);
-      await giveConsent('Aadhaar', timestamp); // Aadhaar eKYC — перед видео (BRD «Before VCIP starts»)
+      // Согласие на VKYC (Марго 2026-06-15: 3 точки согласий, тут — перед видео).
+      // Aadhaar-согласие переехало на шаг Aadhaar eKYC (начало), Data Accuracy — на подписание.
+      await giveConsent('VKYC', timestamp);
       await setStepStatus('pre-vcip', 'done');
     } catch (_) { /* игнорируем */ }
     setLoading(false);
-    // После согласий — QR-шаг Aadhaar eKYC до видео (BRD Table A 03→04)
-    navigate('/v2/aadhaar-qr');
+    navigate('/v2/vcip'); // согласие на VKYC дано → видеоидентификация
   };
 
   const handleBack = () => navigate(prevStepRoute('pre-vcip') ?? DASHBOARD_ROUTE);
@@ -313,7 +303,7 @@ export const SP08PreVcip = () => {
             </PrivacyText>
           </PrivacyBlock>
 
-          {/* Consent 7 — Data Accuracy (достоверность) */}
+          {/* Согласие на VKYC (Марго 2026-06-15: 3 точки согласий — тут перед видео) */}
           {/* TODO свериться с MCP — Checkbox: label / description / checked / onChange / view */}
           <ConsentRow>
             <Checkbox
@@ -326,18 +316,6 @@ export const SP08PreVcip = () => {
             />
           </ConsentRow>
 
-          {/* Aadhaar eKYC Consent — перед видео, до QR-сканирования (Марго 2026-06-10 + BRD «Before VCIP starts») */}
-          <ConsentRow>
-            <Checkbox
-              label={t.aadhaarLabel}
-              description={t.aadhaarDescription}
-              checked={aadhaarChecked}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setAadhaarChecked(e.target.checked)
-              }
-            />
-          </ConsentRow>
-
           {/* CTA */}
           {/* TODO свериться с MCP — Button view="accent" size="l" disabled / isLoading props */}
           <CtaWrapper>
@@ -346,7 +324,7 @@ export const SP08PreVcip = () => {
               view="accent"
               size="l"
               text={loading ? t.loading : t.cta}
-              disabled={!checked || !aadhaarChecked || loading}
+              disabled={!checked || loading}
               onClick={handleProceed}
             />
           </CtaWrapper>

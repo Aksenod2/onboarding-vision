@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { Button, CodeField, Note } from '@salutejs/sdds-serv'; // TODO свериться с MCP — CodeField, Note props
+import { Button, CodeField, Checkbox, Note } from '@salutejs/sdds-serv'; // TODO свериться с MCP — CodeField, Checkbox, Note props
 import {
   textPrimary,
   textSecondary,
@@ -11,7 +11,7 @@ import { accentPanel, radii, elevation, enter } from '../../ui/designSystem';
 import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
-import { passVcip, setStepStatus } from '../../mock/v2/api';
+import { passVcip, setStepStatus, giveConsent } from '../../mock/v2/api';
 
 // SP-SIGN — Финальный шаг: подписание деклараций кодом OTP (BRD Table A шаг 09, Declarations Dashboard).
 // Идёт ПОСЛЕ видеоидентификации. Authorize & Finish + OTP → счёт открывается.
@@ -33,6 +33,8 @@ const dict: Record<
     docPreviewClose: string;
     docDeclarationFull: string;
     docSolePropFull: string;
+    accuracyLabel: string;
+    accuracyDescription: string;
     btnAuthorize: string;
     otpLabel: string;
     otpHint: string;
@@ -62,6 +64,9 @@ const dict: Record<
       'Я подтверждаю, что:\n• Сведения, предоставленные банку, являются достоверными, точными и полными.\n• Я несу единоличную ответственность за все операции по счёту (счетам).\n• О любом изменении владения, статуса бизнеса или уполномоченного подписанта я немедленно сообщу банку в письменной форме.\n• Все операции, совершённые по физическим или электронным каналам, имеют для меня обязательную силу.',
     docSolePropFull:
       'Я, Aarav Sharma, сын/дочь [____________], проживающий(-ая) по адресу [Адрес], настоящим заявляю, что являюсь единоличным владельцем Aarav Sharma Exports с основным местом ведения деятельности: Shop 14, Crystal Plaza, Link Road, Malad West, Mumbai — 400064.\n\nСОГЛАСИЕ И УПОЛНОМОЧИЕ\n\nНастоящим я даю согласие и уполномочиваю [Sber Bank]:\n• Открыть и вести банковский продукт или услугу по моему заявлению на имя Aarav Sharma Exports.\n• Предоставить и обеспечить ведение счёта и использование продуктов и услуг Sber Bank, включая, помимо прочего, интернет-банк, услуги в рамках FEMA, депозиты, кредиты, учёт/дисконтирование векселей, аккредитивы, банковские гарантии и иные банковские услуги, в соответствии с условиями Sber Bank https://sberbank.co.in/.\n• Проводить проверки KYC, CKYC, AML и регуляторные проверки, включая проверку личности, адреса и сведений о бизнесе.',
+    accuracyLabel: 'Подтверждаю достоверность данных',
+    accuracyDescription:
+      'Я ознакомился(-лась) и проверил(-а) сведения и документы в анкете. Подтверждаю, что они достоверны, полны и актуальны во всех аспектах, я не утаил(-а) информации и ничего существенного не скрыто.',
     btnAuthorize: 'Подписать по OTP',
     otpLabel: 'Введите код',
     otpHint: 'Мы отправили одноразовый код на ваш телефон. Введите его, чтобы подписать документы.',
@@ -92,6 +97,9 @@ const dict: Record<
       'I confirm that:\n• The information provided to the Bank is true, correct and complete.\n• I shall be solely responsible for all transactions carried out in the account(s).\n• Any change in ownership, business status or authorised signatory shall be immediately informed to the Bank in writing.\n• All transactions executed through physical or electronic channels shall be binding on me.',
     docSolePropFull:
       'I, Aarav Sharma, son/daughter of [____________], residing at [Address], do hereby declare that I am the sole proprietor of Aarav Sharma Exports, having its principal place of business at Shop 14, Crystal Plaza, Link Road, Malad West, Mumbai — 400064.\n\nCONSENT & AUTHORISATION\n\nI hereby give my consent and authorise [Sber Bank] to:\n• Open and maintain Banking product or service as per my request in the name of Aarav Sharma Exports.\n• Provide and enable to operate the account and avail and utilise the products and services of Sber Bank, including but not limited to Internet Banking, FEMA-related services, deposits, loans, bill purchase/discounting, letters of credit, bank guarantees, and other banking facilities, in accordance with the terms and conditions of Sber Bank https://sberbank.co.in/.\n• Carry out KYC, CKYC, AML, and regulatory checks, including verification of identity, address and business details.',
+    accuracyLabel: 'I confirm the accuracy of the data',
+    accuracyDescription:
+      'I have reviewed and verified the details and documents in the application. I confirm they are true, correct, complete and up to date in all aspects, I have not withheld any information and nothing material has been concealed.',
     btnAuthorize: 'Sign by OTP', // формулировка Марго (демо 2026-06-10)
     otpLabel: 'Enter the code',
     otpHint: 'We sent a one-time code to your phone. Enter it to sign the documents.',
@@ -201,6 +209,13 @@ const DocDesc = styled.p`
 const ButtonRow = styled.div`
   display: flex;
   justify-content: flex-end;
+`;
+
+const AccuracyRow = styled.div`
+  padding: 1rem 1.1rem;
+  border: 1.5px solid rgba(33, 160, 56, 0.25);
+  border-radius: ${radii.panel};
+  background: rgba(33, 160, 56, 0.03);
 `;
 
 // Кнопка-ссылка «Просмотреть документ» — открывает лайтбокс (фидбек Марго, демо 2026-06-10)
@@ -345,6 +360,7 @@ export const SPSign = () => {
 
   const [phase, setPhase] = useState<'review' | 'otp' | 'done'>('review');
   const [otpError, setOtpError] = useState(false);
+  const [accuracyChecked, setAccuracyChecked] = useState(false); // Data Accuracy — гейтит подпись
   const [previewDoc, setPreviewDoc] = useState<number | null>(null); // лайтбокс предпросмотра
 
   const docs = [
@@ -359,6 +375,8 @@ export const SPSign = () => {
     }
     setOtpError(false);
     try {
+      const ts = new Date().toISOString();
+      await giveConsent('Data Accuracy', ts); // подтверждение достоверности — на финальном подписании
       await passVcip();
       // После подписания заявка уходит в проверку банком (BR-15: статус Verifying,
       // не мгновенный «счёт открыт») — шаг помечаем verifying, не done.
@@ -413,12 +431,26 @@ export const SPSign = () => {
             ))}
           </DocList>
 
+          {/* Подтверждение достоверности (Data Accuracy) — на финальном подписании
+              (Марго 2026-06-15: «в конце — подписание декларации и всей анкеты»). Гейтит подпись. */}
+          {phase === 'review' && (
+            <AccuracyRow>
+              <Checkbox
+                label={t.accuracyLabel}
+                description={t.accuracyDescription}
+                checked={accuracyChecked}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAccuracyChecked(e.target.checked)}
+              />
+            </AccuracyRow>
+          )}
+
           {phase === 'review' && (
             <ButtonRow>
               <Button
                 view="accent"
                 size="l"
                 text={t.btnAuthorize}
+                disabled={!accuracyChecked}
                 onClick={() => { setOtpError(false); setPhase('otp'); }}
               />
             </ButtonRow>

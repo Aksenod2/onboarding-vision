@@ -111,11 +111,11 @@ export const aaravSharmaExports: OnboardingCaseV2 = {
   // Демо-состояние: первые два шага пройдены, на «данные компании» — текущий.
   progress: [
     { id: 'pan', title: 'Доступ к реестрам и PAN', status: 'done' },
-    { id: 'bnq', title: 'Бизнес-анкета', status: 'current' },
+    { id: 'aadhaar-qr', title: 'Aadhaar eKYC', status: 'current' },
+    { id: 'bnq', title: 'Бизнес-анкета', status: 'pending' },
     { id: 'data-consents', title: 'Согласия по данным', status: 'pending' },
     { id: 'company', title: 'Подтверждение данных компании', status: 'pending' },
-    { id: 'pre-vcip', title: 'Согласие перед видеоидентификацией', status: 'pending' },
-    { id: 'aadhaar-qr', title: 'Aadhaar eKYC', status: 'pending' },
+    { id: 'pre-vcip', title: 'Согласие на видеоидентификацию', status: 'pending' },
     { id: 'vcip', title: 'Видеоидентификация', status: 'pending' },
     { id: 'sign', title: 'Подписание документов', status: 'pending' },
   ],

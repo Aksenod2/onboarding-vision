@@ -88,8 +88,9 @@ export type ConsentType =
   | 'Registry Access' // BR-01 (доступ к реестрам до PAN)
   | 'KMP Confirmation' // 4
   | 'Data Principals' // 5
-  | 'Aadhaar' // 6
-  | 'Data Accuracy'; // 7 (достоверность на Review)
+  | 'Aadhaar' // 6 (Aadhaar eKYC — на шаге Aadhaar QR, перед сканом)
+  | 'VKYC' // согласие на видеоидентификацию (Марго 2026-06-15, перед VKYC)
+  | 'Data Accuracy'; // 7 (достоверность — на финальном подписании)
 export type ConsentStatus = 'given' | 'pending';
 
 export interface Consent {

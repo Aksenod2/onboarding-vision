@@ -265,7 +265,7 @@ export const SP05Pan = () => {
     // Нейтральная пауза с индикатором, затем авто-переход
     const navTimer = setTimeout(async () => {
       try { await setStepStatus('pan', 'done'); } catch (_) { /* игнорируем */ }
-      navigate('/v2/bnq');
+      navigate('/v2/aadhaar-qr'); // PAN → Aadhaar eKYC (личность владельца), затем анкета
     }, 2400);
     timersRef.current.push(navTimer);
   };

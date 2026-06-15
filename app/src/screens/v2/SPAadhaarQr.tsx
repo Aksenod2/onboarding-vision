@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { Button } from '@salutejs/sdds-serv'; // TODO свериться с MCP — Button view="accent" size="l"
+import { Button, Checkbox } from '@salutejs/sdds-serv'; // TODO свериться с MCP — Button, Checkbox props
 import {
   textPrimary,
   textSecondary,
@@ -12,12 +12,13 @@ import { accentPanel, radii, elevation, enter } from '../../ui/designSystem';
 import { ScreenV2 } from '../../ui/v2/ScreenV2';
 import { useLanguage } from '../../ui/v2/LanguageContext';
 import type { Lang } from '../../ui/v2/LanguageContext';
-import { setStepStatus } from '../../mock/v2/api';
+import { setStepStatus, giveConsent } from '../../mock/v2/api';
 import { prevStepRoute, DASHBOARD_ROUTE } from '../../ui/v2/steps';
 
-// SP-AADHAAR-QR — Aadhaar eKYC через QR-код (BRD 1.1-SOP Table A шаги 04–05;
-// фидбек Марго, демо 2026-06-10). Идёт МЕЖДУ «Согласием перед видео» и видеоидентификацией.
-// Клиент сканирует QR приложением Aadhaar → банк получает данные из UIDAI.
+// SP-AADHAAR-QR — Aadhaar eKYC через QR-код. Шаг 2, в НАЧАЛЕ потока после PAN
+// (Марго 2026-06-15: Aadhaar в начало для всех; даёт личные данные владельца).
+// Согласие на Aadhaar eKYC — здесь, перед сканом (3 точки согласий). Клиент сканирует
+// QR приложением Aadhaar → банк получает данные из UIDAI.
 // Источник UIDAI здесь называть МОЖНО (клиент сам сканирует в приложении Aadhaar) — это не Probe42.
 // Шаг обратим: «Назад» доступна, в isIrreversibleStep не входит.
 // Роут: /v2/aadhaar-qr
@@ -32,6 +33,8 @@ const dict: Record<
     qrCaption: string;
     stepsTitle: string;
     steps: string[];
+    consentLabel: string;
+    consentDescription: string;
     ctaScanned: string;
     waiting: string;
     successText: string;
@@ -50,10 +53,14 @@ const dict: Record<
       'Отсканируйте QR-код с этого экрана',
       'Подтвердите передачу данных UIDAI банку',
     ],
+    // Согласие на Aadhaar eKYC — текст из BRD 9-Consents-Dashboard (suggested)
+    consentLabel: 'Согласие на Aadhaar eKYC',
+    consentDescription:
+      'Я добровольно даю согласие на аутентификацию через Aadhaar eKYC с использованием сервиса UIDAI: при сканировании QR-кода банк получит мои персональные данные и фото из UIDAI. Я разрешаю использовать данные Aadhaar для KYC и цифрового подписания документов об открытии счёта.',
     ctaScanned: 'Я отсканировал код',
     waiting: 'Получаем данные из UIDAI…',
     successText: 'Aadhaar-данные получены. Личность подтверждена UIDAI',
-    ctaContinue: 'Продолжить к видеоидентификации',
+    ctaContinue: 'Продолжить к анкете',
     back: 'Назад',
   },
   en: {
@@ -67,10 +74,14 @@ const dict: Record<
       'Scan the QR code from this screen',
       'Confirm sharing your UIDAI data with the bank',
     ],
+    // Aadhaar eKYC Consent — текст из BRD 9-Consents-Dashboard (suggested)
+    consentLabel: 'Aadhaar eKYC Consent',
+    consentDescription:
+      'I voluntarily consent to authenticate via Aadhaar eKYC using the UIDAI service: on scanning the QR code the bank receives my personal data and photo from UIDAI. I authorise the use of my Aadhaar data for KYC and for digitally signing account opening documents.',
     ctaScanned: 'I have scanned the code',
     waiting: 'Fetching data from UIDAI…',
     successText: 'Aadhaar data received. Identity verified by UIDAI',
-    ctaContinue: 'Continue to video identification',
+    ctaContinue: 'Continue to questionnaire',
     back: 'Back',
   },
 };
@@ -308,6 +319,14 @@ const ButtonRowEnd = styled.div`
   justify-content: flex-end;
 `;
 
+const ConsentRow = styled.div`
+  ${enter(0.18)};
+  padding: 1rem 1.1rem;
+  border: 1.5px solid rgba(33, 160, 56, 0.25);
+  border-radius: ${radii.panel};
+  background: rgba(33, 160, 56, 0.03);
+`;
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const SPAadhaarQr = () => {
@@ -317,6 +336,7 @@ export const SPAadhaarQr = () => {
 
   // Демо-фазы: qr (сканирование) → waiting (~2 сек «Получаем данные из UIDAI…») → success
   const [phase, setPhase] = useState<'qr' | 'waiting' | 'success'>('qr');
+  const [consent, setConsent] = useState(false); // согласие на Aadhaar eKYC — гейтит скан
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Очистка таймера при размонтировании
@@ -327,6 +347,8 @@ export const SPAadhaarQr = () => {
   }, []);
 
   const handleScanned = () => {
+    // Согласие на Aadhaar eKYC фиксируется при сканировании (перед получением данных UIDAI)
+    try { giveConsent('Aadhaar', new Date().toISOString()); } catch (_) { /* игнорируем */ }
     setPhase('waiting');
     timerRef.current = setTimeout(() => setPhase('success'), 2000);
   };
@@ -335,7 +357,7 @@ export const SPAadhaarQr = () => {
     try {
       await setStepStatus('aadhaar-qr', 'done');
     } catch (_) { /* игнорируем */ }
-    navigate('/v2/vcip');
+    navigate('/v2/bnq'); // Aadhaar (личность) пройден → бизнес-анкета
   };
 
   const handleBack = () => navigate(prevStepRoute('aadhaar-qr') ?? DASHBOARD_ROUTE);
@@ -383,11 +405,23 @@ export const SPAadhaarQr = () => {
             </SuccessNote>
           )}
 
+          {/* Согласие на Aadhaar eKYC — перед сканом, гейтит кнопку (Марго: 3 точки согласий) */}
+          {phase === 'qr' && (
+            <ConsentRow>
+              <Checkbox
+                label={t.consentLabel}
+                description={t.consentDescription}
+                checked={consent}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConsent(e.target.checked)}
+              />
+            </ConsentRow>
+          )}
+
           {/* Кнопки: «Назад» слева, CTA справа (UX-гайд) */}
           {phase === 'qr' && (
             <ButtonRow>
               <Button view="secondary" size="l" text={t.back} onClick={handleBack} />
-              <Button view="accent" size="l" text={t.ctaScanned} onClick={handleScanned} />
+              <Button view="accent" size="l" text={t.ctaScanned} disabled={!consent} onClick={handleScanned} />
             </ButtonRow>
           )}
 
