@@ -39,6 +39,7 @@ type QIndex = number;
 const dict: Record<Lang, {
   title: string;
   subtitle: string;
+  responsibilityNote: string;
   stepOf: (cur: number, total: number) => string;
   probeConfirm: (value: string) => string;
   yes: string;
@@ -97,6 +98,7 @@ const dict: Record<Lang, {
   ru: {
     title: 'Расскажите подробнее о вашем бизнесе',
     subtitle: 'Ответьте на несколько вопросов — это поможет нам подобрать условия',
+    responsibilityNote: 'Ответы пойдут на проверку банком — отвечайте достоверно. Подтверждение и подписание — в конце.',
     stepOf: (c, t) => `Вопрос ${c} из ${t}`,
     probeConfirm: (v) => `Мы определили: ${v}. Верно?`,
     yes: 'Да, верно',
@@ -147,6 +149,7 @@ const dict: Record<Lang, {
   en: {
     title: 'Tell us more about your business',
     subtitle: 'Answer a few questions — this helps us tailor the right setup for you',
+    responsibilityNote: 'Your answers will be reviewed by the bank — please answer accurately. Confirmation and signing come at the end.',
     stepOf: (c, t) => `Question ${c} of ${t}`,
     probeConfirm: (v) => `We have identified: ${v}. Is that correct?`,
     yes: 'Yes, correct',
@@ -875,6 +878,11 @@ export const SP07Bnq = () => {
             <CardTitle>{t.title}</CardTitle>
             <CardSubtitle style={{ marginTop: '0.5rem' }}>{t.subtitle}</CardSubtitle>
           </div>
+
+          {/* Мягкое информирование о значимости ответов — один раз в шапке (не на каждом вопросе).
+              view="info" (сине-серый); НЕ warning/оранжевый — оранжевый зарезервирован под DVU/ошибку.
+              Это не присяга: финальное подтверждение достоверности — на экране подписания. */}
+          <Note key={lang} view="info" size="s" text={t.responsibilityNote} />
 
           {renderQuestion()}
 

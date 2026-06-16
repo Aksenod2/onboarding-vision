@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { Button, TextField } from '@salutejs/sdds-serv'; // TODO свериться с MCP
+import { Button, TextField, Note } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, textAccent, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
@@ -26,6 +26,7 @@ import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './compan
 
 const dict: Record<Lang, {
   title: string; subtitle: string;
+  responsibilityNote: string;
   bnqTitle: string; bnqExpand: string; bnqCollapse: string; bnqPrefilled: string;
   sectionDirectors: string; directorsHint: string;
   sectionAs: string; asHint: string;
@@ -44,6 +45,7 @@ const dict: Record<Lang, {
   ru: {
     title: 'Анкета и подписанты',
     subtitle: 'Бизнес-вопросы заполнены автоматически по данным компании. Укажите, кто подписывает Board Resolution и кто распоряжается счётом.',
+    responsibilityNote: 'Ответы пойдут на проверку банком — отвечайте достоверно. Подтверждение и подписание — в конце.',
     bnqTitle: 'Бизнес-анкета · 11 вопросов · заполнено автоматически',
     bnqExpand: 'Раскрыть',
     bnqCollapse: 'Свернуть',
@@ -79,6 +81,7 @@ const dict: Record<Lang, {
   en: {
     title: 'Questionnaire & signatories',
     subtitle: 'Business questions are pre-filled from company data. Specify who signs the Board Resolution and who operates the account.',
+    responsibilityNote: 'Your answers will be reviewed by the bank — please answer accurately. Confirmation and signing come at the end.',
     bnqTitle: 'Business questionnaire · 11 questions · pre-filled automatically',
     bnqExpand: 'Expand',
     bnqCollapse: 'Collapse',
@@ -369,6 +372,11 @@ export const CompanyBnqBr = () => {
           <Subtitle>{t.subtitle}</Subtitle>
         </CardHeader>
         <CardBody>
+          {/* Мягкое информирование о значимости ответов — один раз вверху (не на каждом блоке).
+              view="info" (сине-серый); НЕ warning/оранжевый — оранжевый зарезервирован под DVU/ошибку.
+              Это не присяга: финальное подтверждение достоверности — на экране подписания. */}
+          <Note key={lang} view="info" size="s" text={t.responsibilityNote} />
+
           {/* Бизнес-анкета Q1–Q11 — предзаполнена, по умолчанию свёрнута; можно править */}
           <Accordion>
             <AccHead type="button" onClick={() => setBnqOpen((v) => !v)} aria-expanded={bnqOpen}>
