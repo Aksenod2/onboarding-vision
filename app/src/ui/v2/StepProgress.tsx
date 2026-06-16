@@ -2,6 +2,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { textPrimary, textSecondary, textAccent, bodyM } from '@salutejs/sdds-themes/tokens';
 import { STEPS, DASHBOARD_ROUTE, isIrreversibleStep } from './steps';
+import type { StepDef } from './steps';
 import { useLanguage } from './LanguageContext';
 
 // Единый блок навигации онбординга v2 (верхний уровень): «Обзор заявки» +
@@ -121,23 +122,33 @@ const Counter = styled.span`
 
 interface StepProgressProps {
   currentStepId: string;
+  // Реестр шагов и точка возврата — параметризованы для переиспользования
+  // в сценарии Компания (фаза A). По умолчанию — Sole Proprietor (STEPS).
+  steps?: StepDef[];
+  backRoute?: string;
+  isIrreversible?: (id: string) => boolean;
 }
 
-export const StepProgress = ({ currentStepId }: StepProgressProps) => {
+export const StepProgress = ({
+  currentStepId,
+  steps = STEPS,
+  backRoute = DASHBOARD_ROUTE,
+  isIrreversible = isIrreversibleStep,
+}: StepProgressProps) => {
   const { lang } = useLanguage();
   const navigate = useNavigate();
-  const current = STEPS.find((s) => s.id === currentStepId);
+  const current = steps.find((s) => s.id === currentStepId);
   if (!current) return null;
 
   return (
     <Wrap>
-      <BackLink onClick={() => navigate(DASHBOARD_ROUTE)}>
+      <BackLink onClick={() => navigate(backRoute)}>
         {lang === 'ru' ? '← Обзор заявки' : '← Application overview'}
       </BackLink>
       <Segments>
-        {STEPS.map((s) => {
+        {steps.map((s) => {
           // На необратимых шагах (видео, подписание) прыжки по прогрессу заблокированы
-          const locked = isIrreversibleStep(current.id) && s.id !== current.id;
+          const locked = isIrreversible(current.id) && s.id !== current.id;
           return (
             <Seg
               key={s.id}
@@ -154,7 +165,7 @@ export const StepProgress = ({ currentStepId }: StepProgressProps) => {
       <StepName>
         {lang === 'ru' ? current.titleRu : current.titleEn}
         <Counter>
-          {current.order} / {STEPS.length}
+          {current.order} / {steps.length}
         </Counter>
       </StepName>
     </Wrap>

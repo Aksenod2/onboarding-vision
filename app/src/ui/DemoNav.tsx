@@ -32,10 +32,21 @@ const V2: Node[] = [
   { l: '12 Подписание', p: '/v2/sign' },
 ];
 
+// Сценарий Компания (мульти-логин). Фаза A заполнителя → дашборд-монитор → сессия подписанта.
+const COMPANY: Node[] = [
+  { l: '1 Реестры и PAN', p: '/company/pan' },
+  { l: '2 Анкета и подписанты', p: '/company/bnq' },
+  { l: '3 Данные компании', p: '/company/confirm' },
+  { l: '4 Приглашения', p: '/company/dispatch' },
+  { l: '5 Дашборд (монитор)', p: '/company/dashboard' },
+  { l: '6 Сессия подписанта', p: '/company/signatory' },
+];
+
 const INK = '#111827';
 const LINE = 'rgba(255,255,255,0.12)';
 const GREEN = '#21A038';
 const ORANGE = '#F5811F';
+const TEAL = '#0CA4A4';
 
 const Fab = styled.button`
   position: fixed;
@@ -239,8 +250,13 @@ export const DemoNav = () => {
             </Header>
 
             <Lane>
-              <RoleLabel c={GREEN}>Клиент · Sole Prop</RoleLabel>
+              <RoleLabel c={GREEN}>Клиент · Sole Proprietor</RoleLabel>
               <Flow>{renderFlow(V2, GREEN)}</Flow>
+            </Lane>
+
+            <Lane>
+              <RoleLabel c={TEAL}>Клиент · Компания (мульти-логин)</RoleLabel>
+              <Flow>{renderFlow(COMPANY, TEAL)}</Flow>
             </Lane>
 
             <Branch>↳ Hybrid: клиент видит «на проверке», менеджер разбирает →</Branch>

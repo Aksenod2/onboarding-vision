@@ -94,9 +94,12 @@ const CONTENT_MAX_WIDTH = '880px';
 
 interface ScreenV2Props {
   children: ReactNode;
+  // Свой блок прогресса (сценарий Компания передаёт сюда company-StepProgress).
+  // Если не передан — авто по реестру Sole Proprietor (STEPS) по pathname.
+  progress?: ReactNode;
 }
 
-export const ScreenV2 = ({ children }: ScreenV2Props) => {
+export const ScreenV2 = ({ children, progress }: ScreenV2Props) => {
   const { lang, setLang } = useLanguage();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -118,7 +121,7 @@ export const ScreenV2 = ({ children }: ScreenV2Props) => {
         </LangSwitcher>
       </Header>
       <Content $maxWidth={CONTENT_MAX_WIDTH}>
-        {currentStep && <StepProgress currentStepId={currentStep.id} />}
+        {progress ?? (currentStep && <StepProgress currentStepId={currentStep.id} />)}
         {children}
       </Content>
       {/* Режим комментариев для аналитиков — кнопка снизу справа на всех экранах */}

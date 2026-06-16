@@ -17,7 +17,14 @@ import { SPAadhaarQr } from './screens/v2/SPAadhaarQr';
 import { SP09Vcip } from './screens/v2/SP09Vcip';
 import { SPSign } from './screens/v2/SPSign';
 import { SP10Dashboard } from './screens/v2/SP10Dashboard';
+import { CompanyPan } from './screens/v2/company/CompanyPan';
+import { CompanyBnqBr } from './screens/v2/company/CompanyBnqBr';
+import { CompanyConfirm } from './screens/v2/company/CompanyConfirm';
+import { CompanyDispatch } from './screens/v2/company/CompanyDispatch';
+import { CompanyDashboard } from './screens/v2/company/CompanyDashboard';
+import { CompanySignatory } from './screens/v2/company/CompanySignatory';
 import { LanguageProvider } from './ui/v2/LanguageContext';
+import { CompanyProvider } from './ui/v2/CompanyContext';
 import { DemoNav } from './ui/DemoNav';
 
 // Сброс прокрутки наверх при смене экрана (React Router сам этого не делает).
@@ -63,6 +70,23 @@ export const App = () => {
               <Route path="dashboard" element={<SP10Dashboard />} />
               <Route path="*" element={<Navigate to="/v2" replace />} />
             </Routes>
+          </LanguageProvider>
+        } />
+        {/* Сценарий Компания — мульти-логин. LanguageProvider + CompanyProvider (активный подписант). */}
+        <Route path="/company/*" element={
+          <LanguageProvider>
+            <CompanyProvider>
+              <Routes>
+                <Route index element={<Navigate to="/company/pan" replace />} />
+                <Route path="pan" element={<CompanyPan />} />
+                <Route path="bnq" element={<CompanyBnqBr />} />
+                <Route path="confirm" element={<CompanyConfirm />} />
+                <Route path="dispatch" element={<CompanyDispatch />} />
+                <Route path="dashboard" element={<CompanyDashboard />} />
+                <Route path="signatory" element={<CompanySignatory />} />
+                <Route path="*" element={<Navigate to="/company/pan" replace />} />
+              </Routes>
+            </CompanyProvider>
           </LanguageProvider>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
