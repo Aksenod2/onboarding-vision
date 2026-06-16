@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button } from '@salutejs/sdds-serv'; // TODO свериться с MCP
-import { textPrimary, bodySBold } from '@salutejs/sdds-themes/tokens';
+import { textPrimary, textSecondary, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { StepProgress } from '../../../ui/v2/StepProgress';
@@ -20,37 +20,53 @@ import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRowEnd, SuccessNote 
 
 const dict: Record<Lang, {
   title: string; subtitle: string;
-  successText: string; sent: string;
+  successText: string;
   cta: string;
+  copyLink: string; copied: string; sentTo: string;
 }> = {
   ru: {
     title: 'Приглашения отправлены',
     subtitle: 'Каждый подписант получил персональную ссылку для прохождения идентификации и подписания. На дашборде вы увидите их прогресс.',
     successText: 'Ссылки-приглашения успешно отправлены',
-    sent: 'Отправлено',
     cta: 'Перейти к дашборду заявки',
+    copyLink: 'Скопировать ссылку',
+    copied: 'Ссылка скопирована',
+    sentTo: 'Отправлено на',
   },
   en: {
     title: 'Invitations sent',
     subtitle: 'Each signatory has received a personal link to complete identification and signing. You can track their progress on the dashboard.',
     successText: 'Invitation links sent successfully',
-    sent: 'Sent',
     cta: 'Go to application dashboard',
+    copyLink: 'Copy link',
+    copied: 'Link copied',
+    sentTo: 'Sent to',
   },
 };
 
 const List = styled.div`display:flex; flex-direction:column; gap:0.6rem;`;
-const Person = styled.div`display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; padding:0.7rem 0.9rem; border:1px solid rgba(0,0,0,0.08); border-radius:${radii.panel};`;
+const Person = styled.div`display:flex; align-items:center; gap:0.6rem 0.9rem; flex-wrap:wrap; padding:0.7rem 0.9rem; border:1px solid rgba(0,0,0,0.08); border-radius:${radii.panel};`;
+const PInfo = styled.div`display:flex; flex-direction:column; gap:0.3rem; min-width:0; flex:1;`;
+const PTop = styled.div`display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;`;
 const PName = styled.span`${bodySBold}; font-size:0.88rem; color:${textPrimary};`;
 const Chips = styled.div`display:flex; gap:0.3rem; flex-wrap:wrap;`;
 const Chip = styled.span`font-size:0.7rem; font-weight:600; color:rgb(33,160,56); background:rgba(33,160,56,0.1); border-radius:0.4rem; padding:0.1rem 0.45rem;`;
-const SentTag = styled.span`margin-left:auto; font-size:0.72rem; font-weight:600; color:#1a7a28; display:inline-flex; align-items:center; gap:0.25rem; &::before{content:'✓';}`;
+// Контакт, куда ушла ссылка — серым (информативно, не акцент).
+const SentTo = styled.span`font-size:0.74rem; color:${textSecondary}; &::before{content:'✓ '; color:#1a7a28; font-weight:600;}`;
+const Actions = styled.div`display:flex; align-items:center; gap:0.6rem; margin-left:auto;`;
+// Тёмный тост — паттерн из CompanyBnqBr.
+const Toast = styled.div`
+  position:fixed; left:50%; bottom:2rem; transform:translateX(-50%); z-index:10020;
+  padding:0.6rem 1rem; border-radius:8px; background:${textPrimary}; color:#fff; font-size:0.82rem;
+  box-shadow:0 8px 24px rgba(0,0,0,0.25);
+`;
 
 export const CompanyDispatch = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
   const t = dict[lang];
   const [signatories, setSignatories] = useState<Signatory[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Рассылаем при заходе на экран (имитация отправки).
   useEffect(() => {
@@ -58,6 +74,14 @@ export const CompanyDispatch = () => {
   }, []);
 
   const recipients = signatories.filter(goesThroughPhaseB);
+
+  // Скопировать персональную ссылку (mock: пишем в буфер, показываем тост).
+  const copyLink = async (s: Signatory) => {
+    const link = `${window.location.origin}/company/signatory?invite=${s.id}`;
+    try { await navigator.clipboard?.writeText(link); } catch (_) { /* демо — игнорируем */ }
+    setToast(t.copied);
+    setTimeout(() => setToast(null), 2200);
+  };
 
   const progress = <StepProgress currentStepId="co-dispatch" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;
 
@@ -73,11 +97,18 @@ export const CompanyDispatch = () => {
           <List>
             {recipients.map((s) => (
               <Person key={s.id}>
-                <PName>{s.fullName}</PName>
-                <Chips>
-                  {s.roles.map((r) => <Chip key={r}>{lang === 'ru' ? roleLabel[r].ru : roleLabel[r].en}</Chip>)}
-                </Chips>
-                <SentTag>{t.sent}</SentTag>
+                <PInfo>
+                  <PTop>
+                    <PName>{s.fullName}</PName>
+                    <Chips>
+                      {s.roles.map((r) => <Chip key={r}>{lang === 'ru' ? roleLabel[r].ru : roleLabel[r].en}</Chip>)}
+                    </Chips>
+                  </PTop>
+                  <SentTo>{t.sentTo} {s.email}</SentTo>
+                </PInfo>
+                <Actions>
+                  <Button view="clear" size="s" text={t.copyLink} onClick={() => copyLink(s)} />
+                </Actions>
               </Person>
             ))}
           </List>
@@ -86,6 +117,7 @@ export const CompanyDispatch = () => {
           </ButtonRowEnd>
         </CardBody>
       </Card>
+      {toast && <Toast>{toast}</Toast>}
     </ScreenV2>
   );
 };

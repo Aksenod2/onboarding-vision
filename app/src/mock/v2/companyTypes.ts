@@ -41,6 +41,7 @@ export interface Signatory {
   phone: Phone;
   designation?: string; // из Probe для директоров (Director / Managing Director / Company Secretary)
   inviteSent: boolean; // фаза A шаг рассылки
+  reminderSent?: boolean; // #18a — представитель отправил напоминание
   // личная сессия (фаза B):
   currentStep: SignatoryStep;
   status: SignatoryStatus;
@@ -82,6 +83,19 @@ export interface Ubo {
   source: FieldSource; // registry — подтянут (напр. из подписантов); manual — добавлен вручную
 }
 
+// --- Документы компании (fallback-загрузка, решение Дениса 2026-06-16) ---
+// По BRD документы тянутся из Probe42/CKYC; загрузка нужна, если не подтянулось
+// или при правке поля. source: registry — подтянут из реестра (Probe42), uploaded — загружен
+// представителем, required — обязателен, но ещё не загружен.
+export type CompanyDocSource = 'registry' | 'uploaded' | 'required';
+export interface CompanyDocument {
+  id: string;
+  name: string; // англоязычное имя документа (COI / MOA / AOA / …) — общее для ru/en
+  source: CompanyDocSource;
+  conditional?: boolean; // условный документ (напр. GST — только если есть GSTIN)
+  fileName?: string; // имя загруженного файла (при source='uploaded')
+}
+
 // --- Данные компании (из Probe42 по PAN) ---
 export interface CompanyDetails {
   entityType: CompanyEntityType;
@@ -112,6 +126,7 @@ export interface CompanyCaseV2 {
   bnq: BnqAnswer[]; // ответы анкеты (на уровне компании)
   consents: Consent[]; // согласия уровня компании (реестры и т.п.)
   documents: DocumentRecord[];
+  companyDocuments: CompanyDocument[]; // #16 — fallback-загрузка корпоративных документов
   screening: ScreeningResult[];
   risk: RiskAssessment;
   dataConfirmed: boolean; // подтверждение данных компании (фаза A)

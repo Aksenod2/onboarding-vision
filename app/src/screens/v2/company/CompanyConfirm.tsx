@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button, TextField } from '@salutejs/sdds-serv'; // TODO свериться с MCP
-import { textPrimary, textSecondary, textAccent, bodySBold } from '@salutejs/sdds-themes/tokens';
+import { textPrimary, textSecondary, textAccent, textPositive, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { StepProgress } from '../../../ui/v2/StepProgress';
@@ -12,9 +12,10 @@ import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
   getCompany, getSignatories, getUbo, confirmCompanyData,
   updateCompanyData, addUbo, updateUbo, removeUbo, setUboDeclared, setFatca,
+  getCompanyDocuments, uploadCompanyDocument, replaceCompanyDocument,
 } from '../../../mock/v2/companyApi';
 import { roleLabel } from '../../../mock/v2/companyTypes';
-import type { CompanyDetails, Signatory, Ubo, FatcaClassification } from '../../../mock/v2/companyTypes';
+import type { CompanyDetails, Signatory, Ubo, FatcaClassification, CompanyDocument } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './companyUi';
 
 // CO-CONFIRM — шаг 3 фазы A: обзор данных компании + редактирование + бизнес-профиль (UBO, FATCA/CRS).
@@ -38,6 +39,9 @@ const dict: Record<Lang, {
   sectionFatca: string; fatcaHint: string;
   fatcaOpts: Record<FatcaClassification, string>;
   taxResidency: string;
+  sectionDocs: string; docsHint: string;
+  docFromRegistry: string; docReplace: string; docUpload: string;
+  docUploading: string; docUploaded: string; docRequired: string;
 }> = {
   ru: {
     title: 'Проверьте данные компании',
@@ -72,6 +76,14 @@ const dict: Record<Lang, {
       'Financial Institution': 'Финансовая организация',
     },
     taxResidency: 'Страна налогового резидентства',
+    sectionDocs: 'Документы компании',
+    docsHint: 'Учредительные документы подтянуты из реестра (Probe42). Недостающие приложите вручную — или замените подтянутый файл своим.',
+    docFromRegistry: 'из реестра (Probe42)',
+    docReplace: 'Заменить',
+    docUpload: 'Выбрать файл',
+    docUploading: 'Загрузка…',
+    docUploaded: 'Загружено',
+    docRequired: 'требуется',
   },
   en: {
     title: 'Review company details',
@@ -106,6 +118,14 @@ const dict: Record<Lang, {
       'Financial Institution': 'Financial Institution',
     },
     taxResidency: 'Country of tax residency',
+    sectionDocs: 'Company documents',
+    docsHint: 'Incorporation documents were pulled from the registry (Probe42). Upload any missing ones manually — or replace a fetched file with your own.',
+    docFromRegistry: 'from registry (Probe42)',
+    docReplace: 'Replace',
+    docUpload: 'Choose file',
+    docUploading: 'Uploading…',
+    docUploaded: 'Uploaded',
+    docRequired: 'required',
   },
 };
 
@@ -191,8 +211,31 @@ const Radio = styled.span<{ $selected: boolean }>`
   }
 `;
 
+// #16 — строка документа компании: имя + статус источника + действие (Заменить / Выбрать файл).
+const DocRow = styled.div`
+  display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;
+  padding:0.8rem 1rem; border:1px solid rgba(0,0,0,0.1); border-radius:${radii.panel}; background:#fff;
+`;
+const DocInfo = styled.div`display:flex; flex-direction:column; gap:0.2rem; min-width:0;`;
+const DocName = styled.span`${bodySBold}; font-size:0.86rem; color:${textPrimary};`;
+// Источник «из реестра» — серым (Pre-filled паттерн), не акцент.
+const DocSource = styled.span`
+  display:inline-flex; align-items:center; gap:0.25rem; font-size:0.72rem; color:${textSecondary};
+  opacity:0.85; &::before { content:'✦'; font-size:0.55rem; }
+`;
+// Загружено — позитивный статус.
+const DocUploaded = styled.span`
+  display:inline-flex; align-items:center; gap:0.3rem; font-size:0.78rem; font-weight:600; color:${textPositive};
+  &::before { content:'✓'; }
+`;
+// «требуется» — нейтральный пунктир, НЕ warning (загрузка ≠ ошибка).
+const DocReq = styled.span`font-size:0.72rem; color:${textSecondary}; opacity:0.8;`;
+
 // Локальное представление UBO-карточки в форме.
 type UboRow = { id: string; fullName: string; sharePct: string; pan: string; prefilled: boolean };
+
+// Состояние загрузки документа (для спиннера на кнопке).
+type DocUploadPhase = 'idle' | 'uploading';
 
 export const CompanyConfirm = () => {
   const navigate = useNavigate();
@@ -212,6 +255,10 @@ export const CompanyConfirm = () => {
   const [fatca, setFatcaState] = useState<FatcaClassification>('Active NFFE');
   const [taxRes, setTaxRes] = useState('India');
 
+  // #16 — документы компании + статус загрузки по id.
+  const [docs, setDocs] = useState<CompanyDocument[]>([]);
+  const [docPhase, setDocPhase] = useState<Record<string, DocUploadPhase>>({});
+
   useEffect(() => {
     getCompany().then((c) => {
       setCompany(c);
@@ -224,7 +271,26 @@ export const CompanyConfirm = () => {
         prefilled: u.source === 'registry',
       }))),
     );
+    getCompanyDocuments().then(setDocs);
   }, []);
+
+  // #16 — загрузка недостающего документа (mock: имя файла по имени документа).
+  const fakeFileName = (doc: CompanyDocument) =>
+    `${doc.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}.pdf`;
+
+  const handleDocUpload = async (doc: CompanyDocument) => {
+    setDocPhase((p) => ({ ...p, [doc.id]: 'uploading' }));
+    const updated = await uploadCompanyDocument(doc.id, fakeFileName(doc));
+    setDocs(updated);
+    setDocPhase((p) => ({ ...p, [doc.id]: 'idle' }));
+  };
+
+  const handleDocReplace = async (doc: CompanyDocument) => {
+    setDocPhase((p) => ({ ...p, [doc.id]: 'uploading' }));
+    const updated = await replaceCompanyDocument(doc.id, fakeFileName(doc));
+    setDocs(updated);
+    setDocPhase((p) => ({ ...p, [doc.id]: 'idle' }));
+  };
 
   const addr = company
     ? `${company.registeredAddress.line}, ${company.registeredAddress.city}, ${company.registeredAddress.state} — ${company.registeredAddress.pin}`
@@ -410,6 +476,41 @@ export const CompanyConfirm = () => {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaxRes(e.target.value)}
               size="m"
             />
+          </Section>
+
+          {/* #16 — документы компании: подтянутые из реестра (Заменить) + к загрузке (Выбрать файл) */}
+          <Section>
+            <SectionTitle>{t.sectionDocs}</SectionTitle>
+            <Hint>{t.docsHint}</Hint>
+            {docs.map((doc) => {
+              const phase = docPhase[doc.id] ?? 'idle';
+              const uploading = phase === 'uploading';
+              return (
+                <DocRow key={doc.id}>
+                  <DocInfo>
+                    <DocName>{doc.name}</DocName>
+                    {doc.source === 'registry' && <DocSource>{t.docFromRegistry}</DocSource>}
+                    {doc.source === 'uploaded' && <DocUploaded>{t.docUploaded}{doc.fileName ? ` · ${doc.fileName}` : ''}</DocUploaded>}
+                    {doc.source === 'required' && <DocReq>{t.docRequired}</DocReq>}
+                  </DocInfo>
+                  {doc.source === 'required' ? (
+                    <Button
+                      view="secondary" size="s"
+                      text={uploading ? t.docUploading : t.docUpload}
+                      disabled={uploading}
+                      onClick={() => handleDocUpload(doc)}
+                    />
+                  ) : (
+                    <Button
+                      view="clear" size="s"
+                      text={uploading ? t.docUploading : t.docReplace}
+                      disabled={uploading}
+                      onClick={() => handleDocReplace(doc)}
+                    />
+                  )}
+                </DocRow>
+              );
+            })}
           </Section>
 
           <ButtonRow>

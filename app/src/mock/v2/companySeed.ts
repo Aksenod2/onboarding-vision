@@ -132,6 +132,16 @@ export const mehtaTextiles: CompanyCaseV2 = {
     { docType: 'IEC', mandatory: false, handling: 'Upload', status: 'Pending' },
   ],
 
+  // #16 — корпоративные документы: COI/MOA/AOA подтянуты из Probe42, Shareholding Pattern — к загрузке.
+  // GST conditional — компания с GSTIN, поэтому требуется (предзаполнен из реестра).
+  companyDocuments: [
+    { id: 'doc-coi', name: 'Certificate of Incorporation', source: 'registry' },
+    { id: 'doc-moa', name: 'Memorandum of Association (MOA)', source: 'registry' },
+    { id: 'doc-aoa', name: 'Articles of Association (AOA)', source: 'registry' },
+    { id: 'doc-shp', name: 'Shareholding Pattern', source: 'required' },
+    { id: 'doc-gst', name: 'GST Registration Certificate', source: 'registry', conditional: true },
+  ],
+
   screening: [
     { checkType: 'PAN', status: 'Pass', detail: 'NSDL — company PAN verified', routedToDVU: false },
     { checkType: 'OFAC/Sanctions', status: 'Pass', detail: 'Sanctions clear', routedToDVU: false },

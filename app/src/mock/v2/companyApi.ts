@@ -4,7 +4,7 @@
 import { mehtaTextiles } from './companySeed';
 import type {
   CompanyCaseV2, CompanyDetails, Signatory, SignatoryStep, BoardResolution, BrSource,
-  Ubo, FatcaClassification,
+  Ubo, FatcaClassification, CompanyDocument,
 } from './companyTypes';
 import { goesThroughPhaseB } from './companyTypes';
 import type { ConsentType, BnqAnswer } from './types';
@@ -27,6 +27,7 @@ export const getSignatory = (id: string): Promise<Signatory | undefined> =>
 export const getBoardResolution = (): Promise<BoardResolution> => delay(state.br);
 export const getBnq = (): Promise<BnqAnswer[]> => delay(state.bnq);
 export const getUbo = (): Promise<Ubo[]> => delay(state.ubo);
+export const getCompanyDocuments = (): Promise<CompanyDocument[]> => delay(state.companyDocuments);
 
 // --- Фаза A ---
 
@@ -154,6 +155,24 @@ export const setFatca = (classification: FatcaClassification, taxResidency: stri
   return delay(undefined);
 };
 
+// --- Документы компании (#16 — fallback-загрузка) ---
+
+// Загрузить недостающий документ (source 'required' → 'uploaded').
+export const uploadCompanyDocument = (id: string, fileName: string): Promise<CompanyDocument[]> => {
+  state.companyDocuments = state.companyDocuments.map((d) =>
+    d.id === id ? { ...d, source: 'uploaded', fileName } : d,
+  );
+  return delay(state.companyDocuments);
+};
+
+// Заменить подтянутый/загруженный документ своим файлом (source → 'uploaded').
+export const replaceCompanyDocument = (id: string, fileName = 'document.pdf'): Promise<CompanyDocument[]> => {
+  state.companyDocuments = state.companyDocuments.map((d) =>
+    d.id === id ? { ...d, source: 'uploaded', fileName } : d,
+  );
+  return delay(state.companyDocuments);
+};
+
 // Подтверждение данных компании (фаза A, экран обзора).
 export const confirmCompanyData = (): Promise<void> => {
   state.dataConfirmed = true;
@@ -167,6 +186,14 @@ export const dispatchInvites = (): Promise<Signatory[]> => {
   );
   state.status = 'InProgress';
   state.currentScreen = 'CO-DASHBOARD';
+  return delay(state.signatories);
+};
+
+// Напомнить подписанту (mock: помечаем reminderSent на карточке).
+export const remindSignatory = (id: string): Promise<Signatory[]> => {
+  state.signatories = state.signatories.map((s) =>
+    s.id === id ? { ...s, reminderSent: true } : s,
+  );
   return delay(state.signatories);
 };
 

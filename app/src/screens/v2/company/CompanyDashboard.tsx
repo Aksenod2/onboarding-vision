@@ -8,7 +8,7 @@ import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import { useCompany } from '../../../ui/v2/CompanyContext';
-import { getCompanyCase } from '../../../mock/v2/companyApi';
+import { getCompanyCase, remindSignatory } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { CompanyCaseV2, Signatory, SignatoryStep } from '../../../mock/v2/companyTypes';
 
@@ -22,6 +22,7 @@ const dict: Record<Lang, {
   signatories: string;
   hint: string;
   loginAs: string;
+  remind: string; reminderSent: string; reminderToast: string; refresh: string;
   accountOpened: string; accountOpenedSub: string; accountNumber: string;
   stepLabel: Record<SignatoryStep, string>;
 }> = {
@@ -33,6 +34,10 @@ const dict: Record<Lang, {
     signatories: 'Подписанты',
     hint: 'Счёт откроется, когда все подписанты пройдут идентификацию и подпишут документы.',
     loginAs: 'Войти как',
+    remind: 'Напомнить',
+    reminderSent: 'Напоминание отправлено',
+    reminderToast: 'Напоминание отправлено',
+    refresh: 'Обновить статусы',
     accountOpened: 'Счёт открыт!',
     accountOpenedSub: 'Все подписанты прошли идентификацию и подписали документы. Счёт компании активирован.',
     accountNumber: 'Номер счёта',
@@ -49,6 +54,10 @@ const dict: Record<Lang, {
     signatories: 'Signatories',
     hint: 'The account will open once all signatories complete identification and sign the documents.',
     loginAs: 'Log in as',
+    remind: 'Remind',
+    reminderSent: 'Reminder sent',
+    reminderToast: 'Reminder sent',
+    refresh: 'Refresh statuses',
     accountOpened: 'Account Opened!',
     accountOpenedSub: 'All signatories have completed identification and signed the documents. The company account is activated.',
     accountNumber: 'Account Number',
@@ -108,6 +117,19 @@ const StepRow = styled.span<{ $done: boolean }>`
   &::before { content:'${({ $done }) => ($done ? '✓' : '⟳')}'; }
 `;
 
+// Действия по подписанту справа в карточке (Войти как / Напомнить).
+const CardActions = styled.div`display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;`;
+// Метка «напоминание отправлено» — нейтрально-серая.
+const ReminderTag = styled.span`font-size:0.72rem; color:${textSecondary}; &::before{content:'✓ '; color:#1a7a28;}`;
+// Тёмный тост.
+const Toast = styled.div`
+  position:fixed; left:50%; bottom:2rem; transform:translateX(-50%); z-index:10020;
+  padding:0.6rem 1rem; border-radius:8px; background:${textPrimary}; color:#fff; font-size:0.82rem;
+  box-shadow:0 8px 24px rgba(0,0,0,0.25);
+`;
+// Шапка секции подписантов: заголовок слева, «Обновить» справа.
+const SectionHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;`;
+
 const initials = (name: string) => name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
 
 export const CompanyDashboard = () => {
@@ -116,9 +138,21 @@ export const CompanyDashboard = () => {
   const t = dict[lang];
   const { setActiveSignatoryId } = useCompany();
   const [data, setData] = useState<CompanyCaseV2 | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const load = () => getCompanyCase().then(setData);
   useEffect(() => { load(); }, []);
+
+  const flashToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  };
+
+  const remind = async (s: Signatory) => {
+    const list = await remindSignatory(s.id);
+    setData((d) => (d ? { ...d, signatories: list } : d));
+    flashToast(t.reminderToast);
+  };
 
   if (!data) return <ScreenV2><AppId>{lang === 'ru' ? 'Загрузка…' : 'Loading…'}</AppId></ScreenV2>;
 
@@ -149,7 +183,10 @@ export const CompanyDashboard = () => {
         </AccountBlock>
       )}
 
-      <SectionTitle>{t.signatories}</SectionTitle>
+      <SectionHead>
+        <SectionTitle>{t.signatories}</SectionTitle>
+        <Button view="clear" size="s" text={t.refresh} onClick={load} />
+      </SectionHead>
       {!done && <Hint>{t.hint}</Hint>}
       <List>
         {recipients.map((s) => {
@@ -165,12 +202,18 @@ export const CompanyDashboard = () => {
                 <StepRow $done={sDone}>{t.stepLabel[s.currentStep]}</StepRow>
               </PersonInfo>
               {!sDone && (
-                <Button view="accent" size="s" text={`${t.loginAs} ${s.fullName.split(' ')[0]}`} onClick={() => enterSession(s)} />
+                <CardActions>
+                  {s.reminderSent
+                    ? <ReminderTag>{t.reminderSent}</ReminderTag>
+                    : <Button view="clear" size="s" text={t.remind} onClick={() => remind(s)} />}
+                  <Button view="accent" size="s" text={`${t.loginAs} ${s.fullName.split(' ')[0]}`} onClick={() => enterSession(s)} />
+                </CardActions>
               )}
             </PersonCard>
           );
         })}
       </List>
+      {toast && <Toast>{toast}</Toast>}
     </ScreenV2>
   );
 };

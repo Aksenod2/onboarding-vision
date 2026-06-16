@@ -34,7 +34,8 @@ const dict: Record<Lang, {
   vkycTitle: string; vkycSub: string; vkycConsent: string; vkycConsentDesc: string;
   ctaStartVideo: string; videoRunning: string; videoDone: string;
   // dsc
-  dscTitle: string; dscSub: string; dscDocs: string[]; dscBtn: string;
+  dscTitle: string; dscSub: string; dscDocs: { title: string; body: string }[]; dscBtn: string;
+  dscOpenHint: string; docPreviewClose: string;
   otpTitle: string; otpHint: string; otpDemo: string; otpErr: string;
   // common
   back: string; cont: string; finish: string; doneTitle: string; doneSub: string; toDashboard: string;
@@ -51,8 +52,24 @@ const dict: Record<Lang, {
     vkycTitle: 'Видеоидентификация', vkycSub: 'Подтвердите согласие и пройдите видеосессию.',
     vkycConsent: 'Согласие на видеоидентификацию (VKYC)', vkycConsentDesc: 'Даю согласие на видеозапись сессии, проверки на живость и фиксацию документа.',
     ctaStartVideo: 'Начать видеоидентификацию', videoRunning: 'Идентификация выполняется…', videoDone: 'Идентификация пройдена',
-    dscTitle: 'Подписание документов', dscSub: 'Подпишите документы своей электронной подписью (DSC).',
-    dscDocs: ['Board Resolution', 'Заявление на открытие счёта', 'Декларация'], dscBtn: 'Подписать сертификатом (DSC)',
+    dscTitle: 'Подписание документов', dscSub: 'Откройте и прочитайте каждый документ, затем подпишите их своей электронной подписью (DSC).',
+    dscDocs: [
+      {
+        title: 'Board Resolution',
+        body: 'РЕШЕНИЕ СОВЕТА ДИРЕКТОРОВ\n\nMehta Textiles Private Limited\nCIN: U17110MH2018PTC312045\n\nНа заседании Совета директоров принято решение:\n\n1. Открыть расчётный счёт компании в Банке.\n2. Уполномочить нижеуказанных лиц подписывать документы и распоряжаться счётом.\n3. Утвердить условия обслуживания и тарифы Банка.\n\nНастоящее решение принято единогласно и вступает в силу с даты подписания.',
+      },
+      {
+        title: 'Заявление на открытие счёта',
+        body: 'ЗАЯВЛЕНИЕ НА ОТКРЫТИЕ РАСЧЁТНОГО СЧЁТА\n\nПрошу открыть расчётный счёт на имя Mehta Textiles Private Limited в соответствии с предоставленными учредительными документами и сведениями.\n\nПодтверждаю достоверность предоставленных данных и согласие с правилами обслуживания и тарифами Банка.',
+      },
+      {
+        title: 'Декларация',
+        body: 'ДЕКЛАРАЦИЯ ПОДПИСАНТА\n\nЯ подтверждаю, что:\n\n• сведения, предоставленные мной, достоверны и полны;\n• я уполномочен(а) действовать от имени компании;\n• я ознакомлен(а) с условиями FATCA/CRS и подтверждаю налоговый статус компании;\n• я обязуюсь уведомлять Банк об изменении предоставленных сведений.',
+      },
+    ],
+    dscBtn: 'Подписать сертификатом (DSC)',
+    dscOpenHint: 'Нажмите на документ, чтобы открыть и прочитать его перед подписанием.',
+    docPreviewClose: 'Закрыть',
     otpTitle: 'Подтверждение подписи', otpHint: 'Введите ПИН вашего сертификата DSC.', otpDemo: 'Демо-ПИН: 0000', otpErr: 'Неверный ПИН. Демо: 0000.',
     back: 'Назад', cont: 'Продолжить', finish: 'Завершить', doneTitle: 'Готово!', doneSub: 'Вы прошли идентификацию и подписали документы.', toDashboard: 'Вернуться к заявке',
   },
@@ -68,8 +85,24 @@ const dict: Record<Lang, {
     vkycTitle: 'Video identification', vkycSub: 'Confirm consent and complete the video session.',
     vkycConsent: 'Video KYC consent (VKYC)', vkycConsentDesc: 'I consent to recording the session, liveness checks and document capture.',
     ctaStartVideo: 'Start video identification', videoRunning: 'Identification in progress…', videoDone: 'Identification passed',
-    dscTitle: 'Sign documents', dscSub: 'Sign the documents with your digital signature (DSC).',
-    dscDocs: ['Board Resolution', 'Account opening application', 'Declaration'], dscBtn: 'Sign with certificate (DSC)',
+    dscTitle: 'Sign documents', dscSub: 'Open and read each document, then sign them with your digital signature (DSC).',
+    dscDocs: [
+      {
+        title: 'Board Resolution',
+        body: 'BOARD RESOLUTION\n\nMehta Textiles Private Limited\nCIN: U17110MH2018PTC312045\n\nThe Board of Directors hereby resolves to:\n\n1. Open a current account for the company with the Bank.\n2. Authorise the persons named below to sign documents and operate the account.\n3. Approve the Bank’s service terms and tariffs.\n\nThis resolution is passed unanimously and is effective from the date of signing.',
+      },
+      {
+        title: 'Account opening application',
+        body: 'CURRENT ACCOUNT OPENING APPLICATION\n\nWe request to open a current account in the name of Mehta Textiles Private Limited based on the incorporation documents and information provided.\n\nWe confirm the accuracy of the data provided and our acceptance of the Bank’s service rules and tariffs.',
+      },
+      {
+        title: 'Declaration',
+        body: 'SIGNATORY DECLARATION\n\nI hereby confirm that:\n\n• the information provided by me is true and complete;\n• I am authorised to act on behalf of the company;\n• I am aware of the FATCA/CRS terms and confirm the company’s tax status;\n• I undertake to notify the Bank of any change to the information provided.',
+      },
+    ],
+    dscBtn: 'Sign with certificate (DSC)',
+    dscOpenHint: 'Click a document to open and read it before signing.',
+    docPreviewClose: 'Close',
     otpTitle: 'Confirm signature', otpHint: 'Enter the PIN of your DSC certificate.', otpDemo: 'Demo PIN: 0000', otpErr: 'Invalid PIN. Demo: 0000.',
     back: 'Back', cont: 'Continue', finish: 'Finish', doneTitle: 'All done!', doneSub: 'You have completed identification and signed the documents.', toDashboard: 'Back to application',
   },
@@ -84,7 +117,27 @@ const spin = keyframes`to { transform: rotate(360deg); }`;
 const Spinner = styled.span`width:40px; height:40px; border-radius:50%; border:3px solid rgba(33,160,56,0.18); border-top-color:rgb(33,160,56); animation:${spin} 0.9s linear infinite; align-self:center;`;
 const WaitText = styled.p`margin:0; text-align:center; font-size:0.85rem; color:${textSecondary};`;
 const DocList = styled.div`display:flex; flex-direction:column; gap:0.6rem;`;
-const DocItem = styled.div`display:flex; align-items:center; gap:0.6rem; padding:0.8rem 1rem; border-radius:${radii.panel}; background:#f7f9f8; border:1px solid rgba(0,0,0,0.07); font-size:0.88rem; color:${textPrimary}; ${bodySBold};`;
+// #18b — документ открываемый: клик → лайтбокс-превью. Стрелка справа подсказывает кликабельность.
+const DocItem = styled.button`
+  display:flex; align-items:center; gap:0.6rem; width:100%; text-align:left; cursor:pointer;
+  padding:0.8rem 1rem; border-radius:${radii.panel}; background:#f7f9f8; border:1px solid rgba(0,0,0,0.07);
+  font-size:0.88rem; color:${textPrimary}; ${bodySBold}; transition:border-color .15s, background .15s;
+  &:hover { border-color:${textAccent}; background:#fff; }
+  & .chev { margin-left:auto; color:${textSecondary}; font-weight:400; }
+`;
+// Лайтбокс предпросмотра документа — паттерн из Sole Proprietor (SPSign).
+const LightboxBackdrop = styled.div`
+  position:fixed; inset:0; z-index:10010; background:rgba(0,0,0,0.55);
+  display:flex; align-items:center; justify-content:center; padding:2rem;
+`;
+const LightboxDoc = styled.div`
+  background:#fff; border-radius:12px; box-shadow:0 24px 64px rgba(0,0,0,0.4);
+  width:min(640px,100%); max-height:80vh; overflow-y:auto; padding:2.5rem 2.75rem;
+  display:flex; flex-direction:column; gap:1rem;
+`;
+const LightboxTitle = styled.h2`margin:0; font-size:1.15rem; font-weight:700; color:${textPrimary};`;
+const LightboxText = styled.p`margin:0; font-size:0.9rem; line-height:1.7; color:${textPrimary}; white-space:pre-line;`;
+const LightboxFoot = styled.div`display:flex; justify-content:flex-end; padding-top:0.5rem;`;
 const Hint = styled.p`margin:0; ${bodyM}; color:${textSecondary}; ${enter(0.1)};`;
 const Demo = styled.p`margin:0; font-size:0.78rem; color:${textSecondary}; opacity:0.8;`;
 const CodeWrap = styled.div`display:flex; justify-content:center;`;
@@ -126,6 +179,7 @@ export const CompanySignatory = () => {
   const [videoPhase, setVideoPhase] = useState<'idle' | 'running' | 'done'>('idle');
   const [otpPhase, setOtpPhase] = useState(false);
   const [otpErr, setOtpErr] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<number | null>(null); // #18b — лайтбокс документа
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
@@ -261,7 +315,14 @@ export const CompanySignatory = () => {
         <Card>
           <CardHeader>{eyebrow}<Title>{t.dscTitle}</Title><Subtitle>{t.dscSub}</Subtitle></CardHeader>
           <CardBody>
-            <DocList>{t.dscDocs.map((d) => <DocItem key={d}>📄 {d}</DocItem>)}</DocList>
+            <Hint>{t.dscOpenHint}</Hint>
+            <DocList>
+              {t.dscDocs.map((d, i) => (
+                <DocItem key={d.title} type="button" onClick={() => setPreviewDoc(i)}>
+                  📄 {d.title}<span className="chev">›</span>
+                </DocItem>
+              ))}
+            </DocList>
             {!otpPhase && <ButtonRowEnd><Button view="accent" size="l" text={t.dscBtn} onClick={onSign} /></ButtonRowEnd>}
             {otpPhase && (
               <>
@@ -273,6 +334,18 @@ export const CompanySignatory = () => {
             )}
           </CardBody>
         </Card>
+        {/* #18b — лайтбокс предпросмотра документа перед подписанием */}
+        {previewDoc !== null && (
+          <LightboxBackdrop onClick={() => setPreviewDoc(null)}>
+            <LightboxDoc onClick={(e) => e.stopPropagation()}>
+              <LightboxTitle>{t.dscDocs[previewDoc].title}</LightboxTitle>
+              <LightboxText>{t.dscDocs[previewDoc].body}</LightboxText>
+              <LightboxFoot>
+                <Button view="secondary" size="m" text={t.docPreviewClose} onClick={() => setPreviewDoc(null)} />
+              </LightboxFoot>
+            </LightboxDoc>
+          </LightboxBackdrop>
+        )}
       </ScreenV2>
     );
   }
