@@ -51,8 +51,14 @@ export interface Signatory {
 }
 
 // --- Board Resolution (генерируется банком по шаблону; happy-flow) ---
+// Источник BR (первый вопрос BRD): 'template' = онлайн-шаблон банка (STP);
+// 'upload' = клиент грузит свой BR → распознавание (IDP/OCR) → ручная проверка менеджером (No STP → DVU).
+export type BrSource = 'template' | 'upload';
+
 export interface BoardResolution {
   template: 'bank' | 'own'; // happy = 'bank' (генерим); 'own' = загрузка (DVU, out of scope)
+  brSource: BrSource; // выбор клиента: шаблон банка / загрузка своего
+  brFileName?: string; // имя загруженного файла (только при brSource='upload')
   companyName: string; // авто из Probe
   cin: string; // авто
   address: string; // авто

@@ -96,6 +96,7 @@ export const mehtaTextiles: CompanyCaseV2 = {
 
   br: {
     template: 'bank',
+    brSource: 'template', // по умолчанию — онлайн-шаблон банка (STP)
     companyName: 'Mehta Textiles Private Limited',
     cin: 'U17110MH2018PTC312045',
     address: 'Unit 7, Apparel Park, MIDC Andheri East, Mumbai — 400093, MH',

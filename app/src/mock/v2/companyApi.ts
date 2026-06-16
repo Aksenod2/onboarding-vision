@@ -3,7 +3,7 @@
 
 import { mehtaTextiles } from './companySeed';
 import type {
-  CompanyCaseV2, CompanyDetails, Signatory, SignatoryStep, BoardResolution,
+  CompanyCaseV2, CompanyDetails, Signatory, SignatoryStep, BoardResolution, BrSource,
 } from './companyTypes';
 import { goesThroughPhaseB } from './companyTypes';
 import type { ConsentType } from './types';
@@ -33,6 +33,68 @@ export const giveCompanyConsent = (type: ConsentType, timestamp = nowIST()): Pro
     c.type === type ? { ...c, status: 'given', timestamp } : c,
   );
   return delay(undefined);
+};
+
+// Добавить подписанта вручную (Authorized Signatory не из реестра).
+// BRD: «nominated person can add other AS». Возвращает id созданного подписанта.
+let manualSeq = 0;
+export const addSignatory = (input: { fullName: string; email: string; phone: string }): Promise<string> => {
+  const id = `sig-as-${Date.now()}-${manualSeq++}`;
+  const next: Signatory = {
+    id,
+    fullName: input.fullName,
+    roles: ['AuthorizedSignatory'],
+    pan: '', // не из реестра — PAN привяжется в личной сессии (Aadhaar eKYC)
+    panSource: 'manual',
+    email: input.email,
+    phone: input.phone,
+    inviteSent: false,
+    currentStep: 'waiting',
+    status: 'waiting',
+    consents: [
+      { type: 'Privacy Notice', mandatory: true, status: 'pending', screen: 'CO-B1' },
+      { type: 'Data Principals', mandatory: true, status: 'pending', screen: 'CO-B1' },
+      { type: 'Aadhaar', mandatory: true, status: 'pending', screen: 'CO-B2' },
+      { type: 'VKYC', mandatory: true, status: 'pending', screen: 'CO-B3' },
+    ],
+    vcip: { personName: input.fullName, method: 'selfVKYC', status: 'Pending' },
+    signature: { signed: false, method: 'DSC' },
+  };
+  state.signatories = [...state.signatories, next];
+  return delay(id);
+};
+
+// Обновить контактные данные подписанта (ФИО/email/телефон) — для редактируемых AS-карточек.
+export const updateSignatoryContact = (
+  id: string,
+  patch: { fullName?: string; email?: string; phone?: string },
+): Promise<Signatory[]> => {
+  state.signatories = state.signatories.map((s) =>
+    s.id === id ? { ...s, ...patch } : s,
+  );
+  return delay(state.signatories);
+};
+
+// Удалить подписанта, добавленного вручную (AS без роли Director).
+// Защита: директоров (registry) и комбинированные роли не трогаем.
+export const removeSignatory = (id: string): Promise<Signatory[]> => {
+  state.signatories = state.signatories.filter((s) => {
+    if (s.id !== id) return true;
+    const removable = s.roles.includes('AuthorizedSignatory') && !s.roles.includes('Director');
+    return !removable; // удаляем только если это «чистый» AS
+  });
+  return delay(state.signatories);
+};
+
+// Источник Board Resolution: шаблон банка (STP) либо загрузка своего (→ DVU).
+export const setBoardResolutionSource = (source: BrSource, fileName?: string): Promise<BoardResolution> => {
+  state.br = {
+    ...state.br,
+    brSource: source,
+    template: source === 'template' ? 'bank' : 'own',
+    brFileName: source === 'upload' ? fileName : undefined,
+  };
+  return delay(state.br);
 };
 
 // Подтверждение состава BR (фаза A, BR-вопросы): фиксируем подписантов + генерим BR.
