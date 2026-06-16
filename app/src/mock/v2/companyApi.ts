@@ -4,9 +4,10 @@
 import { mehtaTextiles } from './companySeed';
 import type {
   CompanyCaseV2, CompanyDetails, Signatory, SignatoryStep, BoardResolution, BrSource,
+  Ubo, FatcaClassification,
 } from './companyTypes';
 import { goesThroughPhaseB } from './companyTypes';
-import type { ConsentType } from './types';
+import type { ConsentType, BnqAnswer } from './types';
 
 let state: CompanyCaseV2 = structuredClone(mehtaTextiles);
 
@@ -24,6 +25,8 @@ export const getSignatories = (): Promise<Signatory[]> => delay(state.signatorie
 export const getSignatory = (id: string): Promise<Signatory | undefined> =>
   delay(state.signatories.find((s) => s.id === id));
 export const getBoardResolution = (): Promise<BoardResolution> => delay(state.br);
+export const getBnq = (): Promise<BnqAnswer[]> => delay(state.bnq);
+export const getUbo = (): Promise<Ubo[]> => delay(state.ubo);
 
 // --- Фаза A ---
 
@@ -102,6 +105,53 @@ export const confirmBoardResolution = (): Promise<BoardResolution> => {
   const ts = nowIST();
   state.br = { ...state.br, confirmed: true, confirmedAt: ts, date: ts };
   return delay(state.br);
+};
+
+// Правка ответа бизнес-анкеты (агентность: представитель может скорректировать предзаполненное).
+export const updateBnqAnswer = (q: string, value: string): Promise<BnqAnswer[]> => {
+  state.bnq = state.bnq.map((a) => (a.q === q ? { ...a, value } : a));
+  return delay(state.bnq);
+};
+
+// Правка данных компании (фаза A): корреспондентский адрес (manual) и т.п.
+export const updateCompanyData = (patch: Partial<CompanyDetails>): Promise<CompanyDetails> => {
+  state.company = { ...state.company, ...patch };
+  return delay(state.company);
+};
+
+// --- UBO + FATCA/CRS (бизнес-профиль, BRD #8) ---
+let uboSeq = 0;
+export const addUbo = (input: { fullName: string; sharePct: number; pan: string }): Promise<Ubo[]> => {
+  const next: Ubo = {
+    id: `ubo-${Date.now()}-${uboSeq++}`,
+    fullName: input.fullName,
+    sharePct: input.sharePct,
+    pan: input.pan,
+    source: 'manual',
+  };
+  state.ubo = [...state.ubo, next];
+  return delay(state.ubo);
+};
+
+export const updateUbo = (id: string, patch: Partial<Omit<Ubo, 'id'>>): Promise<Ubo[]> => {
+  state.ubo = state.ubo.map((u) => (u.id === id ? { ...u, ...patch } : u));
+  return delay(state.ubo);
+};
+
+export const removeUbo = (id: string): Promise<Ubo[]> => {
+  state.ubo = state.ubo.filter((u) => u.id !== id);
+  return delay(state.ubo);
+};
+
+export const setUboDeclared = (declared: boolean): Promise<void> => {
+  state.uboDeclared = declared;
+  return delay(undefined);
+};
+
+export const setFatca = (classification: FatcaClassification, taxResidency: string): Promise<void> => {
+  state.fatcaClassification = classification;
+  state.taxResidency = taxResidency;
+  return delay(undefined);
 };
 
 // Подтверждение данных компании (фаза A, экран обзора).

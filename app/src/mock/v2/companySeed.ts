@@ -142,4 +142,14 @@ export const mehtaTextiles: CompanyCaseV2 = {
   risk: { totalScore: 12, category: 'Low', shownToClient: false },
 
   dataConfirmed: false,
+
+  // UBO — бенефициарные владельцы ≥ 25% (BRD #8). Amit Shah помечен UBO в подписантах.
+  ubo: [
+    { id: 'ubo-amit', fullName: 'Amit Shah', sharePct: 40, pan: 'ADLPS5512Q', source: 'registry' },
+    { id: 'ubo-rajesh', fullName: 'Rajesh Mehta', sharePct: 35, pan: 'ABKPM7788D', source: 'registry' },
+  ],
+  uboDeclared: false,
+  // FATCA/CRS — торговая компания-резидент Индии: активная нефинансовая структура.
+  fatcaClassification: 'Active NFFE',
+  taxResidency: 'India',
 };

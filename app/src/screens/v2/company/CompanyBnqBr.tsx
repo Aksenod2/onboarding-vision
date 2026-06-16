@@ -11,9 +11,10 @@ import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
   getSignatories, confirmBoardResolution, addSignatory, removeSignatory,
-  updateSignatoryContact, setBoardResolutionSource,
+  updateSignatoryContact, setBoardResolutionSource, getBnq, updateBnqAnswer,
 } from '../../../mock/v2/companyApi';
 import type { Signatory, BrSource } from '../../../mock/v2/companyTypes';
+import type { BnqAnswer } from '../../../mock/v2/types';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './companyUi';
 
 // CO-BNQ — шаг 2 фазы A: бизнес-анкета + блок BR-вопросов (ядро отличия Компании).
@@ -25,6 +26,7 @@ import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './compan
 
 const dict: Record<Lang, {
   title: string; subtitle: string;
+  bnqTitle: string; bnqExpand: string; bnqCollapse: string; bnqPrefilled: string;
   sectionDirectors: string; directorsHint: string;
   sectionAs: string; asHint: string;
   asNameLabel: string; asEmailLabel: string; asPhoneLabel: string;
@@ -42,6 +44,10 @@ const dict: Record<Lang, {
   ru: {
     title: 'Анкета и подписанты',
     subtitle: 'Бизнес-вопросы заполнены автоматически по данным компании. Укажите, кто подписывает Board Resolution и кто распоряжается счётом.',
+    bnqTitle: 'Бизнес-анкета · 11 вопросов · заполнено автоматически',
+    bnqExpand: 'Раскрыть',
+    bnqCollapse: 'Свернуть',
+    bnqPrefilled: 'Предзаполнено',
     sectionDirectors: 'Директора-подписанты',
     directorsHint: 'Выбраны из реестра (Probe42). Минимум двое подписывают Board Resolution.',
     sectionAs: 'Уполномоченные подписанты (распоряжаются счётом)',
@@ -73,6 +79,10 @@ const dict: Record<Lang, {
   en: {
     title: 'Questionnaire & signatories',
     subtitle: 'Business questions are pre-filled from company data. Specify who signs the Board Resolution and who operates the account.',
+    bnqTitle: 'Business questionnaire · 11 questions · pre-filled automatically',
+    bnqExpand: 'Expand',
+    bnqCollapse: 'Collapse',
+    bnqPrefilled: 'Pre-filled',
     sectionDirectors: 'Director signatories',
     directorsHint: 'Selected from the registry (Probe42). At least two sign the Board Resolution.',
     sectionAs: 'Authorized Signatories (operate the account)',
@@ -130,6 +140,29 @@ const RegBadge = styled.span`
 `;
 const Field = styled.div`display:flex; flex-direction:column; gap:0.375rem;`;
 const Row = styled.div`display:flex; gap:1rem; flex-wrap:wrap; & > * { flex:1 1 200px; }`;
+
+// --- Бизнес-анкета: аккордеон (по умолчанию свёрнут) ---
+const Accordion = styled.div`
+  border:1px solid rgba(0,0,0,0.1); border-radius:${radii.panel}; background:#fff; overflow:hidden;
+`;
+const AccHead = styled.button`
+  width:100%; display:flex; align-items:center; justify-content:space-between; gap:0.75rem;
+  border:none; background:none; cursor:pointer; text-align:left;
+  padding:0.9rem 1rem; ${bodySBold}; color:${textPrimary}; font-size:0.9rem;
+  &:hover { background:rgba(0,0,0,0.02); }
+`;
+const AccHeadLeft = styled.span`display:inline-flex; align-items:center; gap:0.4rem;`;
+const AccCheck = styled.span`color:#1a7a28; font-size:0.85rem;`;
+const AccToggle = styled.span`color:${textAccent}; font-size:0.82rem; font-weight:600; white-space:nowrap;`;
+const AccBody = styled.div`
+  ${enter(0)}; display:flex; flex-direction:column; gap:0.75rem;
+  padding:0.5rem 1rem 1rem; border-top:1px solid rgba(0,0,0,0.06);
+`;
+const BnqItem = styled.div`display:flex; flex-direction:column; gap:0.3rem;`;
+const BnqQ = styled.label`
+  display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;
+  font-size:0.82rem; color:${textSecondary};
+`;
 
 // --- AS-карточка (ручной ввод, удаляемая) ---
 const AsCard = styled.div`
@@ -221,6 +254,9 @@ export const CompanyBnqBr = () => {
   const t = dict[lang];
 
   const [signatories, setSignatories] = useState<Signatory[]>([]);
+  // бизнес-анкета (Q1–Q11) — предзаполнена, аккордеон свёрнут по умолчанию
+  const [bnq, setBnq] = useState<BnqAnswer[]>([]);
+  const [bnqOpen, setBnqOpen] = useState(false);
   // выбранные директора (по умолчанию — все директора из реестра отмечены)
   const [picked, setPicked] = useState<Set<string>>(new Set());
   // AS — список карточек (первый предзаполнен из золотой записи)
@@ -233,6 +269,7 @@ export const CompanyBnqBr = () => {
   const UPLOADED_FILE = 'board-resolution.pdf';
 
   useEffect(() => {
+    getBnq().then(setBnq);
     getSignatories().then((list) => {
       setSignatories(list);
       const directors = list.filter((s) => s.roles.includes('Director'));
@@ -255,6 +292,10 @@ export const CompanyBnqBr = () => {
 
   const updateAs = (id: string, patch: Partial<AsRow>) =>
     setAsRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  // Правка ответа анкеты (агентность). Пишем в стейт сразу, в data-слой — на «Продолжить».
+  const editBnq = (q: string, value: string) =>
+    setBnq((rows) => rows.map((a) => (a.q === q ? { ...a, value } : a)));
 
   const handleAddAs = async () => {
     const id = await addSignatory({ fullName: '', email: '', phone: '' });
@@ -290,6 +331,8 @@ export const CompanyBnqBr = () => {
   };
 
   const handleContinue = async () => {
+    // зафиксировать правки анкеты в data-слое
+    try { await Promise.all(bnq.map((a) => updateBnqAnswer(a.q, a.value))); } catch (_) { /* игнор */ }
     // зафиксировать введённые данные AS в стейте бэкенда (для Dispatch/Dashboard/сессий)
     try { await persistAs(); } catch (_) { /* игнор */ }
     try { await confirmBoardResolution(); } catch (_) { /* игнорируем */ }
@@ -326,6 +369,31 @@ export const CompanyBnqBr = () => {
           <Subtitle>{t.subtitle}</Subtitle>
         </CardHeader>
         <CardBody>
+          {/* Бизнес-анкета Q1–Q11 — предзаполнена, по умолчанию свёрнута; можно править */}
+          <Accordion>
+            <AccHead type="button" onClick={() => setBnqOpen((v) => !v)} aria-expanded={bnqOpen}>
+              <AccHeadLeft>{t.bnqTitle} <AccCheck>✓</AccCheck></AccHeadLeft>
+              <AccToggle>{bnqOpen ? t.bnqCollapse : t.bnqExpand}</AccToggle>
+            </AccHead>
+            {bnqOpen && (
+              <AccBody>
+                {bnq.map((a) => (
+                  <BnqItem key={a.q}>
+                    <BnqQ>
+                      {a.attribute}
+                      <PrefilledBadge>{t.bnqPrefilled}</PrefilledBadge>
+                    </BnqQ>
+                    <TextField
+                      value={a.value}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => editBnq(a.q, e.target.value)}
+                      size="s"
+                    />
+                  </BnqItem>
+                ))}
+              </AccBody>
+            )}
+          </Accordion>
+
           {/* Директора-подписанты — из реестра, чекбокс-карточки */}
           <Section>
             <SectionTitle>{t.sectionDirectors}</SectionTitle>

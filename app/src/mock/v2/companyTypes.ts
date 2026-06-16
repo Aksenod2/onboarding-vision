@@ -67,6 +67,21 @@ export interface BoardResolution {
   confirmedAt?: IST;
 }
 
+// --- FATCA/CRS-классификация компании (требование BRD, аудит дыр #8) ---
+// Active NFFE — активная нефинансовая структура; Passive NFFE — пассивная (доход в осн. пассивный);
+// Financial Institution — финансовая организация. По умолчанию India.
+export type FatcaClassification = 'Active NFFE' | 'Passive NFFE' | 'Financial Institution';
+
+// --- UBO (Ultimate Beneficial Owner) — бенефициарный владелец компании ---
+// BRD: UBO identification (доля ≥ 25%). Заполняется представителем в фазе A.
+export interface Ubo {
+  id: string;
+  fullName: string;
+  sharePct: number; // доля владения, %
+  pan: PAN;
+  source: FieldSource; // registry — подтянут (напр. из подписантов); manual — добавлен вручную
+}
+
 // --- Данные компании (из Probe42 по PAN) ---
 export interface CompanyDetails {
   entityType: CompanyEntityType;
@@ -100,6 +115,11 @@ export interface CompanyCaseV2 {
   screening: ScreeningResult[];
   risk: RiskAssessment;
   dataConfirmed: boolean; // подтверждение данных компании (фаза A)
+  // --- Бизнес-профиль (BRD #8): UBO-декларация + FATCA/CRS-классификация ---
+  ubo: Ubo[];
+  uboDeclared: boolean; // представитель подтвердил, что указаны все UBO ≥ 25%
+  fatcaClassification: FatcaClassification;
+  taxResidency: string; // страна налогового резидентства компании (по умолчанию India)
 }
 
 // Источники полей CompanyDetails — для бейджа «из реестра» в UI.
