@@ -278,7 +278,8 @@ export const SP03Register = () => {
       if (consentCookie) await giveConsent('Cookie', ist);
     } catch (_) { /* игнорируем ошибки api */ }
     setSending(false);
-    navigate('/v2/email');
+    // Прокидываем метку потока Компании на письмо (SP-02).
+    navigate(searchParams.get('flow') === 'company' ? '/v2/email?flow=company' : '/v2/email');
   };
 
   const handleVerify = async (code: string) => {
@@ -289,7 +290,8 @@ export const SP03Register = () => {
       await verifyOtp(code);
     } catch (_) { /* игнорируем */ }
     setConfirming(false);
-    navigate('/v2/pan'); // объединённый экран «Доступ к реестрам и PAN»
+    // flow=company → стартуем сценарий Компании с PAN; иначе — Sole Proprietor.
+    navigate(searchParams.get('flow') === 'company' ? '/company/pan' : '/v2/pan');
   };
 
   return (

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button } from '@salutejs/sdds-serv'; // TODO свериться с MCP — view="accent", size="l"
 import {
@@ -156,8 +156,13 @@ const Disclaimer = styled.p`
 
 export const SP02Email = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { lang } = useLanguage();
   const t = dict[lang];
+
+  // Прокидываем метку потока Компании дальше (на OTP-стадию SP-03).
+  const isCompany = searchParams.get('flow') === 'company';
+  const otpPath = isCompany ? '/v2/login?step=otp&flow=company' : '/v2/login?step=otp';
 
   // Адрес получателя — реально введённый на SP-03 (из mock-сессии).
   const [recipient, setRecipient] = useState('');
@@ -197,7 +202,7 @@ export const SP02Email = () => {
               view="accent"
               size="l"
               text={t.cta}
-              onClick={() => navigate('/v2/login?step=otp')}
+              onClick={() => navigate(otpPath)}
             />
           </CtaWrapper>
           <Disclaimer>{t.disclaimer}</Disclaimer>

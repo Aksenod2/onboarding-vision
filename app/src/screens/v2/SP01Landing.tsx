@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button } from '@salutejs/sdds-serv'; // TODO свериться с MCP — view="accent"|"secondary"|"clear", size="l"|"s"
 import {
@@ -230,8 +230,13 @@ const IllustrationCaption = styled.span`
 
 export const SP01Landing = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { lang, setLang } = useLanguage();
   const t = dict[lang];
+
+  // Сценарий Компания стартует с лендинга в режиме flow=company (метка прокидывается по цепочке регистрации).
+  const isCompany = searchParams.get('flow') === 'company';
+  const loginPath = isCompany ? '/v2/login?flow=company' : '/v2/login';
 
   return (
     <Page>
@@ -256,7 +261,7 @@ export const SP01Landing = () => {
           <Subtitle>{t.subtitle}</Subtitle>
           <CtaRow>
             {/* TODO свериться с MCP — Button view="accent" size="l" text prop */}
-            <Button view="accent" size="l" text={t.cta} onClick={() => navigate('/v2/login')} />
+            <Button view="accent" size="l" text={t.cta} onClick={() => navigate(loginPath)} />
           </CtaRow>
         </HeroLeft>
 

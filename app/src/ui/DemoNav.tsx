@@ -34,12 +34,13 @@ const V2: Node[] = [
 
 // Сценарий Компания (мульти-логин). Фаза A заполнителя → дашборд-монитор → сессия подписанта.
 const COMPANY: Node[] = [
-  { l: '1 Реестры и PAN', p: '/company/pan' },
-  { l: '2 Анкета и подписанты', p: '/company/bnq' },
-  { l: '3 Данные компании', p: '/company/confirm' },
-  { l: '4 Приглашения', p: '/company/dispatch' },
-  { l: '5 Дашборд (монитор)', p: '/company/dashboard' },
-  { l: '6 Сессия подписанта', p: '/company/signatory' },
+  { l: '1 Регистрация', p: '/v2?flow=company' },
+  { l: '2 Реестры и PAN', p: '/company/pan' },
+  { l: '3 Анкета и подписанты', p: '/company/bnq' },
+  { l: '4 Данные компании', p: '/company/confirm' },
+  { l: '5 Приглашения', p: '/company/dispatch' },
+  { l: '6 Дашборд (монитор)', p: '/company/dashboard' },
+  { l: '7 Сессия подписанта', p: '/company/signatory' },
 ];
 
 const INK = '#111827';

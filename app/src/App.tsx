@@ -77,7 +77,7 @@ export const App = () => {
           <LanguageProvider>
             <CompanyProvider>
               <Routes>
-                <Route index element={<Navigate to="/company/pan" replace />} />
+                <Route index element={<Navigate to="/v2?flow=company" replace />} />
                 <Route path="pan" element={<CompanyPan />} />
                 <Route path="bnq" element={<CompanyBnqBr />} />
                 <Route path="confirm" element={<CompanyConfirm />} />
