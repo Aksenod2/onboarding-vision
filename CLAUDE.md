@@ -34,6 +34,20 @@
 | `docs/_исходники/` | Схемы drawio (версионируются `ГГГГ-ММ-ДД_*.drawio.xml`) + фото Confluence (фото в `.gitignore`) |
 | `app/` | React-прототип (SDDS Serv) |
 
+## Карта путей для агентов (одна истина — этот репозиторий)
+
+Чтобы любой агент обращался к файлам без путаницы — где что лежит:
+
+| Что | Где |
+|---|---|
+| **Истина проекта** (спеки, разборы, карты, аудит) | этот репозиторий, папка `docs/`. Всё рабочее — здесь, не в Obsidian. |
+| **Роли агентов** | `.claude/agents/*.md` — Боря (BA), Ульяна (UX), Вера (QA), Эля (EN), Паша (PM), Федя (frontend). |
+| **Единый трекер задач** | GitHub Projects «Onboarding Vision» (`Aksenod2/onboarding-vision`) — issues + статус Todo/In Progress/Done, закрытие коммитом `Closes #N`. Бэклог в md-файлах НЕ дублируем. |
+| **Разборы встреч** | `docs/Разбор встречи — *.md` / `docs/Разбор демо — *.md` (формат: дословные цитаты + ярлык ИП/Компания, см. роль Бори). |
+| **Транскрибация аудио** | скрипт `~/Desktop/vault/khranilishche/personal-assistant-tool/transcribe_chunked.py` (Polza, ключ `POLZA_API_KEY` в `.env` рядом). Вход — m4a/aac (mp3 НЕ чанкуется скриптом). `.qta` = контейнер m4a: сконвертировать `ffmpeg -map 0:a:0 -c:a copy out.m4a`, потом скрипт. Диаризация (спикеры) — через Polza `elevenlabs/speech-to-text` (дороже, провайдер бывает недоступен). |
+| **Аудио встреч** | Денис кладёт на `~/Desktop/*.m4a` / `*.qta`. |
+| **Окно в Obsidian** | `khranilishche/Хранилище/Сбербанк/Проекты/Онбординг/` — README + симлинк `docs (репозиторий)` → `docs/`. Это зеркало для Дениса, НЕ отдельная истина: файлы туда не копируем (только симлинк). |
+
 ## SDDS Serv через MCP
 
 MCP-сервер `sdds-serv` подключён в `.mcp.json`. Инструменты: `list_components`, `get_component`, `get_component_props`, `get_component_examples`, `get_tokens`, `get_installation_guide`, `get_form_guide`, `get_design_system_configuration`. **Перед использованием компонента — свериться с MCP** (боевые имена и props), а не угадывать. Боевые имена: `Input`→**TextField**, `PhoneInput`→**TextField+Mask**, `OTP`→**CodeField**, плюс **Button**, **Notification**, **Select**, **Steps** и др.
