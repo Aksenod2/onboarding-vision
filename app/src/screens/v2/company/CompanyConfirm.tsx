@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { Button, TextField } from '@salutejs/sdds-serv'; // TODO свериться с MCP
+import { Button, TextField, Note } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, textAccent, textPositive, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
@@ -42,6 +42,9 @@ const dict: Record<Lang, {
   sectionDocs: string; docsHint: string;
   docFromRegistry: string; docReplace: string; docUpload: string;
   docUploading: string; docUploaded: string; docRequired: string;
+  attentionNote: string; // #36 — плашка «внимательно проверяйте»
+  signatoryConsent: string; // #38 — consent по полноте подписантов (Directors/Partners/UBO/AS)
+  responsibilityGate: string; // #36 — чекбокс-гейт перед CTA
 }> = {
   ru: {
     title: 'Проверьте данные компании',
@@ -84,6 +87,9 @@ const dict: Record<Lang, {
     docUploading: 'Загрузка…',
     docUploaded: 'Загружено',
     docRequired: 'требуется',
+    attentionNote: 'Внимательно проверяйте всю вносимую информацию — это может повлиять на решение банка о предоставлении продукта.',
+    signatoryConsent: 'Подтверждаю, что предоставил(а) полную и достоверную информацию по всем лицам, требуемым согласно KYC-нормам Банка, включая, помимо прочего, всех директоров, партнёров, конечных бенефициарных владельцев и уполномоченных подписантов, применимых к организационно-правовой структуре компании.',
+    responsibilityGate: 'Я несу ответственность за достоверность вносимой информации',
   },
   en: {
     title: 'Review company details',
@@ -126,6 +132,9 @@ const dict: Record<Lang, {
     docUploading: 'Uploading…',
     docUploaded: 'Uploaded',
     docRequired: 'required',
+    attentionNote: 'Please review all information you enter carefully — it may affect the Bank’s decision on providing the product.',
+    signatoryConsent: "I confirm that I have provided complete and accurate information for all individuals required under the Bank's KYC norms, including but not limited to all Directors, Partners, Ultimate Beneficial Owners and Authorized Signatories as applicable to the legal structure of the entity.",
+    responsibilityGate: 'I take responsibility for the accuracy of the information provided',
   },
 };
 
@@ -252,6 +261,9 @@ export const CompanyConfirm = () => {
   // #17 — UBO-строки + декларация + FATCA/CRS.
   const [uboRows, setUboRows] = useState<UboRow[]>([]);
   const [declared, setDeclared] = useState(false);
+  // #38 — consent по полноте подписантов; #36 — гейт ответственности перед CTA.
+  const [signatoryConsentChecked, setSignatoryConsentChecked] = useState(false);
+  const [respGate, setRespGate] = useState(false);
   const [fatca, setFatcaState] = useState<FatcaClassification>('Active NFFE');
   const [taxRes, setTaxRes] = useState('India');
 
@@ -360,6 +372,9 @@ export const CompanyConfirm = () => {
           <Subtitle>{t.subtitle}</Subtitle>
         </CardHeader>
         <CardBody>
+          {/* #36 — заметная плашка «внимательно проверяйте». view="info" (оранжевый зарезервирован под DVU) */}
+          <Note key={`att-${lang}`} view="info" text={t.attentionNote} />
+
           {/* #15b — данные компании: read-only с кнопкой «Изменить» → редактируемый адрес переписки */}
           {company && (
             <Section>
@@ -419,6 +434,12 @@ export const CompanyConfirm = () => {
                 </Chips>
               </Person>
             ))}
+            {/* #38 — consent по полноте состава подписантов (Directors/Partners/UBO/AS). Отдельный пункт согласия:
+                декларация UBO ниже про долю ≥10%, а этот consent — про полноту информации по всем лицам KYC. */}
+            <CheckRow onClick={() => setSignatoryConsentChecked((v) => !v)}>
+              <CheckBox $checked={signatoryConsentChecked}>{signatoryConsentChecked ? '✓' : ''}</CheckBox>
+              {t.signatoryConsent}
+            </CheckRow>
           </Section>
 
           {/* #17 — UBO: список + добавить + декларация */}
@@ -513,9 +534,15 @@ export const CompanyConfirm = () => {
             })}
           </Section>
 
+          {/* #36 — чекбокс ответственности ПЕРЕД CTA; гейтит кнопку «Подтвердить и пригласить» */}
+          <CheckRow onClick={() => setRespGate((v) => !v)}>
+            <CheckBox $checked={respGate}>{respGate ? '✓' : ''}</CheckBox>
+            {t.responsibilityGate}
+          </CheckRow>
+
           <ButtonRow>
             <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/bnq')} />
-            <Button view="accent" size="l" text={t.cta} onClick={handleConfirm} />
+            <Button view="accent" size="l" text={t.cta} disabled={!respGate} onClick={handleConfirm} />
           </ButtonRow>
         </CardBody>
       </Card>

@@ -9,7 +9,7 @@ import { StepProgress } from '../../../ui/v2/StepProgress';
 import { COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
-import { dispatchInvites } from '../../../mock/v2/companyApi';
+import { dispatchInvites, getSignatories } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { Signatory } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRowEnd, SuccessNote } from './companyUi';
@@ -23,6 +23,7 @@ const dict: Record<Lang, {
   successText: string;
   cta: string;
   copyLink: string; copied: string; sentTo: string;
+  nonSignerText: string; nonSignerCta: string; // #37 — модалка не-подписанту
 }> = {
   ru: {
     title: 'Приглашения отправлены',
@@ -32,6 +33,8 @@ const dict: Record<Lang, {
     copyLink: 'Скопировать ссылку',
     copied: 'Ссылка скопирована',
     sentTo: 'Отправлено на',
+    nonSignerText: 'Спасибо, что заполнили заявку. Следите за статусом подписания на дашборде.',
+    nonSignerCta: 'Перейти к дашборду',
   },
   en: {
     title: 'Invitations sent',
@@ -41,6 +44,8 @@ const dict: Record<Lang, {
     copyLink: 'Copy link',
     copied: 'Link copied',
     sentTo: 'Sent to',
+    nonSignerText: 'Thank you for completing the application. Track the signing status on the dashboard.',
+    nonSignerCta: 'Go to dashboard',
   },
 };
 
@@ -60,6 +65,17 @@ const Toast = styled.div`
   padding:0.6rem 1rem; border-radius:8px; background:${textPrimary}; color:#fff; font-size:0.82rem;
   box-shadow:0 8px 24px rgba(0,0,0,0.25);
 `;
+// #37 — модалка не-подписанту (паттерн лайтбокса из CompanySignatory/SPSign).
+const ModalBackdrop = styled.div`
+  position:fixed; inset:0; z-index:10030; background:rgba(0,0,0,0.55);
+  display:flex; align-items:center; justify-content:center; padding:2rem;
+`;
+const ModalCard = styled.div`
+  background:#fff; border-radius:12px; box-shadow:0 24px 64px rgba(0,0,0,0.4);
+  width:min(440px,100%); padding:2rem 2.25rem; display:flex; flex-direction:column; gap:1.25rem;
+`;
+const ModalText = styled.p`margin:0; font-size:0.95rem; line-height:1.6; color:${textPrimary};`;
+const ModalFoot = styled.div`display:flex; justify-content:flex-end;`;
 
 export const CompanyDispatch = () => {
   const navigate = useNavigate();
@@ -67,10 +83,20 @@ export const CompanyDispatch = () => {
   const t = dict[lang];
   const [signatories, setSignatories] = useState<Signatory[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [showNonSigner, setShowNonSigner] = useState(false); // #37
 
   // Рассылаем при заходе на экран (имитация отправки).
   useEffect(() => {
     dispatchInvites().then(setSignatories);
+    // #37 — если инициатор (CustomerRepresentative) сам НЕ подписант (нет Director/AS) — показать модалку.
+    // Демо-данные Mehta: Rajesh — инициатор И подписант → модалка не сработает по данным.
+    // Принудительный показ для демо: ?nonsigner=1 в URL.
+    const forced = new URLSearchParams(window.location.search).get('nonsigner') === '1';
+    getSignatories().then((list) => {
+      const initiator = list.find((s) => s.roles.includes('CustomerRepresentative'));
+      const initiatorIsSigner = initiator ? goesThroughPhaseB(initiator) : false;
+      setShowNonSigner(forced || (!!initiator && !initiatorIsSigner));
+    });
   }, []);
 
   const recipients = signatories.filter(goesThroughPhaseB);
@@ -118,6 +144,17 @@ export const CompanyDispatch = () => {
         </CardBody>
       </Card>
       {toast && <Toast>{toast}</Toast>}
+      {/* #37 — модалка не-подписанту: после рассылки, если инициатор сам не подписывает */}
+      {showNonSigner && (
+        <ModalBackdrop onClick={() => setShowNonSigner(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalText>{t.nonSignerText}</ModalText>
+            <ModalFoot>
+              <Button view="accent" size="m" text={t.nonSignerCta} onClick={() => { setShowNonSigner(false); navigate(COMPANY_DASHBOARD_ROUTE); }} />
+            </ModalFoot>
+          </ModalCard>
+        </ModalBackdrop>
+      )}
     </ScreenV2>
   );
 };

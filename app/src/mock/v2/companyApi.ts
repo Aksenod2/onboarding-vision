@@ -173,6 +173,14 @@ export const replaceCompanyDocument = (id: string, fileName = 'document.pdf'): P
   return delay(state.companyDocuments);
 };
 
+// #34 — догрузка документа по обратному запросу банка (DVU). Возвращает обновлённый запрос.
+export const uploadDvuDocument = (fileName: string): Promise<CompanyCaseV2['dvuRequest']> => {
+  if (state.dvuRequest) {
+    state.dvuRequest = { ...state.dvuRequest, status: 'uploaded', fileName };
+  }
+  return delay(state.dvuRequest);
+};
+
 // Подтверждение данных компании (фаза A, экран обзора).
 export const confirmCompanyData = (): Promise<void> => {
   state.dataConfirmed = true;

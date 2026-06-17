@@ -135,6 +135,18 @@ export interface CompanyCaseV2 {
   uboDeclared: boolean; // представитель подтвердил, что указаны все UBO ≥ 25%
   fatcaClassification: FatcaClassification;
   taxResidency: string; // страна налогового резидентства компании (по умолчанию India)
+  // #34 — догрузка документа по обратному запросу банка (DVU). null — запроса нет.
+  dvuRequest?: DvuRequest;
+}
+
+// --- DVU re-upload (#34): банк запросил догрузить документ по заявке ---
+// Имитация «обратного запроса банка»: представитель видит на дашборде, что нужно догрузить документ,
+// и прикладывает файл (fake-upload). status: requested — ждёт файла; uploaded — приложен.
+export interface DvuRequest {
+  id: string;
+  docName: string; // что просит банк (напр. «Источник средств / Source of funds»)
+  status: 'requested' | 'uploaded';
+  fileName?: string;
 }
 
 // Источники полей CompanyDetails — для бейджа «из реестра» в UI.

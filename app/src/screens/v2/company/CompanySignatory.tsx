@@ -37,8 +37,10 @@ const dict: Record<Lang, {
   dscTitle: string; dscSub: string; dscDocs: { title: string; body: string }[]; dscBtn: string;
   dscOpenHint: string; docPreviewClose: string;
   otpTitle: string; otpHint: string; otpDemo: string; otpErr: string;
+  // summary (#31) — вводный экран сессии подписанта
+  summaryTitle: string; summaryIntro: string; summarySteps: string[]; summaryTime: string; summaryStart: string;
   // common
-  back: string; cont: string; finish: string; doneTitle: string; doneSub: string; toDashboard: string;
+  back: string; cont: string; finish: string; doneTitle: string; doneSub: string; doneFollowUp: string; toDashboard: string;
 }> = {
   ru: {
     eyebrowPrefix: 'Сессия подписанта',
@@ -71,7 +73,19 @@ const dict: Record<Lang, {
     dscOpenHint: 'Нажмите на документ, чтобы открыть и прочитать его перед подписанием.',
     docPreviewClose: 'Закрыть',
     otpTitle: 'Подтверждение подписи', otpHint: 'Введите ПИН вашего сертификата DSC.', otpDemo: 'Демо-ПИН: 0000', otpErr: 'Неверный ПИН. Демо: 0000.',
-    back: 'Назад', cont: 'Продолжить', finish: 'Завершить', doneTitle: 'Готово!', doneSub: 'Вы прошли идентификацию и подписали документы.', toDashboard: 'Вернуться к заявке',
+    summaryTitle: 'Подписание документов на открытие счёта',
+    summaryIntro: 'Вас пригласили на площадку Банка для подписания документов на открытие счёта. Вам потребуется:',
+    summarySteps: [
+      'подтвердить личность через Aadhaar;',
+      'ознакомиться и подтвердить данные в превью заявки (Application);',
+      'подписать документы цифровой подписью;',
+      'пройти видеоидентификацию (VKYC).',
+    ],
+    summaryTime: 'Это займёт около 15 минут.',
+    summaryStart: 'Начать',
+    back: 'Назад', cont: 'Продолжить', finish: 'Завершить', doneTitle: 'Готово!', doneSub: 'Вы прошли идентификацию и подписали документы.',
+    doneFollowUp: 'Пользуйтесь личным кабинетом. Как только завершится проверка, вы получите уведомление на email.',
+    toDashboard: 'Вернуться к заявке',
   },
   en: {
     eyebrowPrefix: 'Signatory session',
@@ -104,7 +118,19 @@ const dict: Record<Lang, {
     dscOpenHint: 'Click a document to open and read it before signing.',
     docPreviewClose: 'Close',
     otpTitle: 'Confirm signature', otpHint: 'Enter the PIN of your DSC certificate.', otpDemo: 'Demo PIN: 0000', otpErr: 'Invalid PIN. Demo: 0000.',
-    back: 'Back', cont: 'Continue', finish: 'Finish', doneTitle: 'All done!', doneSub: 'You have completed identification and signed the documents.', toDashboard: 'Back to application',
+    summaryTitle: 'Signing documents to open the account',
+    summaryIntro: 'You have been invited to the Bank’s platform to sign the documents for opening an account. You will need to:',
+    summarySteps: [
+      'verify your identity via Aadhaar;',
+      'review and confirm the data in the application preview (Application);',
+      'sign the documents with a digital signature;',
+      'complete video identification (VKYC).',
+    ],
+    summaryTime: 'It will take about 15 minutes.',
+    summaryStart: 'Start',
+    back: 'Back', cont: 'Continue', finish: 'Finish', doneTitle: 'All done!', doneSub: 'You have completed identification and signed the documents.',
+    doneFollowUp: "Use your personal account. Once verification is complete, you'll receive a notification by email.",
+    toDashboard: 'Back to application',
   },
 };
 
@@ -139,6 +165,10 @@ const LightboxTitle = styled.h2`margin:0; font-size:1.15rem; font-weight:700; co
 const LightboxText = styled.p`margin:0; font-size:0.9rem; line-height:1.7; color:${textPrimary}; white-space:pre-line;`;
 const LightboxFoot = styled.div`display:flex; justify-content:flex-end; padding-top:0.5rem;`;
 const Hint = styled.p`margin:0; ${bodyM}; color:${textSecondary}; ${enter(0.1)};`;
+// #31 — вводный экран сессии: интро + нумерованный список шагов + оценка времени.
+const SummaryIntro = styled.p`margin:0; ${bodyM}; color:${textPrimary};`;
+const SummaryList = styled.ol`margin:0; padding-left:1.3rem; display:flex; flex-direction:column; gap:0.5rem; ${bodyM}; color:${textPrimary};`;
+const SummaryTime = styled.p`margin:0; ${bodySBold}; font-size:0.9rem; color:${textSecondary};`;
 const Demo = styled.p`margin:0; font-size:0.78rem; color:${textSecondary}; opacity:0.8;`;
 const CodeWrap = styled.div`display:flex; justify-content:center;`;
 
@@ -170,6 +200,8 @@ export const CompanySignatory = () => {
   const { activeSignatoryId } = useCompany();
 
   const [sig, setSig] = useState<Signatory | null>(null);
+  // #31 — вводный экран показываем один раз при входе в сессию, пока подписант ещё не начал согласия.
+  const [showSummary, setShowSummary] = useState(true);
   // локальные флаги под-шагов
   const [cPrivacy, setCPrivacy] = useState(false);
   const [cAadhaar, setCAadhaar] = useState(false);
@@ -204,6 +236,28 @@ export const CompanySignatory = () => {
   const progress = step !== 'done'
     ? <StepProgress currentStepId={STEP_TO_PROGRESS[step]} steps={MINI_STEPS} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={() => false} />
     : undefined;
+
+  // ── Вводный экран сессии (#31) — первый шаг, до согласий. Показываем только в самом начале. ──
+  if (step === 'consents' && showSummary && sig.currentStep === 'waiting') {
+    return (
+      <ScreenV2 progress={progress}>
+        <Card>
+          <CardHeader>{eyebrow}<Title>{t.summaryTitle}</Title></CardHeader>
+          <CardBody>
+            <SummaryIntro>{t.summaryIntro}</SummaryIntro>
+            <SummaryList>
+              {t.summarySteps.map((s, i) => <li key={i}>{s}</li>)}
+            </SummaryList>
+            <SummaryTime>{t.summaryTime}</SummaryTime>
+            <ButtonRow>
+              <Button view="secondary" size="l" text={t.back} onClick={() => navigate(COMPANY_DASHBOARD_ROUTE)} />
+              <Button view="accent" size="l" text={t.summaryStart} onClick={() => setShowSummary(false)} />
+            </ButtonRow>
+          </CardBody>
+        </Card>
+      </ScreenV2>
+    );
+  }
 
   // ── Шаг: Согласия ──
   if (step === 'consents') {
@@ -357,6 +411,8 @@ export const CompanySignatory = () => {
         <CardHeader>{eyebrow}<Title>{t.doneTitle}</Title><Subtitle>{t.doneSub}</Subtitle></CardHeader>
         <CardBody>
           <SuccessNote><span className="ic">✓</span>{t.doneSub}</SuccessNote>
+          {/* #39 — формулировка результата (схема шаг 15): личный кабинет + уведомление на email */}
+          <Hint>{t.doneFollowUp}</Hint>
           <ButtonRowEnd><Button view="accent" size="l" text={t.toDashboard} onClick={() => navigate(COMPANY_DASHBOARD_ROUTE)} /></ButtonRowEnd>
         </CardBody>
       </Card>

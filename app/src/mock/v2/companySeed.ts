@@ -162,4 +162,6 @@ export const mehtaTextiles: CompanyCaseV2 = {
   // FATCA/CRS — торговая компания-резидент Индии: активная нефинансовая структура.
   fatcaClassification: 'Active NFFE',
   taxResidency: 'India',
+  // #34 — обратный запрос банка (DVU): просят догрузить подтверждение источника средств.
+  dvuRequest: { id: 'dvu-1', docName: 'Source of funds confirmation', status: 'requested' },
 };
