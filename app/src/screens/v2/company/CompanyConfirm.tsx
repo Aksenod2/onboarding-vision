@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { Button, TextField, Note } from '@salutejs/sdds-serv'; // TODO свериться с MCP
+import { Button, TextField, Note, Checkbox } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, textAccent, textPositive, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
@@ -16,7 +16,7 @@ import {
 } from '../../../mock/v2/companyApi';
 import { roleLabel } from '../../../mock/v2/companyTypes';
 import type { CompanyDetails, Signatory, Ubo, FatcaClassification, CompanyDocument } from '../../../mock/v2/companyTypes';
-import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './companyUi';
+import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ConsentRow } from './companyUi';
 
 // CO-CONFIRM — шаг 3 фазы A: обзор данных компании + редактирование + бизнес-профиль (UBO, FATCA/CRS).
 // UBO + FATCA/CRS живут здесь (а не в анкете): это «обзор перед отправкой», где представитель
@@ -155,11 +155,12 @@ const Chips = styled.div`display:flex; gap:0.3rem; flex-wrap:wrap;`;
 const Chip = styled.span`font-size:0.7rem; font-weight:600; color:rgb(33,160,56); background:rgba(33,160,56,0.1); border-radius:0.4rem; padding:0.1rem 0.45rem;`;
 const Hint = styled.p`margin:0; font-size:0.82rem; color:${textSecondary}; line-height:1.45;`;
 
-// Текстовая кнопка-ссылка («Изменить» / «Сохранить»).
+// Текстовая кнопка-ссылка («Изменить» / «Сохранить» / «Отмена») — нейтральная (P2):
+// зелёный акцент оставляем только главному CTA шага, ссылочные действия не конкурируют с ним.
 const LinkBtn = styled.button`
   border:none; background:none; cursor:pointer; padding:0;
-  color:${textAccent}; ${bodySBold}; font-size:0.82rem; white-space:nowrap;
-  &:hover { text-decoration:underline; }
+  color:${textSecondary}; ${bodySBold}; font-size:0.82rem; white-space:nowrap;
+  &:hover { text-decoration:underline; color:${textPrimary}; }
 `;
 const EditRow = styled.div`display:flex; gap:0.75rem; align-items:center;`;
 
@@ -187,18 +188,6 @@ const AddBtn = styled.button`
   color:${textAccent}; ${bodySBold}; font-size:0.85rem;
   padding:0.6rem 1rem; border-radius:${radii.panel}; transition:border-color .15s, background .15s;
   &:hover { border-color:${textAccent}; background:rgba(33,160,56,0.04); }
-`;
-
-// Чекбокс-строка (декларация UBO) — паттерн согласия, внизу блока.
-const CheckRow = styled.label`
-  display:flex; align-items:flex-start; gap:0.6rem; cursor:pointer;
-  font-size:0.85rem; color:${textPrimary}; line-height:1.4;
-`;
-const CheckBox = styled.span<{ $checked: boolean }>`
-  flex-shrink:0; width:20px; height:20px; border-radius:5px; margin-top:1px;
-  border:2px solid ${({ $checked }) => ($checked ? textAccent : 'rgba(0,0,0,0.25)')};
-  background:${({ $checked }) => ($checked ? textAccent : '#fff')};
-  display:flex; align-items:center; justify-content:center; color:#fff; font-size:0.7rem;
 `;
 
 // Радио-карточка FATCA (паттерн BR-опций).
@@ -434,12 +423,14 @@ export const CompanyConfirm = () => {
                 </Chips>
               </Person>
             ))}
-            {/* #38 — consent по полноте состава подписантов (Directors/Partners/UBO/AS). Отдельный пункт согласия:
-                декларация UBO ниже про долю ≥10%, а этот consent — про полноту информации по всем лицам KYC. */}
-            <CheckRow onClick={() => setSignatoryConsentChecked((v) => !v)}>
-              <CheckBox $checked={signatoryConsentChecked}>{signatoryConsentChecked ? '✓' : ''}</CheckBox>
-              {t.signatoryConsent}
-            </CheckRow>
+            {/* #38 — consent по полноте состава подписантов (Directors/Partners/UBO/AS). Штатный SDDS Checkbox. */}
+            <ConsentRow>
+              <Checkbox
+                label={t.signatoryConsent}
+                checked={signatoryConsentChecked}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSignatoryConsentChecked(e.target.checked)}
+              />
+            </ConsentRow>
           </Section>
 
           {/* #17 — UBO: список + добавить + декларация */}
@@ -475,10 +466,13 @@ export const CompanyConfirm = () => {
               </UboCard>
             ))}
             <AddBtn type="button" onClick={handleAddUbo}>{t.uboAdd}</AddBtn>
-            <CheckRow onClick={() => setDeclared((v) => !v)}>
-              <CheckBox $checked={declared}>{declared ? '✓' : ''}</CheckBox>
-              {t.uboDeclare}
-            </CheckRow>
+            <ConsentRow>
+              <Checkbox
+                label={t.uboDeclare}
+                checked={declared}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDeclared(e.target.checked)}
+              />
+            </ConsentRow>
           </Section>
 
           {/* #17 — FATCA / CRS: классификация + страна резидентства */}
@@ -535,10 +529,13 @@ export const CompanyConfirm = () => {
           </Section>
 
           {/* #36 — чекбокс ответственности ПЕРЕД CTA; гейтит кнопку «Подтвердить и пригласить» */}
-          <CheckRow onClick={() => setRespGate((v) => !v)}>
-            <CheckBox $checked={respGate}>{respGate ? '✓' : ''}</CheckBox>
-            {t.responsibilityGate}
-          </CheckRow>
+          <ConsentRow>
+            <Checkbox
+              label={t.responsibilityGate}
+              checked={respGate}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRespGate(e.target.checked)}
+            />
+          </ConsentRow>
 
           <ButtonRow>
             <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/bnq')} />

@@ -29,6 +29,48 @@ export const getBnq = (): Promise<BnqAnswer[]> => delay(state.bnq);
 export const getUbo = (): Promise<Ubo[]> => delay(state.ubo);
 export const getCompanyDocuments = (): Promise<CompanyDocument[]> => delay(state.companyDocuments);
 
+// --- Вход компании (точка входа = Aadhaar-авторизация) ---
+
+const emptyEntry = () => ({ consentsGiven: false, aadhaarVerified: false, passcodeSet: false });
+
+export const getCompanyEntry = (): Promise<NonNullable<CompanyCaseV2['entry']>> =>
+  delay(state.entry ?? emptyEntry());
+
+// Согласия ДО Aadhaar (регуляторика): Aadhaar eKYC consent + Privacy Notice + согласие на реестры.
+export const giveCompanyEntryConsent = (): Promise<void> => {
+  state.entry = { ...(state.entry ?? emptyEntry()), consentsGiven: true };
+  // Фиксируем доступ к реестрам на уровне компании (как giveCompanyConsent на PAN).
+  state.consents = state.consents.map((c) =>
+    c.type === 'Registry Access' ? { ...c, status: 'given', timestamp: nowIST() } : c,
+  );
+  return delay(undefined);
+};
+
+// Aadhaar-авторизация инициатора: «скан» QR → данные из UIDAI (подтягиваем email/phone).
+export const passCompanyAadhaar = (): Promise<{ email: string; phone: string }> => {
+  // Контакты инициатора (демо) — из первого директора сид-компании.
+  const initiator = state.signatories[0];
+  const email = initiator?.email ?? 'rajesh.mehta@mehtatextiles.in';
+  const phone = initiator?.phone ?? '+91 98201 33445';
+  state.entry = { ...(state.entry ?? emptyEntry()), aadhaarVerified: true, email, phone };
+  return delay({ email, phone });
+};
+
+// Пин-код (цифры) = креды интернет-банка. Логин привязан к email (заглушка Марго).
+export const setCompanyPasscode = (passcode: string): Promise<void> => {
+  state.entry = { ...(state.entry ?? emptyEntry()), passcodeSet: true, passcode };
+  return delay(undefined);
+};
+
+// Повторный вход (Денис: email + пин). Демо: сверяем email/пин с сохранёнными во входе.
+export const loginCompany = (email: string, passcode: string): Promise<boolean> => {
+  const e = state.entry;
+  // Email сравниваем регистронезависимо (Глеб): name@Company.in === name@company.in.
+  const emailMatch = (e?.email ?? '').toLowerCase() === email.toLowerCase();
+  const ok = !!e?.passcodeSet && emailMatch && e?.passcode === passcode;
+  return delay(ok);
+};
+
 // --- Фаза A ---
 
 // Согласие уровня компании (Registry Access на шаге PAN).

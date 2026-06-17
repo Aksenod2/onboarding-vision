@@ -234,9 +234,10 @@ export const SP01Landing = () => {
   const { lang, setLang } = useLanguage();
   const t = dict[lang];
 
-  // Сценарий Компания стартует с лендинга в режиме flow=company (метка прокидывается по цепочке регистрации).
+  // Sole Proprietor стартует с лендинга → /v2/login (email/OTP).
+  // Компания (flow=company) идёт по своей точке входа: согласия → Aadhaar → пин-код (целевка Марго).
   const isCompany = searchParams.get('flow') === 'company';
-  const loginPath = isCompany ? '/v2/login?flow=company' : '/v2/login';
+  const loginPath = isCompany ? '/company' : '/v2/login';
 
   return (
     <Page>

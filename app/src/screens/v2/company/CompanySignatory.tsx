@@ -408,7 +408,8 @@ export const CompanySignatory = () => {
   return (
     <ScreenV2>
       <Card>
-        <CardHeader>{eyebrow}<Title>{t.doneTitle}</Title><Subtitle>{t.doneSub}</Subtitle></CardHeader>
+        {/* Заголовок «Готово!» — без Subtitle-дубля: тот же текст несёт ОДНА плашка-подтверждение ниже. */}
+        <CardHeader>{eyebrow}<Title>{t.doneTitle}</Title></CardHeader>
         <CardBody>
           <SuccessNote><span className="ic">✓</span>{t.doneSub}</SuccessNote>
           {/* #39 — формулировка результата (схема шаг 15): личный кабинет + уведомление на email */}

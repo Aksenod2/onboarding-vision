@@ -4,6 +4,7 @@ import styled, { keyframes } from 'styled-components';
 import { Button, TextField, Note, Checkbox } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, textAccent, bodyM } from '@salutejs/sdds-themes/tokens';
 import { accentPanel, radii, enter, elevation, eyebrow } from '../../../ui/designSystem';
+import { useCompany } from '../../../ui/v2/CompanyContext';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { StepProgress } from '../../../ui/v2/StepProgress';
 import { COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible } from '../../../ui/v2/companySteps';
@@ -68,19 +69,40 @@ const VerifySub = styled.p`margin:0; font-size:0.82rem; line-height:1.5; color:$
 const VerifyBody = styled.div`padding:2.5rem 1.75rem; display:flex; flex-direction:column; align-items:center; gap:1.5rem;`;
 const spin = keyframes`to { transform: rotate(360deg); }`;
 const Spinner = styled.span`width:44px; height:44px; border-radius:50%; border:3px solid rgba(33,160,56,0.18); border-top-color:rgb(33,160,56); animation:${spin} 0.9s linear infinite;`;
+// Тёмный тост — паттерн из CompanyBnqBr/CompanyDispatch. Показ факта «кабинет создан» поверх PAN.
+const Toast = styled.div`
+  position:fixed; left:50%; bottom:2rem; transform:translateX(-50%); z-index:10020;
+  display:flex; align-items:center; gap:0.5rem;
+  padding:0.6rem 1rem; border-radius:8px; background:${textPrimary}; color:#fff; font-size:0.82rem;
+  box-shadow:0 8px 24px rgba(0,0,0,0.25);
+  &::before { content:'✓'; color:#7ee2a0; font-weight:700; }
+`;
 
 export const CompanyPan = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
   const t = dict[lang];
 
+  const { pendingToast, setPendingToast } = useCompany();
   const [consent, setConsent] = useState(false);
   const [pan, setPan] = useState('AABCM4521C');
   const [panError, setPanError] = useState('');
   const [phase, setPhase] = useState<'input' | 'verifying'>('input');
+  // Локальная копия тоста: читаем из контекста один раз и сразу гасим, затем сами авто-скрываем.
+  const [toast, setToast] = useState<string | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
+
+  // Одноразовый тост из предыдущего экрана (passcode → «Личный кабинет создан»).
+  useEffect(() => {
+    if (pendingToast) {
+      setToast(pendingToast);
+      setPendingToast(null);
+      const tt = setTimeout(() => setToast(null), 3000);
+      timers.current.push(tt);
+    }
+  }, [pendingToast, setPendingToast]);
 
   const handlePan = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10));
@@ -152,6 +174,7 @@ export const CompanyPan = () => {
           </ButtonRowEnd>
         </CardBody>
       </Card>
+      {toast && <Toast>{toast}</Toast>}
     </ScreenV2>
   );
 };

@@ -137,6 +137,20 @@ export interface CompanyCaseV2 {
   taxResidency: string; // страна налогового резидентства компании (по умолчанию India)
   // #34 — догрузка документа по обратному запросу банка (DVU). null — запроса нет.
   dvuRequest?: DvuRequest;
+  // Вход компании (целевка Марго): согласия ДО Aadhaar → Aadhaar-авторизация (подтягивает контакты) → пин-код.
+  entry?: CompanyEntry;
+}
+
+// --- Вход компании (точка входа = Aadhaar-авторизация) ---
+// Согласия даются ДО Aadhaar (регуляторика). Контакты подтягиваются из UIDAI при скане.
+// Пин-код (цифры) = креды интернет-банка; логин привязан к email (заглушка Марго: email+паскод).
+export interface CompanyEntry {
+  consentsGiven: boolean; // Aadhaar eKYC consent + Privacy Notice + согласие на реестры
+  aadhaarVerified: boolean;
+  email?: string; // из Aadhaar (UIDAI)
+  phone?: string; // из Aadhaar (UIDAI)
+  passcodeSet: boolean;
+  passcode?: string; // демо: хранится в памяти, 4 цифры
 }
 
 // --- DVU re-upload (#34): банк запросил догрузить документ по заявке ---

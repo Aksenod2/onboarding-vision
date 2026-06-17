@@ -217,9 +217,11 @@ const BrNote = styled.div`
   background:rgba(33,160,56,0.04); border:1px solid rgba(33,160,56,0.18);
   font-size:0.82rem; color:${textSecondary}; line-height:1.5;
 `;
+// «Посмотреть шаблон» — нейтральная ссылка (P2): не конкурирует с зелёным CTA шага.
 const LinkBtn = styled.button`
   align-self:flex-start; border:none; background:none; cursor:pointer;
-  color:${textAccent}; ${bodySBold}; font-size:0.82rem; padding:0; text-decoration:underline;
+  color:${textSecondary}; ${bodySBold}; font-size:0.82rem; padding:0; text-decoration:underline; text-underline-offset:2px;
+  &:hover { color:${textPrimary}; }
 `;
 const Toast = styled.div`
   ${enter(0)}; align-self:flex-start; padding:0.5rem 0.85rem; border-radius:8px;

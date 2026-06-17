@@ -12,7 +12,7 @@ import type { Lang } from '../../../ui/v2/LanguageContext';
 import { dispatchInvites, getSignatories } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { Signatory } from '../../../mock/v2/companyTypes';
-import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRowEnd, SuccessNote } from './companyUi';
+import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRowEnd } from './companyUi';
 
 // CO-DISPATCH — шаг 4 фазы A: рассылка ссылок-приглашений подписантам.
 // Реальный email out of scope: вход в сессии — через «Войти как [имя]» на дашборде.
@@ -20,15 +20,13 @@ import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRowEnd, SuccessNote 
 
 const dict: Record<Lang, {
   title: string; subtitle: string;
-  successText: string;
   cta: string;
   copyLink: string; copied: string; sentTo: string;
   nonSignerText: string; nonSignerCta: string; // #37 — модалка не-подписанту
 }> = {
   ru: {
-    title: 'Приглашения отправлены',
+    title: 'Подписанты приглашены',
     subtitle: 'Каждый подписант получил персональную ссылку для прохождения идентификации и подписания. На дашборде вы увидите их прогресс.',
-    successText: 'Ссылки-приглашения успешно отправлены',
     cta: 'Перейти к дашборду заявки',
     copyLink: 'Скопировать ссылку',
     copied: 'Ссылка скопирована',
@@ -37,9 +35,8 @@ const dict: Record<Lang, {
     nonSignerCta: 'Перейти к дашборду',
   },
   en: {
-    title: 'Invitations sent',
+    title: 'Signatories invited',
     subtitle: 'Each signatory has received a personal link to complete identification and signing. You can track their progress on the dashboard.',
-    successText: 'Invitation links sent successfully',
     cta: 'Go to application dashboard',
     copyLink: 'Copy link',
     copied: 'Link copied',
@@ -119,7 +116,6 @@ export const CompanyDispatch = () => {
           <Subtitle>{t.subtitle}</Subtitle>
         </CardHeader>
         <CardBody>
-          <SuccessNote><span className="ic">✓</span>{t.successText}</SuccessNote>
           <List>
             {recipients.map((s) => (
               <Person key={s.id}>

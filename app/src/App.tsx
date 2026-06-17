@@ -17,6 +17,10 @@ import { SPAadhaarQr } from './screens/v2/SPAadhaarQr';
 import { SP09Vcip } from './screens/v2/SP09Vcip';
 import { SPSign } from './screens/v2/SPSign';
 import { SP10Dashboard } from './screens/v2/SP10Dashboard';
+import { CompanyEntryConsents } from './screens/v2/company/CompanyEntryConsents';
+import { CompanyAadhaar } from './screens/v2/company/CompanyAadhaar';
+import { CompanyPasscode } from './screens/v2/company/CompanyPasscode';
+import { CompanyLogin } from './screens/v2/company/CompanyLogin';
 import { CompanyPan } from './screens/v2/company/CompanyPan';
 import { CompanyBnqBr } from './screens/v2/company/CompanyBnqBr';
 import { CompanyConfirm } from './screens/v2/company/CompanyConfirm';
@@ -77,14 +81,19 @@ export const App = () => {
           <LanguageProvider>
             <CompanyProvider>
               <Routes>
-                <Route index element={<Navigate to="/v2?flow=company" replace />} />
+                {/* Новая точка входа компании (целевка Марго): согласия → Aadhaar → пин-код → PAN. */}
+                <Route index element={<Navigate to="/company/consents" replace />} />
+                <Route path="consents" element={<CompanyEntryConsents />} />
+                <Route path="aadhaar" element={<CompanyAadhaar />} />
+                <Route path="passcode" element={<CompanyPasscode />} />
+                <Route path="login" element={<CompanyLogin />} />
                 <Route path="pan" element={<CompanyPan />} />
                 <Route path="bnq" element={<CompanyBnqBr />} />
                 <Route path="confirm" element={<CompanyConfirm />} />
                 <Route path="dispatch" element={<CompanyDispatch />} />
                 <Route path="dashboard" element={<CompanyDashboard />} />
                 <Route path="signatory" element={<CompanySignatory />} />
-                <Route path="*" element={<Navigate to="/company/pan" replace />} />
+                <Route path="*" element={<Navigate to="/company" replace />} />
               </Routes>
             </CompanyProvider>
           </LanguageProvider>
