@@ -79,7 +79,9 @@ export interface Ubo {
   id: string;
   fullName: string;
   sharePct: number; // доля владения, %
-  pan: PAN;
+  // PAN НЕ входит в атрибуты Shareholding Pattern (BRD) — в UBO-строке не показывается.
+  // Поле оставлено опциональным для совместимости контракта; UI его не использует.
+  pan?: PAN;
   source: FieldSource; // registry — подтянут (напр. из подписантов); manual — добавлен вручную
 }
 

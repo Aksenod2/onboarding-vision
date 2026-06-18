@@ -164,12 +164,11 @@ export const updateCompanyData = (patch: Partial<CompanyDetails>): Promise<Compa
 
 // --- UBO + FATCA/CRS (бизнес-профиль, BRD #8) ---
 let uboSeq = 0;
-export const addUbo = (input: { fullName: string; sharePct: number; pan: string }): Promise<Ubo[]> => {
+export const addUbo = (input: { fullName: string; sharePct: number }): Promise<Ubo[]> => {
   const next: Ubo = {
     id: `ubo-${Date.now()}-${uboSeq++}`,
     fullName: input.fullName,
     sharePct: input.sharePct,
-    pan: input.pan,
     source: 'manual',
   };
   state.ubo = [...state.ubo, next];

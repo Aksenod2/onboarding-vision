@@ -34,7 +34,7 @@ const dict: Record<Lang, {
   labels: { legalName: string; pan: string; cin: string; gstin: string; address: string; correspondence: string };
   correspondencePlaceholder: string;
   sectionUbo: string; uboHint: string;
-  uboShare: string; uboPan: string; uboName: string;
+  uboShare: string; uboName: string;
   uboAdd: string; uboRemove: string;
   uboDeclare: string;
   // BRD — ручные правки UBO: Shareholding Pattern (CA, UDIN) + маркер DVU
@@ -70,7 +70,6 @@ const dict: Record<Lang, {
     sectionUbo: 'Бенефициарные владельцы (UBO)',
     uboHint: 'Лица с долей владения 25% и более. Подтянуты из данных компании — проверьте и дополните при необходимости.',
     uboShare: 'Доля, %',
-    uboPan: 'PAN',
     uboName: 'ФИО',
     uboAdd: '+ Добавить бенефициара',
     uboRemove: 'Удалить',
@@ -121,7 +120,6 @@ const dict: Record<Lang, {
     sectionUbo: 'Ultimate Beneficial Owners (UBO)',
     uboHint: 'Persons holding 25% or more. Pulled from company data — review and add if needed.',
     uboShare: 'Share, %',
-    uboPan: 'PAN',
     uboName: 'Full name',
     uboAdd: '+ Add beneficiary',
     uboRemove: 'Remove',
@@ -255,7 +253,9 @@ const DocUploaded = styled.span`
 const DocReq = styled.span`font-size:0.72rem; color:${textSecondary}; opacity:0.8;`;
 
 // Локальное представление UBO-карточки в форме.
-type UboRow = { id: string; fullName: string; sharePct: string; pan: string; prefilled: boolean };
+// editing — для предзаполненных: false = read-only (бейдж Pre-filled), true = режим правки.
+// Добавленные вручную (prefilled=false) всегда редактируемы (editing не используется).
+type UboRow = { id: string; fullName: string; sharePct: string; prefilled: boolean; editing: boolean };
 
 // Состояние загрузки документа (для спиннера на кнопке).
 type DocUploadPhase = 'idle' | 'uploading';
@@ -289,7 +289,9 @@ export const CompanyConfirm = () => {
   const [uboDocFile, setUboDocFile] = useState<string | null>(null);
   const [uboDocPhase, setUboDocPhase] = useState<DocUploadPhase>('idle');
   // Снимок исходных (предзаполненных) значений UBO — чтобы отличить правку от исходного состояния.
-  const [uboBaseline, setUboBaseline] = useState<Record<string, { fullName: string; sharePct: string; pan: string }>>({});
+  const [uboBaseline, setUboBaseline] = useState<Record<string, { fullName: string; sharePct: string }>>({});
+  // Удалён ли хотя бы один предзаполненный (реестровый) UBO — это модификация состава → DVU.
+  const [uboPrefilledRemoved, setUboPrefilledRemoved] = useState(false);
 
   useEffect(() => {
     getCompany().then((c) => {
@@ -298,14 +300,15 @@ export const CompanyConfirm = () => {
     });
     getSignatories().then(setSignatories);
     getUbo().then((list) => {
-      const rows = list.map((u) => ({
-        id: u.id, fullName: u.fullName, sharePct: String(u.sharePct), pan: u.pan,
+      const rows: UboRow[] = list.map((u) => ({
+        id: u.id, fullName: u.fullName, sharePct: String(u.sharePct),
         prefilled: u.source === 'registry',
+        editing: false, // предзаполненные стартуют read-only; добавленные редактируемы по умолчанию
       }));
       setUboRows(rows);
-      // Базовый снимок предзаполненных строк — для детекта ручной правки.
-      const base: Record<string, { fullName: string; sharePct: string; pan: string }> = {};
-      rows.forEach((r) => { if (r.prefilled) base[r.id] = { fullName: r.fullName, sharePct: r.sharePct, pan: r.pan }; });
+      // Базовый снимок предзаполненных строк — для детекта ручной правки (ФИО + доля).
+      const base: Record<string, { fullName: string; sharePct: string }> = {};
+      rows.forEach((r) => { if (r.prefilled) base[r.id] = { fullName: r.fullName, sharePct: r.sharePct }; });
       setUboBaseline(base);
     });
     getCompanyDocuments().then(setDocs);
@@ -351,32 +354,40 @@ export const CompanyConfirm = () => {
     setUboRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
   const handleAddUbo = async () => {
-    const list = await addUbo({ fullName: '', sharePct: 0, pan: '' });
+    const list = await addUbo({ fullName: '', sharePct: 0 });
     const created = list[list.length - 1] as Ubo;
-    setUboRows((rows) => [...rows, { id: created.id, fullName: '', sharePct: '', pan: '', prefilled: false }]);
+    setUboRows((rows) => [...rows, { id: created.id, fullName: '', sharePct: '', prefilled: false, editing: true }]);
   };
+
+  // Переключить предзаполненную строку в режим правки. Любое отклонение от реестра = modified → документ → DVU.
+  const startEditUbo = (id: string) =>
+    setUboRows((rows) => rows.map((r) => (r.id === id ? { ...r, editing: true } : r)));
 
   const handleRemoveUbo = async (id: string) => {
+    const row = uboRows.find((r) => r.id === id);
     await removeUbo(id);
     setUboRows((rows) => rows.filter((r) => r.id !== id));
+    // Удаление ПРЕДЗАПОЛНЕННОГО = модификация состава → требует Shareholding Pattern → DVU.
+    // Удаление ДОБАВЛЕННОГО вручную — просто отмена добавления, отдельного триггера не нужно.
+    if (row?.prefilled) setUboPrefilledRemoved(true);
   };
 
-  // Зафиксировать UBO-правки в data-слое (имя/доля/PAN по каждой строке).
+  // Зафиксировать UBO-правки в data-слое (имя/доля по каждой строке).
   const persistUbo = async () => {
     for (const r of uboRows) {
       await updateUbo(r.id, {
         fullName: r.fullName,
         sharePct: Number(r.sharePct) || 0,
-        pan: r.pan,
       });
     }
   };
 
-  // Раздел UBO правился вручную, если есть строка не из реестра ИЛИ предзаполненная строка изменена.
-  const uboModified = uboRows.some((r) => {
+  // Раздел UBO правился вручную, если: есть строка не из реестра ИЛИ предзаполненная строка
+  // изменена (ФИО/доля) ИЛИ предзаполненный UBO был удалён.
+  const uboModified = uboPrefilledRemoved || uboRows.some((r) => {
     if (!r.prefilled) return true;
     const b = uboBaseline[r.id];
-    return !b || b.fullName !== r.fullName || b.sharePct !== r.sharePct || b.pan !== r.pan;
+    return !b || b.fullName !== r.fullName || b.sharePct !== r.sharePct;
   });
   // При ручных правках нужен Shareholding Pattern; без него раздел незавершён и CTA блокируется.
   const uboDocNeeded = uboModified;
@@ -493,34 +504,45 @@ export const CompanyConfirm = () => {
           <Section>
             <SectionTitle>{t.sectionUbo}</SectionTitle>
             <Hint>{t.uboHint}</Hint>
-            {uboRows.map((r) => (
-              <UboCard key={r.id}>
-                <UboHead>
-                  {r.prefilled ? <PrefilledBadge>{t.prefilled}</PrefilledBadge> : <span />}
-                  <RemoveBtn type="button" onClick={() => handleRemoveUbo(r.id)} title={t.uboRemove} aria-label={t.uboRemove}>✕</RemoveBtn>
-                </UboHead>
-                <TextField
-                  label={t.uboName}
-                  value={r.fullName}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateUboRow(r.id, { fullName: e.target.value })}
-                  size="m"
-                />
-                <Row>
-                  <TextField
-                    label={t.uboShare}
-                    value={r.sharePct}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateUboRow(r.id, { sharePct: e.target.value.replace(/[^0-9]/g, '') })}
-                    size="m"
-                  />
-                  <TextField
-                    label={t.uboPan}
-                    value={r.pan}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateUboRow(r.id, { pan: e.target.value.toUpperCase() })}
-                    size="m"
-                  />
-                </Row>
-              </UboCard>
-            ))}
+            {uboRows.map((r) => {
+              // Предзаполненный (registry) в режиме просмотра = read-only: ФИО + доля, кнопка «Изменить».
+              // Правка/удаление переключает строку в modified → требует Shareholding Pattern (ниже).
+              const readOnly = r.prefilled && !r.editing;
+              return (
+                <UboCard key={r.id}>
+                  <UboHead>
+                    {r.prefilled ? <PrefilledBadge>{t.prefilled}</PrefilledBadge> : <span />}
+                    <EditRow>
+                      {readOnly && <LinkBtn type="button" onClick={() => startEditUbo(r.id)}>{t.edit}</LinkBtn>}
+                      <RemoveBtn type="button" onClick={() => handleRemoveUbo(r.id)} title={t.uboRemove} aria-label={t.uboRemove}>✕</RemoveBtn>
+                    </EditRow>
+                  </UboHead>
+                  {readOnly ? (
+                    <Grid>
+                      <DT>{t.uboName}</DT><DD>{r.fullName}</DD>
+                      <DT>{t.uboShare}</DT><DD>{r.sharePct}</DD>
+                    </Grid>
+                  ) : (
+                    <>
+                      <TextField
+                        label={t.uboName}
+                        value={r.fullName}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateUboRow(r.id, { fullName: e.target.value })}
+                        size="m"
+                      />
+                      <Row>
+                        <TextField
+                          label={t.uboShare}
+                          value={r.sharePct}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateUboRow(r.id, { sharePct: e.target.value.replace(/[^0-9]/g, '') })}
+                          size="m"
+                        />
+                      </Row>
+                    </>
+                  )}
+                </UboCard>
+              );
+            })}
             <AddBtn type="button" onClick={handleAddUbo}>{t.uboAdd}</AddBtn>
 
             {/* Ручные правки UBO → нужен Shareholding Pattern (CA, UDIN), один на раздел.
