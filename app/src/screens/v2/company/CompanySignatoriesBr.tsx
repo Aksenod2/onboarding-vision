@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { Button, TextField, Note } from '@salutejs/sdds-serv'; // TODO свериться с MCP
+import { Button, TextField } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, textAccent, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
@@ -11,23 +11,19 @@ import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
   getSignatories, confirmBoardResolution, addSignatory, removeSignatory,
-  updateSignatoryContact, setBoardResolutionSource, getBnq, updateBnqAnswer,
+  updateSignatoryContact, setBoardResolutionSource,
 } from '../../../mock/v2/companyApi';
 import type { Signatory, BrSource } from '../../../mock/v2/companyTypes';
-import type { BnqAnswer } from '../../../mock/v2/types';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './companyUi';
 
-// CO-BNQ — шаг 2 фазы A: бизнес-анкета + блок BR-вопросов (ядро отличия Компании).
-// Интерактив (целевка, решение Дениса 2026-06-16):
-//   #1 — Authorized Signatory: список карточек, можно добавить/удалить (BRD «can add other AS»).
-//   #2 — Board Resolution: выбор «шаблон банка / загрузить свой» (загрузка → проверка менеджером, No STP → DVU).
-// Директора остаются чекбоксами из реестра (Probe42) — ручное добавление вне этого захода (вопрос к Марго).
-// Роут: /company/bnq
+// CO-SIGNATORIES-BR — шаг фазы A после диалога: директора-подписанты + Authorized Signatories + Board Resolution.
+// Выделено из бывшего CompanyBnqBr (решение Кости 2026-06-18): анкета теперь — отдельный пошаговый
+// диалог (CompanyBnqDialog), а блоки подписантов/BR живут здесь как самостоятельный экран без аккордеона.
+// Секции DirectorCard/AsCard/BrOption перенесены КАК ЕСТЬ.
+// Роут: /company/signatories-br
 
 const dict: Record<Lang, {
   title: string; subtitle: string;
-  responsibilityNote: string;
-  bnqTitle: string; bnqExpand: string; bnqCollapse: string; bnqPrefilled: string;
   sectionDirectors: string; directorsHint: string;
   sectionAs: string; asHint: string;
   asNameLabel: string; asEmailLabel: string; asPhoneLabel: string;
@@ -43,13 +39,8 @@ const dict: Record<Lang, {
   fromRegistry: string;
 }> = {
   ru: {
-    title: 'Анкета и подписанты',
-    subtitle: 'Бизнес-вопросы заполнены автоматически по данным компании. Укажите, кто подписывает Board Resolution и кто распоряжается счётом.',
-    responsibilityNote: 'Ответы пойдут на проверку банком — отвечайте достоверно. Подтверждение и подписание — в конце.',
-    bnqTitle: 'Бизнес-анкета · 11 вопросов · заполнено автоматически',
-    bnqExpand: 'Раскрыть',
-    bnqCollapse: 'Свернуть',
-    bnqPrefilled: 'Предзаполнено',
+    title: 'Подписанты и Board Resolution',
+    subtitle: 'Укажите, кто подписывает Board Resolution и кто распоряжается счётом.',
     sectionDirectors: 'Директора-подписанты',
     directorsHint: 'Выбраны из реестра (Probe42). Минимум двое подписывают Board Resolution.',
     sectionAs: 'Уполномоченные подписанты (распоряжаются счётом)',
@@ -79,13 +70,8 @@ const dict: Record<Lang, {
     fromRegistry: 'из реестра',
   },
   en: {
-    title: 'Questionnaire & signatories',
-    subtitle: 'Business questions are pre-filled from company data. Specify who signs the Board Resolution and who operates the account.',
-    responsibilityNote: 'Your answers will be reviewed by the bank — please answer accurately. Confirmation and signing come at the end.',
-    bnqTitle: 'Business questionnaire · 11 questions · pre-filled automatically',
-    bnqExpand: 'Expand',
-    bnqCollapse: 'Collapse',
-    bnqPrefilled: 'Pre-filled',
+    title: 'Signatories & Board Resolution',
+    subtitle: 'Specify who signs the Board Resolution and who operates the account.',
     sectionDirectors: 'Director signatories',
     directorsHint: 'Selected from the registry (Probe42). At least two sign the Board Resolution.',
     sectionAs: 'Authorized Signatories (operate the account)',
@@ -143,29 +129,6 @@ const RegBadge = styled.span`
 `;
 const Field = styled.div`display:flex; flex-direction:column; gap:0.375rem;`;
 const Row = styled.div`display:flex; gap:1rem; flex-wrap:wrap; & > * { flex:1 1 200px; }`;
-
-// --- Бизнес-анкета: аккордеон (по умолчанию свёрнут) ---
-const Accordion = styled.div`
-  border:1px solid rgba(0,0,0,0.1); border-radius:${radii.panel}; background:#fff; overflow:hidden;
-`;
-const AccHead = styled.button`
-  width:100%; display:flex; align-items:center; justify-content:space-between; gap:0.75rem;
-  border:none; background:none; cursor:pointer; text-align:left;
-  padding:0.9rem 1rem; ${bodySBold}; color:${textPrimary}; font-size:0.9rem;
-  &:hover { background:rgba(0,0,0,0.02); }
-`;
-const AccHeadLeft = styled.span`display:inline-flex; align-items:center; gap:0.4rem;`;
-const AccCheck = styled.span`color:#1a7a28; font-size:0.85rem;`;
-const AccToggle = styled.span`color:${textAccent}; font-size:0.82rem; font-weight:600; white-space:nowrap;`;
-const AccBody = styled.div`
-  ${enter(0)}; display:flex; flex-direction:column; gap:0.75rem;
-  padding:0.5rem 1rem 1rem; border-top:1px solid rgba(0,0,0,0.06);
-`;
-const BnqItem = styled.div`display:flex; flex-direction:column; gap:0.3rem;`;
-const BnqQ = styled.label`
-  display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;
-  font-size:0.82rem; color:${textSecondary};
-`;
 
 // --- AS-карточка (ручной ввод, удаляемая) ---
 const AsCard = styled.div`
@@ -253,15 +216,12 @@ const InfoNote = styled.div`
 // Локальное представление AS-карточки в форме.
 type AsRow = { id: string; fullName: string; email: string; phone: string; prefilled: boolean };
 
-export const CompanyBnqBr = () => {
+export const CompanySignatoriesBr = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
   const t = dict[lang];
 
   const [signatories, setSignatories] = useState<Signatory[]>([]);
-  // бизнес-анкета (Q1–Q11) — предзаполнена, аккордеон свёрнут по умолчанию
-  const [bnq, setBnq] = useState<BnqAnswer[]>([]);
-  const [bnqOpen, setBnqOpen] = useState(false);
   // выбранные директора (по умолчанию — все директора из реестра отмечены)
   const [picked, setPicked] = useState<Set<string>>(new Set());
   // AS — список карточек (первый предзаполнен из золотой записи)
@@ -274,7 +234,6 @@ export const CompanyBnqBr = () => {
   const UPLOADED_FILE = 'board-resolution.pdf';
 
   useEffect(() => {
-    getBnq().then(setBnq);
     getSignatories().then((list) => {
       setSignatories(list);
       const directors = list.filter((s) => s.roles.includes('Director'));
@@ -297,10 +256,6 @@ export const CompanyBnqBr = () => {
 
   const updateAs = (id: string, patch: Partial<AsRow>) =>
     setAsRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-
-  // Правка ответа анкеты (агентность). Пишем в стейт сразу, в data-слой — на «Продолжить».
-  const editBnq = (q: string, value: string) =>
-    setBnq((rows) => rows.map((a) => (a.q === q ? { ...a, value } : a)));
 
   const handleAddAs = async () => {
     const id = await addSignatory({ fullName: '', email: '', phone: '' });
@@ -336,8 +291,6 @@ export const CompanyBnqBr = () => {
   };
 
   const handleContinue = async () => {
-    // зафиксировать правки анкеты в data-слое
-    try { await Promise.all(bnq.map((a) => updateBnqAnswer(a.q, a.value))); } catch (_) { /* игнор */ }
     // зафиксировать введённые данные AS в стейте бэкенда (для Dispatch/Dashboard/сессий)
     try { await persistAs(); } catch (_) { /* игнор */ }
     try { await confirmBoardResolution(); } catch (_) { /* игнорируем */ }
@@ -364,7 +317,7 @@ export const CompanyBnqBr = () => {
     }
   };
 
-  const progress = <StepProgress currentStepId="co-bnq" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;
+  const progress = <StepProgress currentStepId="co-signatories-br" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;
 
   return (
     <ScreenV2 progress={progress}>
@@ -374,36 +327,6 @@ export const CompanyBnqBr = () => {
           <Subtitle>{t.subtitle}</Subtitle>
         </CardHeader>
         <CardBody>
-          {/* Мягкое информирование о значимости ответов — один раз вверху (не на каждом блоке).
-              view="info" (сине-серый); НЕ warning/оранжевый — оранжевый зарезервирован под DVU/ошибку.
-              Это не присяга: финальное подтверждение достоверности — на экране подписания. */}
-          <Note key={lang} view="info" size="s" text={t.responsibilityNote} />
-
-          {/* Бизнес-анкета Q1–Q11 — предзаполнена, по умолчанию свёрнута; можно править */}
-          <Accordion>
-            <AccHead type="button" onClick={() => setBnqOpen((v) => !v)} aria-expanded={bnqOpen}>
-              <AccHeadLeft>{t.bnqTitle} <AccCheck>✓</AccCheck></AccHeadLeft>
-              <AccToggle>{bnqOpen ? t.bnqCollapse : t.bnqExpand}</AccToggle>
-            </AccHead>
-            {bnqOpen && (
-              <AccBody>
-                {bnq.map((a) => (
-                  <BnqItem key={a.q}>
-                    <BnqQ>
-                      {a.attribute}
-                      <PrefilledBadge>{t.bnqPrefilled}</PrefilledBadge>
-                    </BnqQ>
-                    <TextField
-                      value={a.value}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => editBnq(a.q, e.target.value)}
-                      size="s"
-                    />
-                  </BnqItem>
-                ))}
-              </AccBody>
-            )}
-          </Accordion>
-
           {/* Директора-подписанты — из реестра, чекбокс-карточки */}
           <Section>
             <SectionTitle>{t.sectionDirectors}</SectionTitle>
@@ -521,7 +444,7 @@ export const CompanyBnqBr = () => {
           </Section>
 
           <ButtonRow>
-            <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/pan')} />
+            <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/bnq')} />
             <Button view="accent" size="l" text={t.cta} onClick={handleContinue} />
           </ButtonRow>
         </CardBody>

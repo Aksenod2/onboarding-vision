@@ -290,8 +290,8 @@ export const SP03Register = () => {
       await verifyOtp(code);
     } catch (_) { /* игнорируем */ }
     setConfirming(false);
-    // flow=company → стартуем сценарий Компании с PAN; иначе — Sole Proprietor.
-    navigate(searchParams.get('flow') === 'company' ? '/company/pan' : '/v2/pan');
+    // flow=company → стартуем сценарий Компании с диалога (PAN — нулевой шаг внутри); иначе — Sole Proprietor.
+    navigate(searchParams.get('flow') === 'company' ? '/company/bnq' : '/v2/pan');
   };
 
   return (

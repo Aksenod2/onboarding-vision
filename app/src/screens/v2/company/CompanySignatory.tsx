@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { Button, Checkbox, CodeField, Note } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, textAccent, bodyM, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
+import { AadhaarHowTo } from '../../../ui/v2/AadhaarHowTo';
 import { StepProgress } from '../../../ui/v2/StepProgress';
 import { COMPANY_DASHBOARD_ROUTE } from '../../../ui/v2/companySteps';
 import type { StepDef } from '../../../ui/v2/steps';
@@ -19,8 +20,10 @@ import type { Signatory, SignatoryStep } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ButtonRowEnd, ConsentRow, SuccessNote } from './companyUi';
 
 // CO-SIGNATORY — персональная сессия подписанта (фаза B), один экран-роутер по currentStep:
-// consents → aadhaar → vkyc → dsc-sign → done. Открывается через «Войти как» с дашборда.
-// Контекст activeSignatoryId. Роут: /company/signatory
+// consents → aadhaar → dsc-sign → vkyc → done (#35: подпись ДО видео, видео финальное).
+// Точки входа: «Войти как» с дашборда (origin=dashboard), invite-ссылка ?invite=<id> (origin=invite),
+// инициатор-подписант после рассылки (origin=initiator). Контекст activeSignatoryId + sessionOrigin.
+// Роут: /company/signatory
 
 const dict: Record<Lang, {
   eyebrowPrefix: string; // «Сессия:»
@@ -38,9 +41,12 @@ const dict: Record<Lang, {
   dscOpenHint: string; docPreviewClose: string;
   otpTitle: string; otpHint: string; otpDemo: string; otpErr: string;
   // summary (#31) — вводный экран сессии подписанта
-  summaryTitle: string; summaryIntro: string; summarySteps: string[]; summaryTime: string; summaryStart: string;
+  // summaryIntro зависит от sessionOrigin: invited (приглашён) vs initiator (сам подал заявку).
+  summaryTitle: string; summaryIntro: { invited: string; initiator: string }; summarySteps: string[]; summaryTime: string; summaryStart: string;
   // common
   back: string; cont: string; finish: string; doneTitle: string; doneSub: string; doneFollowUp: string; toDashboard: string;
+  doneClose: string; // #41 — для invite/initiator: завершение без навигации на дашборд инициатора
+  invalidInvite: string; // #41 — невалидная invite-ссылка
 }> = {
   ru: {
     eyebrowPrefix: 'Сессия подписанта',
@@ -74,7 +80,10 @@ const dict: Record<Lang, {
     docPreviewClose: 'Закрыть',
     otpTitle: 'Подтверждение подписи', otpHint: 'Введите ПИН вашего сертификата DSC.', otpDemo: 'Демо-ПИН: 0000', otpErr: 'Неверный ПИН. Демо: 0000.',
     summaryTitle: 'Подписание документов на открытие счёта',
-    summaryIntro: 'Вас пригласили на площадку Банка для подписания документов на открытие счёта. Вам потребуется:',
+    summaryIntro: {
+      invited: 'Вас пригласили на площадку Банка для подписания документов на открытие счёта. Вам потребуется:',
+      initiator: 'Вы — инициатор заявки. Подпишите свои документы на открытие счёта. Вам потребуется:',
+    },
     summarySteps: [
       'подтвердить личность через Aadhaar;',
       'ознакомиться и подтвердить данные в превью заявки (Application);',
@@ -86,6 +95,8 @@ const dict: Record<Lang, {
     back: 'Назад', cont: 'Продолжить', finish: 'Завершить', doneTitle: 'Готово!', doneSub: 'Вы прошли идентификацию и подписали документы.',
     doneFollowUp: 'Пользуйтесь личным кабинетом. Как только завершится проверка, вы получите уведомление на email.',
     toDashboard: 'Вернуться к заявке',
+    doneClose: 'Готово',
+    invalidInvite: 'Ссылка приглашения недействительна. Запросите новую ссылку у представителя компании.',
   },
   en: {
     eyebrowPrefix: 'Signatory session',
@@ -119,7 +130,10 @@ const dict: Record<Lang, {
     docPreviewClose: 'Close',
     otpTitle: 'Confirm signature', otpHint: 'Enter the PIN of your DSC certificate.', otpDemo: 'Demo PIN: 0000', otpErr: 'Invalid PIN. Demo: 0000.',
     summaryTitle: 'Signing documents to open the account',
-    summaryIntro: 'You have been invited to the Bank’s platform to sign the documents for opening an account. You will need to:',
+    summaryIntro: {
+      invited: 'You have been invited to the Bank’s platform to sign the documents for opening an account. You will need to:',
+      initiator: 'You are the applicant. Please sign your documents for opening the account. You will need to:',
+    },
     summarySteps: [
       'verify your identity via Aadhaar;',
       'review and confirm the data in the application preview (Application);',
@@ -131,6 +145,8 @@ const dict: Record<Lang, {
     back: 'Back', cont: 'Continue', finish: 'Finish', doneTitle: 'All done!', doneSub: 'You have completed identification and signed the documents.',
     doneFollowUp: "Use your personal account. Once verification is complete, you'll receive a notification by email.",
     toDashboard: 'Back to application',
+    doneClose: 'Done',
+    invalidInvite: 'This invitation link is no longer valid. Please request a new link from the company representative.',
   },
 };
 
@@ -183,23 +199,33 @@ const QrMock = () => (
 );
 
 const STEP_TO_PROGRESS: Record<Exclude<SignatoryStep, 'done'>, string> = {
-  waiting: 'co-b-consents', consents: 'co-b-consents', aadhaar: 'co-b-aadhaar', vkyc: 'co-b-vkyc', 'dsc-sign': 'co-b-sign',
+  waiting: 'co-b-consents', consents: 'co-b-consents', aadhaar: 'co-b-aadhaar', 'dsc-sign': 'co-b-sign', vkyc: 'co-b-vkyc',
 };
 // Для верхнего прогресса используем тот же StepProgress c company-mini-реестром.
+// Порядок #35: Согласия → Aadhaar → Подписание → Видео.
 const MINI_STEPS: StepDef[] = [
   { id: 'co-b-consents', route: '', order: 1, titleRu: 'Согласия', titleEn: 'Consents' },
   { id: 'co-b-aadhaar', route: '', order: 2, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
-  { id: 'co-b-vkyc', route: '', order: 3, titleRu: 'Видео', titleEn: 'Video' },
-  { id: 'co-b-sign', route: '', order: 4, titleRu: 'Подписание', titleEn: 'Signing' },
+  { id: 'co-b-sign', route: '', order: 3, titleRu: 'Подписание', titleEn: 'Signing' },
+  { id: 'co-b-vkyc', route: '', order: 4, titleRu: 'Видео', titleEn: 'Video' },
 ];
+
+// #41 — гард навигации фазы B: куда вести «выход из сессии».
+// invite/initiator — приглашённый/инициатор не должен видеть дашборд инициатора → null (навигация скрыта).
+const exitTarget = (origin: 'dashboard' | 'invite' | 'initiator'): string | null =>
+  origin === 'dashboard' ? COMPANY_DASHBOARD_ROUTE : null;
 
 export const CompanySignatory = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { lang } = useLanguage();
   const t = dict[lang];
-  const { activeSignatoryId } = useCompany();
+  const { activeSignatoryId, setActiveSignatoryId, sessionOrigin, setSessionOrigin } = useCompany();
 
   const [sig, setSig] = useState<Signatory | null>(null);
+  // #41 — вход по invite-ссылке: null = ещё не проверяли, 'invalid' = ссылка недействительна.
+  const [resolving, setResolving] = useState(true);
+  const [inviteInvalid, setInviteInvalid] = useState(false);
   // #31 — вводный экран показываем один раз при входе в сессию, пока подписант ещё не начал согласия.
   const [showSummary, setShowSummary] = useState(true);
   // локальные флаги под-шагов
@@ -215,12 +241,49 @@ export const CompanySignatory = () => {
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
+    const invite = searchParams.get('invite');
+    // #41 — вход по invite-ссылке: поднимаем сессию приглашённого подписанта.
+    if (invite && !activeSignatoryId) {
+      getSignatory(invite).then((s) => {
+        if (!s) { setInviteInvalid(true); setResolving(false); return; }
+        setActiveSignatoryId(invite);
+        setSessionOrigin('invite');
+        setSig(s);
+        setResolving(false);
+      });
+      return () => { timers.current.forEach(clearTimeout); };
+    }
+    // Нет ни invite, ни активного подписанта → возврат на дашборд (демо-вход через «Войти как»).
     if (!activeSignatoryId) { navigate(COMPANY_DASHBOARD_ROUTE); return; }
-    getSignatory(activeSignatoryId).then((s) => setSig(s ?? null));
+    getSignatory(activeSignatoryId).then((s) => {
+      if (!s) { setInviteInvalid(true); setResolving(false); return; }
+      setSig(s);
+      setResolving(false);
+    });
     return () => { timers.current.forEach(clearTimeout); };
-  }, [activeSignatoryId, navigate]);
+  }, [activeSignatoryId, navigate, searchParams, setActiveSignatoryId, setSessionOrigin]);
 
-  if (!sig) return <ScreenV2><Hint>{lang === 'ru' ? 'Загрузка…' : 'Loading…'}</Hint></ScreenV2>;
+  // #41 — невалидный invite: заглушка вместо редиректа на дашборд инициатора.
+  if (inviteInvalid) {
+    return (
+      <ScreenV2>
+        <Card>
+          <CardBody>
+            <Note view="negative" size="m" title={t.invalidInvite} text="" />
+          </CardBody>
+        </Card>
+      </ScreenV2>
+    );
+  }
+
+  if (resolving || !sig) return <ScreenV2><Hint>{lang === 'ru' ? 'Загрузка…' : 'Loading…'}</Hint></ScreenV2>;
+
+  // #41 — точка выхода из сессии (гард навигации): null → дашборд инициатора скрыт.
+  const exitRoute = exitTarget(sessionOrigin);
+  // Кнопка «Назад» на шагах ведёт на дашборд инициатора — для invite/initiator её скрываем.
+  const backBtn = exitRoute
+    ? <Button view="secondary" size="l" text={t.back} onClick={() => navigate(exitRoute)} />
+    : null;
 
   const id = sig.id;
   const step: SignatoryStep = sig.currentStep === 'waiting' ? 'consents' : sig.currentStep;
@@ -234,7 +297,9 @@ export const CompanySignatory = () => {
   );
 
   const progress = step !== 'done'
-    ? <StepProgress currentStepId={STEP_TO_PROGRESS[step]} steps={MINI_STEPS} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={() => false} />
+    // P2: сегменты мини-прогресса сессии — route:'' (нет цели). Делаем некликабельными
+    // (isIrreversible→true ⇒ все не-текущие сегменты disabled), чтобы убрать мёртвый аффорданс navigate('').
+    ? <StepProgress currentStepId={STEP_TO_PROGRESS[step]} steps={MINI_STEPS} backRoute={exitRoute ?? COMPANY_DASHBOARD_ROUTE} isIrreversible={() => true} hideBack={exitRoute === null} />
     : undefined;
 
   // ── Вводный экран сессии (#31) — первый шаг, до согласий. Показываем только в самом начале. ──
@@ -244,13 +309,13 @@ export const CompanySignatory = () => {
         <Card>
           <CardHeader>{eyebrow}<Title>{t.summaryTitle}</Title></CardHeader>
           <CardBody>
-            <SummaryIntro>{t.summaryIntro}</SummaryIntro>
+            <SummaryIntro>{sessionOrigin === 'initiator' ? t.summaryIntro.initiator : t.summaryIntro.invited}</SummaryIntro>
             <SummaryList>
               {t.summarySteps.map((s, i) => <li key={i}>{s}</li>)}
             </SummaryList>
             <SummaryTime>{t.summaryTime}</SummaryTime>
             <ButtonRow>
-              <Button view="secondary" size="l" text={t.back} onClick={() => navigate(COMPANY_DASHBOARD_ROUTE)} />
+              {backBtn}
               <Button view="accent" size="l" text={t.summaryStart} onClick={() => setShowSummary(false)} />
             </ButtonRow>
           </CardBody>
@@ -276,7 +341,7 @@ export const CompanySignatory = () => {
             <ConsentRow><Checkbox label={t.cPrivacy} description={t.cPrivacyDesc} checked={cPrivacy} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCPrivacy(e.target.checked)} /></ConsentRow>
             <ConsentRow><Checkbox label={t.cAadhaar} description={t.cAadhaarDesc} checked={cAadhaar} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCAadhaar(e.target.checked)} /></ConsentRow>
             <ButtonRow>
-              <Button view="secondary" size="l" text={t.back} onClick={() => navigate(COMPANY_DASHBOARD_ROUTE)} />
+              {backBtn}
               <Button view="accent" size="l" text={t.cont} disabled={!ready} onClick={next} />
             </ButtonRow>
           </CardBody>
@@ -292,12 +357,14 @@ export const CompanySignatory = () => {
       const tt = setTimeout(() => setAadhaarPhase('success'), 2000);
       timers.current.push(tt);
     };
-    const next = async () => { await setSignatoryStep(id, 'vkyc'); await refresh(); };
+    const next = async () => { await setSignatoryStep(id, 'dsc-sign'); await refresh(); };
     return (
       <ScreenV2 progress={progress}>
         <Card>
           <CardHeader>{eyebrow}<Title>{t.aadhaarTitle}</Title><Subtitle>{t.aadhaarSub}</Subtitle></CardHeader>
           <CardBody>
+            {/* Инструкция «как это работает» + успокаивающий тон — общий компонент (#46), сессия подписанта. */}
+            {aadhaarPhase === 'qr' && <AadhaarHowTo variant="session" />}
             <QrFrame><QrMock /></QrFrame>
             <QrCaption>{t.qrCaption}</QrCaption>
             {aadhaarPhase === 'waiting' && <><Spinner /><WaitText>{t.aadhaarWaiting}</WaitText></>}
@@ -306,7 +373,7 @@ export const CompanySignatory = () => {
               <>
                 <ConsentRow><Checkbox label={t.aadhaarConsent} description={t.aadhaarConsentDesc} checked={aadhaarConsent} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAadhaarConsent(e.target.checked)} /></ConsentRow>
                 <ButtonRow>
-                  <Button view="secondary" size="l" text={t.back} onClick={() => navigate(COMPANY_DASHBOARD_ROUTE)} />
+                  {backBtn}
                   <Button view="accent" size="l" text={t.ctaScanned} disabled={!aadhaarConsent} onClick={onScan} />
                 </ButtonRow>
               </>
@@ -328,7 +395,7 @@ export const CompanySignatory = () => {
       const tt = setTimeout(async () => { await passSignatoryVcip(id); setVideoPhase('done'); }, 2600);
       timers.current.push(tt);
     };
-    const next = async () => { await setSignatoryStep(id, 'dsc-sign'); await refresh(); };
+    const next = async () => { await setSignatoryStep(id, 'done'); await refresh(); };
     return (
       <ScreenV2 progress={progress}>
         <Card>
@@ -338,7 +405,7 @@ export const CompanySignatory = () => {
               <>
                 <ConsentRow><Checkbox label={t.vkycConsent} description={t.vkycConsentDesc} checked={vkycConsent} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVkycConsent(e.target.checked)} /></ConsentRow>
                 <ButtonRow>
-                  <Button view="secondary" size="l" text={t.back} onClick={() => navigate(COMPANY_DASHBOARD_ROUTE)} />
+                  {backBtn}
                   <Button view="accent" size="l" text={t.ctaStartVideo} disabled={!vkycConsent} onClick={start} />
                 </ButtonRow>
               </>
@@ -414,7 +481,10 @@ export const CompanySignatory = () => {
           <SuccessNote><span className="ic">✓</span>{t.doneSub}</SuccessNote>
           {/* #39 — формулировка результата (схема шаг 15): личный кабинет + уведомление на email */}
           <Hint>{t.doneFollowUp}</Hint>
-          <ButtonRowEnd><Button view="accent" size="l" text={t.toDashboard} onClick={() => navigate(COMPANY_DASHBOARD_ROUTE)} /></ButtonRowEnd>
+          {/* #41 — гард: invite/initiator не ведём на дашборд инициатора, показываем «Готово» без навигации. */}
+          {exitRoute
+            ? <ButtonRowEnd><Button view="accent" size="l" text={t.toDashboard} onClick={() => navigate(exitRoute)} /></ButtonRowEnd>
+            : <ButtonRowEnd><Button view="accent" size="l" text={t.doneClose} disabled /></ButtonRowEnd>}
         </CardBody>
       </Card>
     </ScreenV2>

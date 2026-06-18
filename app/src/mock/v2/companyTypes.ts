@@ -137,6 +137,9 @@ export interface CompanyCaseV2 {
   taxResidency: string; // страна налогового резидентства компании (по умолчанию India)
   // #34 — догрузка документа по обратному запросу банка (DVU). null — запроса нет.
   dvuRequest?: DvuRequest;
+  // #43 — счёт заморожен до первого входа в интернет-банк (опыт «фриз снят»).
+  // По умолчанию после Completed = true; вход в /company/bank снимает фриз.
+  accountFrozen?: boolean;
   // Вход компании (целевка Марго): согласия ДО Aadhaar → Aadhaar-авторизация (подтягивает контакты) → пин-код.
   entry?: CompanyEntry;
 }

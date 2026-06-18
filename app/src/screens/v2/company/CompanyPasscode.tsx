@@ -105,7 +105,7 @@ export const CompanyPasscode = () => {
     const tt = setTimeout(() => {
       // Факт создания — тостом поверх следующего экрана (не отдельным экраном-поздравлением).
       setPendingToast(t.createdToast);
-      navigate('/company/pan');
+      navigate('/company/bnq');
     }, 1800);
     timers.current.push(tt);
   };

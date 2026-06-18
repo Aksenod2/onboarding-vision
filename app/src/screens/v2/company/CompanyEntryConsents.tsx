@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button, Checkbox } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, bodySBold } from '@salutejs/sdds-themes/tokens';
+import { enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
@@ -15,7 +16,7 @@ import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRowEnd, ConsentRow }
 // Роут: /company/consents → /company/aadhaar
 
 const dict: Record<Lang, {
-  title: string; subtitle: string; sectionLabel: string;
+  title: string; subtitle: string; sectionLabel: string; selectAll: string;
   cAadhaarLabel: string; cAadhaarDesc: string;
   cPrivacyLabel: string; cPrivacyDesc: string;
   cRegistryLabel: string; cRegistryDesc: string;
@@ -25,6 +26,7 @@ const dict: Record<Lang, {
     title: 'Согласия',
     subtitle: 'Перед идентификацией через Aadhaar подтвердите согласия — это регуляторное требование.',
     sectionLabel: 'Ознакомьтесь и отметьте все пункты:',
+    selectAll: 'Выбрать все',
     cAadhaarLabel: 'Согласие на Aadhaar eKYC',
     cAadhaarDesc: 'Я добровольно даю согласие на аутентификацию через Aadhaar eKYC (UIDAI) и получение моих данных для идентификации при открытии счёта.',
     cPrivacyLabel: 'Политика конфиденциальности',
@@ -37,6 +39,7 @@ const dict: Record<Lang, {
     title: 'Consents',
     subtitle: 'Before identifying via Aadhaar, please confirm the consents — this is a regulatory requirement.',
     sectionLabel: 'Review and check all items:',
+    selectAll: 'Select all',
     cAadhaarLabel: 'Aadhaar eKYC consent',
     cAadhaarDesc: 'I voluntarily consent to Aadhaar eKYC authentication (UIDAI) and to retrieving my data for identification when opening an account.',
     cPrivacyLabel: 'Privacy Notice',
@@ -49,6 +52,13 @@ const dict: Record<Lang, {
 
 const SectionLabel = styled.p`margin: 0; ${bodySBold}; font-size: 0.875rem; color: ${textPrimary};`;
 
+// Select all — отдельная строка над списком согласий (как у Sole Proprietor).
+const SelectAllRow = styled.div`
+  ${enter(0.08)};
+  padding: 0.5rem 1.1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+`;
+
 export const CompanyEntryConsents = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
@@ -59,6 +69,14 @@ export const CompanyEntryConsents = () => {
   const [cRegistry, setCRegistry] = useState(false);
 
   const allChecked = cAadhaar && cPrivacy && cRegistry;
+
+  // Select all — для консистентности с Sole Proprietor: тоггл всех согласий разом.
+  const toggleAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.checked;
+    setCAadhaar(next);
+    setCPrivacy(next);
+    setCRegistry(next);
+  };
 
   const handleContinue = async () => {
     try { await giveCompanyEntryConsent(); } catch (_) { /* игнорируем */ }
@@ -74,6 +92,16 @@ export const CompanyEntryConsents = () => {
         </CardHeader>
         <CardBody>
           <SectionLabel>{t.sectionLabel}</SectionLabel>
+
+          {/* Select all — штатный SDDS Checkbox с реальным onChange (клавиатура/фокус работают).
+              Отмечен, когда отмечены все согласия; снятие любого согласия снимает и его. */}
+          <SelectAllRow>
+            <Checkbox
+              label={t.selectAll}
+              checked={allChecked}
+              onChange={toggleAll}
+            />
+          </SelectAllRow>
 
           {/* Штатные SDDS Checkbox с реальным onChange + description (a11y/клавиатура), как в SP05Pan. */}
           <ConsentRow>

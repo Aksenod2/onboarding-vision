@@ -127,6 +127,8 @@ interface StepProgressProps {
   steps?: StepDef[];
   backRoute?: string;
   isIrreversible?: (id: string) => boolean;
+  // #41 — скрыть «Обзор заявки» (вход подписанта по invite/инициатор: дашборд инициатора недоступен).
+  hideBack?: boolean;
 }
 
 export const StepProgress = ({
@@ -134,6 +136,7 @@ export const StepProgress = ({
   steps = STEPS,
   backRoute = DASHBOARD_ROUTE,
   isIrreversible = isIrreversibleStep,
+  hideBack = false,
 }: StepProgressProps) => {
   const { lang } = useLanguage();
   const navigate = useNavigate();
@@ -142,9 +145,11 @@ export const StepProgress = ({
 
   return (
     <Wrap>
-      <BackLink onClick={() => navigate(backRoute)}>
-        {lang === 'ru' ? '← Обзор заявки' : '← Application overview'}
-      </BackLink>
+      {!hideBack && (
+        <BackLink onClick={() => navigate(backRoute)}>
+          {lang === 'ru' ? '← Обзор заявки' : '← Application overview'}
+        </BackLink>
+      )}
       <Segments>
         {steps.map((s) => {
           // На необратимых шагах (видео, подписание) прыжки по прогрессу заблокированы

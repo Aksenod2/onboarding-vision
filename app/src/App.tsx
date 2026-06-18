@@ -21,12 +21,13 @@ import { CompanyEntryConsents } from './screens/v2/company/CompanyEntryConsents'
 import { CompanyAadhaar } from './screens/v2/company/CompanyAadhaar';
 import { CompanyPasscode } from './screens/v2/company/CompanyPasscode';
 import { CompanyLogin } from './screens/v2/company/CompanyLogin';
-import { CompanyPan } from './screens/v2/company/CompanyPan';
-import { CompanyBnqBr } from './screens/v2/company/CompanyBnqBr';
+import { CompanyBnqDialog } from './screens/v2/company/CompanyBnqDialog';
+import { CompanySignatoriesBr } from './screens/v2/company/CompanySignatoriesBr';
 import { CompanyConfirm } from './screens/v2/company/CompanyConfirm';
 import { CompanyDispatch } from './screens/v2/company/CompanyDispatch';
 import { CompanyDashboard } from './screens/v2/company/CompanyDashboard';
 import { CompanySignatory } from './screens/v2/company/CompanySignatory';
+import { CompanyBank } from './screens/v2/company/CompanyBank';
 import { LanguageProvider } from './ui/v2/LanguageContext';
 import { CompanyProvider } from './ui/v2/CompanyContext';
 import { DemoNav } from './ui/DemoNav';
@@ -87,12 +88,17 @@ export const App = () => {
                 <Route path="aadhaar" element={<CompanyAadhaar />} />
                 <Route path="passcode" element={<CompanyPasscode />} />
                 <Route path="login" element={<CompanyLogin />} />
-                <Route path="pan" element={<CompanyPan />} />
-                <Route path="bnq" element={<CompanyBnqBr />} />
+                {/* PAN влит в диалог (нулевой шаг). Старый /company/pan → редирект на диалог. */}
+                <Route path="pan" element={<Navigate to="/company/bnq" replace />} />
+                <Route path="bnq" element={<CompanyBnqDialog />} />
+                <Route path="signatories-br" element={<CompanySignatoriesBr />} />
                 <Route path="confirm" element={<CompanyConfirm />} />
                 <Route path="dispatch" element={<CompanyDispatch />} />
                 <Route path="dashboard" element={<CompanyDashboard />} />
                 <Route path="signatory" element={<CompanySignatory />} />
+                {/* #43 — растворение онбординга: вход в интернет-банк (без онбординг-хрома). */}
+                <Route path="bank" element={<CompanyBank />} />
+                {/* «*» ниже не должен ловить /company/bank — порядок важен. */}
                 <Route path="*" element={<Navigate to="/company" replace />} />
               </Routes>
             </CompanyProvider>

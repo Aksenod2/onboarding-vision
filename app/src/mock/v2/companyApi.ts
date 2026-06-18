@@ -278,15 +278,16 @@ export const passSignatoryVcip = (id: string): Promise<void> => {
   return delay(undefined);
 };
 
-// Подписант поставил DSC-подпись → шаг done.
+// Подписант поставил DSC-подпись (#35: НЕ терминально — после подписи идёт VKYC).
+// Ставит только signature.signed=true и переводит на шаг 'vkyc'. НЕ ставит done,
+// НЕ зовёт recomputeCompletion — завершение происходит на финальном шаге vkyc.
 export const signByDsc = (id: string): Promise<Signatory[]> => {
   const ts = nowIST();
   state.signatories = state.signatories.map((s) =>
     s.id === id
-      ? { ...s, signature: { signed: true, method: 'DSC', timestamp: ts }, currentStep: 'done', status: 'done' }
+      ? { ...s, signature: { signed: true, method: 'DSC', timestamp: ts }, currentStep: 'vkyc', status: 'in_progress' }
       : s,
   );
-  recomputeCompletion();
   return delay(state.signatories);
 };
 
@@ -298,6 +299,39 @@ function recomputeCompletion(): void {
 }
 
 export const isAccountOpen = (): boolean => state.status === 'Completed';
+
+// --- #43 — интернет-банк (растворение онбординга) ---
+
+export interface BankAccount {
+  number: string;
+  ifsc: string;
+  frozen: boolean;
+  holderName: string; // имя представителя/инициатора (с возвращением, …)
+  company: string;
+}
+
+// Реквизиты счёта (те же, что показывает дашборд в блоке «Счёт открыт»).
+const ACCOUNT_NUMBER = '5021 4477 9012 3456';
+const ACCOUNT_IFSC = 'SBIN0099001';
+
+export const getBankAccount = (): Promise<BankAccount> => {
+  // Имя владельца — заполнитель (CustomerRepresentative), иначе первый подписант.
+  const rep = state.signatories.find((s) => s.roles.includes('CustomerRepresentative'))
+    ?? state.signatories[0];
+  return delay({
+    number: ACCOUNT_NUMBER,
+    ifsc: ACCOUNT_IFSC,
+    frozen: state.accountFrozen ?? false,
+    holderName: rep?.fullName ?? '',
+    company: state.company.legalName,
+  });
+};
+
+// Снять фриз со счёта (первый вход в интернет-банк → «фриз снят» как опыт).
+export const unfreezeAccount = (): Promise<void> => {
+  state.accountFrozen = false;
+  return delay(undefined);
+};
 
 // Сброс демо.
 export const resetCompany = (): void => {

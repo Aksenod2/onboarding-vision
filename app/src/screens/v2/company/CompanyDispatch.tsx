@@ -9,6 +9,7 @@ import { StepProgress } from '../../../ui/v2/StepProgress';
 import { COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
+import { useCompany } from '../../../ui/v2/CompanyContext';
 import { dispatchInvites, getSignatories } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { Signatory } from '../../../mock/v2/companyTypes';
@@ -78,6 +79,7 @@ export const CompanyDispatch = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
   const t = dict[lang];
+  const { setActiveSignatoryId, setSessionOrigin } = useCompany();
   const [signatories, setSignatories] = useState<Signatory[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [showNonSigner, setShowNonSigner] = useState(false); // #37
@@ -85,15 +87,23 @@ export const CompanyDispatch = () => {
   // Рассылаем при заходе на экран (имитация отправки).
   useEffect(() => {
     dispatchInvites().then(setSignatories);
-    // #37 — если инициатор (CustomerRepresentative) сам НЕ подписант (нет Director/AS) — показать модалку.
-    // Демо-данные Mehta: Rajesh — инициатор И подписант → модалка не сработает по данным.
-    // Принудительный показ для демо: ?nonsigner=1 в URL.
+    // Развилка по инициатору (CustomerRepresentative) после рассылки.
+    // Принудительный показ модалки не-подписанту для демо: ?nonsigner=1 в URL.
     const forced = new URLSearchParams(window.location.search).get('nonsigner') === '1';
     getSignatories().then((list) => {
       const initiator = list.find((s) => s.roles.includes('CustomerRepresentative'));
       const initiatorIsSigner = initiator ? goesThroughPhaseB(initiator) : false;
+      // #45 — инициатор-подписант минует дашборд: сразу в свою сессию (origin=initiator).
+      if (!forced && initiator && initiatorIsSigner) {
+        setActiveSignatoryId(initiator.id);
+        setSessionOrigin('initiator');
+        navigate('/company/signatory', { replace: true });
+        return;
+      }
+      // #37 — инициатор сам НЕ подписант → модалка «спасибо, следи за статусом» → дашборд.
       setShowNonSigner(forced || (!!initiator && !initiatorIsSigner));
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const recipients = signatories.filter(goesThroughPhaseB);

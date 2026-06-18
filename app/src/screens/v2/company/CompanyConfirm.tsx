@@ -538,7 +538,7 @@ export const CompanyConfirm = () => {
           </ConsentRow>
 
           <ButtonRow>
-            <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/bnq')} />
+            <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/signatories-br')} />
             <Button view="accent" size="l" text={t.cta} disabled={!respGate} onClick={handleConfirm} />
           </ButtonRow>
         </CardBody>

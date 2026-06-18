@@ -8,9 +8,12 @@ import type { StepDef } from './steps';
 export const COMPANY_DASHBOARD_ROUTE = '/company/dashboard';
 
 // Фаза A — заполнитель (Customer Representative).
+// Порядок (решение Кости 2026-06-18): Диалог (TUMAB, PAN — нулевой шаг внутри) →
+// Подписанты и BR → Подтверждение → Приглашение. PAN влит в диалог-шаг (co-bnq),
+// отдельного co-pan больше нет.
 export const COMPANY_STEPS_A: StepDef[] = [
-  { id: 'co-pan', route: '/company/pan', order: 1, titleRu: 'Доступ к реестрам и PAN', titleEn: 'Registry access & PAN' },
-  { id: 'co-bnq', route: '/company/bnq', order: 2, titleRu: 'Анкета и подписанты', titleEn: 'Questionnaire & signatories' },
+  { id: 'co-bnq', route: '/company/bnq', order: 1, titleRu: 'Анкета', titleEn: 'Questionnaire' },
+  { id: 'co-signatories-br', route: '/company/signatories-br', order: 2, titleRu: 'Подписанты и BR', titleEn: 'Signatories & BR' },
   { id: 'co-confirm', route: '/company/confirm', order: 3, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
   { id: 'co-dispatch', route: '/company/dispatch', order: 4, titleRu: 'Приглашение подписантов', titleEn: 'Invite signatories' },
 ];
@@ -25,9 +28,11 @@ export interface SignatorySessionStep {
   titleEn: string;
   order: number;
 }
+// Порядок (#35): согласия → Aadhaar → подписание (DSC) → видео (VKYC).
+// Подпись ДО видео; видео — финальный шаг (счёт не открывается до VKYC).
 export const SIGNATORY_STEPS: SignatorySessionStep[] = [
   { id: 'co-b-consents', order: 1, titleRu: 'Согласия', titleEn: 'Consents' },
   { id: 'co-b-aadhaar', order: 2, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
-  { id: 'co-b-vkyc', order: 3, titleRu: 'Видеоидентификация', titleEn: 'Video identification' },
-  { id: 'co-b-sign', order: 4, titleRu: 'Подписание (DSC)', titleEn: 'Signing (DSC)' },
+  { id: 'co-b-sign', order: 3, titleRu: 'Подписание (DSC)', titleEn: 'Signing (DSC)' },
+  { id: 'co-b-vkyc', order: 4, titleRu: 'Видеоидентификация', titleEn: 'Video identification' },
 ];

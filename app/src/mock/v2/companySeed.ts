@@ -164,4 +164,6 @@ export const mehtaTextiles: CompanyCaseV2 = {
   taxResidency: 'India',
   // #34 — обратный запрос банка (DVU): просят догрузить подтверждение источника средств.
   dvuRequest: { id: 'dvu-1', docName: 'Source of funds confirmation', status: 'requested' },
+  // #43 — счёт заморожен до первого входа в интернет-банк (фриз снимается при входе).
+  accountFrozen: true,
 };

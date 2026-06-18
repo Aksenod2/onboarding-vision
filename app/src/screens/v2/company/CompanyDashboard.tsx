@@ -23,7 +23,7 @@ const dict: Record<Lang, {
   hint: string;
   loginAs: string;
   remind: string; reminderSent: string; reminderToast: string; refresh: string;
-  accountOpened: string; accountOpenedSub: string; accountNumber: string;
+  accountOpened: string; accountOpenedSub: string; accountNumber: string; toBank: string;
   stepLabel: Record<SignatoryStep, string>;
   // #34 — DVU-догрузка по обратному запросу банка
   dvuTitle: string; dvuHint: string; dvuUpload: string; dvuUploading: string; dvuUploaded: string; dvuToast: string;
@@ -43,6 +43,7 @@ const dict: Record<Lang, {
     accountOpened: 'Счёт открыт!',
     accountOpenedSub: 'Все подписанты прошли идентификацию и подписали документы. Счёт компании активирован.',
     accountNumber: 'Номер счёта',
+    toBank: 'Перейти в интернет-банк',
     stepLabel: {
       waiting: 'Ожидает', consents: 'Согласия', aadhaar: 'Aadhaar eKYC',
       vkyc: 'Видеоидентификация', 'dsc-sign': 'Подписание', done: 'Готово',
@@ -69,6 +70,7 @@ const dict: Record<Lang, {
     accountOpened: 'Account Opened!',
     accountOpenedSub: 'All signatories have completed identification and signed the documents. The company account is activated.',
     accountNumber: 'Account Number',
+    toBank: 'Go to internet banking',
     stepLabel: {
       waiting: 'Waiting', consents: 'Consents', aadhaar: 'Aadhaar eKYC',
       vkyc: 'Video identification', 'dsc-sign': 'Signing', done: 'Done',
@@ -100,6 +102,7 @@ const AccountBlock = styled.div`
 const AccountTitle = styled.div`font-size:1.25rem; ${bodySBold}; color:#1a7a28; display:flex; align-items:center; gap:0.5rem;`;
 const AccountSub = styled.p`margin:0 0 0.5rem; ${bodyM}; color:${textSecondary};`;
 const AccountReq = styled.div`display:grid; grid-template-columns:auto 1fr; gap:0.3rem 1.25rem;`;
+const AccountActions = styled.div`display:flex; margin-top:0.75rem;`;
 const ReqLabel = styled.span`${eyebrow}; color:${textSecondary}; font-size:0.68rem;`;
 const ReqValue = styled.span`${bodySBold}; font-size:0.92rem; color:${textPrimary};`;
 
@@ -165,7 +168,7 @@ export const CompanyDashboard = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
   const t = dict[lang];
-  const { setActiveSignatoryId } = useCompany();
+  const { setActiveSignatoryId, setSessionOrigin } = useCompany();
   const [data, setData] = useState<CompanyCaseV2 | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [dvuUploading, setDvuUploading] = useState(false); // #34
@@ -200,6 +203,7 @@ export const CompanyDashboard = () => {
 
   const enterSession = (s: Signatory) => {
     setActiveSignatoryId(s.id);
+    setSessionOrigin('dashboard'); // демо-мостик «Войти как» → навигация на дашборд разрешена
     navigate('/company/signatory'); // мини-сессия резюмится по currentStep
   };
 
@@ -219,11 +223,16 @@ export const CompanyDashboard = () => {
             <ReqLabel>{t.accountNumber}</ReqLabel><ReqValue>5021 4477 9012 3456</ReqValue>
             <ReqLabel>IFSC</ReqLabel><ReqValue>SBIN0099001</ReqValue>
           </AccountReq>
+          {/* #43 — растворение онбординга: переход в интернет-банк (кнопка, не авто-redirect). */}
+          <AccountActions>
+            <Button view="accent" size="m" text={t.toBank} onClick={() => navigate('/company/bank')} />
+          </AccountActions>
         </AccountBlock>
       )}
 
-      {/* #34 — обратный запрос банка (DVU): догрузить документ уровня заявки */}
-      {data.dvuRequest && (
+      {/* #34 — обратный запрос банка (DVU): догрузить документ уровня заявки.
+          Скрываем при Completed: счёт открыт, догрузка по обратному запросу уже не нужна. */}
+      {!done && data.dvuRequest && (
         <DvuPanel>
           <DvuHead>
             <DvuTitle>{t.dvuTitle}</DvuTitle>

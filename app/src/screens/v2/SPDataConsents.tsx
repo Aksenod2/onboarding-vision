@@ -121,7 +121,6 @@ const CardBody = styled.div`
 const SelectAllRow = styled.div`
   ${enter(0.08)};
   padding: 0.5rem 1.1rem;
-  cursor: pointer;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 `;
 
@@ -174,8 +173,9 @@ export const SPDataConsents = () => {
 
   // Select all (фидбек Марго, демо 2026-06-10)
   const allChecked = consentDataPrincipals && consentKmp;
-  const toggleAll = () => {
-    const next = !allChecked;
+  // Штатный onChange (как в CompanyEntryConsents) — фокус/клавиатура работают.
+  const toggleAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.checked;
     setConsentDataPrincipals(next);
     setConsentKmp(next);
   };
@@ -207,9 +207,10 @@ export const SPDataConsents = () => {
             {lang === 'ru' ? 'Ознакомьтесь и отметьте применимые пункты:' : 'Review and check the applicable items:'}
           </SectionLabel>
 
-          {/* Select all — фидбек Марго (демо 2026-06-10): не прокликивать каждое согласие отдельно */}
-          <SelectAllRow onClick={toggleAll}>
-            <Checkbox label={t.selectAll} checked={allChecked} onChange={() => {}} />
+          {/* Select all — фидбек Марго (демо 2026-06-10): не прокликивать каждое согласие отдельно.
+              Штатный SDDS Checkbox с реальным onChange (клавиатура/фокус работают), как в CompanyEntryConsents. */}
+          <SelectAllRow>
+            <Checkbox label={t.selectAll} checked={allChecked} onChange={toggleAll} />
           </SelectAllRow>
 
           {/* Вся область кликабельна — клик по ConsentItem переключает согласие.
