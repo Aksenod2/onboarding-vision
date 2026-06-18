@@ -47,6 +47,15 @@ const dict: Record<Lang, {
   back: string; cont: string; finish: string; doneTitle: string; doneSub: string; doneFollowUp: string; toDashboard: string;
   doneClose: string; // #41 — для invite/initiator: завершение без навигации на дашборд инициатора
   invalidInvite: string; // #41 — невалидная invite-ссылка
+  // session exit (всегда доступен)
+  toDashboardBtn: string; // origin=dashboard: «К дашборду»
+  exitBtn: string;        // origin=invite/initiator: «Выйти» из сессии
+  // нейтральный маркер необратимости у заголовка завершённого шага
+  irreversibleMarker: string;
+  // присяга перед подписанием
+  signOath: string;
+  // экран-заглушка «сессия завершена» (выход из invite/initiator)
+  exitedTitle: string; exitedBody: string;
 }> = {
   ru: {
     eyebrowPrefix: 'Сессия подписанта',
@@ -97,6 +106,12 @@ const dict: Record<Lang, {
     toDashboard: 'Вернуться к заявке',
     doneClose: 'Готово',
     invalidInvite: 'Ссылка приглашения недействительна. Запросите новую ссылку у представителя компании.',
+    toDashboardBtn: 'К дашборду',
+    exitBtn: 'Выйти',
+    irreversibleMarker: 'Шаг завершён — изменить нельзя',
+    signOath: 'После подписания изменить данные нельзя.',
+    exitedTitle: 'Сессия закрыта',
+    exitedBody: 'Вы вышли из сессии подписания. Чтобы продолжить, откройте ссылку-приглашение заново.',
   },
   en: {
     eyebrowPrefix: 'Signatory session',
@@ -147,6 +162,12 @@ const dict: Record<Lang, {
     toDashboard: 'Back to application',
     doneClose: 'Done',
     invalidInvite: 'This invitation link is no longer valid. Please request a new link from the company representative.',
+    toDashboardBtn: 'To dashboard',
+    exitBtn: 'Exit',
+    irreversibleMarker: "Step complete — can't be changed",
+    signOath: "Once signed, data can't be changed.",
+    exitedTitle: 'Session closed',
+    exitedBody: 'You have exited the signing session. To continue, open the invitation link again.',
   },
 };
 
@@ -181,6 +202,22 @@ const LightboxTitle = styled.h2`margin:0; font-size:1.15rem; font-weight:700; co
 const LightboxText = styled.p`margin:0; font-size:0.9rem; line-height:1.7; color:${textPrimary}; white-space:pre-line;`;
 const LightboxFoot = styled.div`display:flex; justify-content:flex-end; padding-top:0.5rem;`;
 const Hint = styled.p`margin:0; ${bodyM}; color:${textSecondary}; ${enter(0.1)};`;
+// Нейтральный маркер необратимости у заголовка завершённого шага.
+// Сине-серый (НЕ warning/оранжевый — правило Verifying≠warning): сигнал «зафиксировано», а не «ошибка».
+const IrreversibleMarker = styled.div`
+  display:flex; align-items:center; gap:0.5rem; margin-top:0.5rem;
+  padding:0.5rem 0.85rem; border-radius:${radii.panel};
+  background:rgba(82,109,130,0.08); border:1px solid rgba(82,109,130,0.22);
+  color:#46586a; font-size:0.82rem; font-weight:600; align-self:flex-start;
+  .ic { flex-shrink:0; width:1.1rem; height:1.1rem; border-radius:50%; background:#5b6f80; color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:0.7rem; }
+`;
+// Присяга-предупреждение перед подписанием (необратимость данных).
+const SignOath = styled.p`
+  margin:0; display:flex; align-items:center; gap:0.5rem;
+  ${bodySBold}; font-size:0.85rem; color:#46586a;
+  .ic { flex-shrink:0; }
+`;
 // #31 — вводный экран сессии: интро + нумерованный список шагов + оценка времени.
 const SummaryIntro = styled.p`margin:0; ${bodyM}; color:${textPrimary};`;
 const SummaryList = styled.ol`margin:0; padding-left:1.3rem; display:flex; flex-direction:column; gap:0.5rem; ${bodyM}; color:${textPrimary};`;
@@ -238,6 +275,7 @@ export const CompanySignatory = () => {
   const [otpPhase, setOtpPhase] = useState(false);
   const [otpErr, setOtpErr] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<number | null>(null); // #18b — лайтбокс документа
+  const [exited, setExited] = useState(false); // выход из сессии invite/initiator → экран-заглушка
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
@@ -276,14 +314,29 @@ export const CompanySignatory = () => {
     );
   }
 
+  // Выход из сессии для invite/initiator — нейтральный экран-заглушка «Сессия закрыта».
+  // Дашборд инициатора такой подписант видеть не должен (гард #41), но выход доступен ВСЕГДА.
+  if (exited) {
+    return (
+      <ScreenV2>
+        <Card>
+          <CardHeader><Title>{t.exitedTitle}</Title></CardHeader>
+          <CardBody><Hint>{t.exitedBody}</Hint></CardBody>
+        </Card>
+      </ScreenV2>
+    );
+  }
+
   if (resolving || !sig) return <ScreenV2><Hint>{lang === 'ru' ? 'Загрузка…' : 'Loading…'}</Hint></ScreenV2>;
 
   // #41 — точка выхода из сессии (гард навигации): null → дашборд инициатора скрыт.
   const exitRoute = exitTarget(sessionOrigin);
-  // Кнопка «Назад» на шагах ведёт на дашборд инициатора — для invite/initiator её скрываем.
-  const backBtn = exitRoute
-    ? <Button view="secondary" size="l" text={t.back} onClick={() => navigate(exitRoute)} />
-    : null;
+  // Выход из сессии доступен ВСЕГДА (базовый UX):
+  //  • origin=dashboard → «К дашборду» (на дашборд заявки);
+  //  • origin=invite/initiator → «Выйти» из сессии на нейтральную заглушку (дашборд инициатора скрыт).
+  const exitBtn = exitRoute
+    ? <Button view="secondary" size="l" text={t.toDashboardBtn} onClick={() => navigate(exitRoute)} />
+    : <Button view="secondary" size="l" text={t.exitBtn} onClick={() => setExited(true)} />;
 
   const id = sig.id;
   const step: SignatoryStep = sig.currentStep === 'waiting' ? 'consents' : sig.currentStep;
@@ -296,9 +349,15 @@ export const CompanySignatory = () => {
     </>
   );
 
+  // Прогресс. Замысел: на обратимых под-фазах (consents) пройденные сегменты кликабельны, на
+  // необратимых (aadhaar после скана / dsc-sign / vkyc) — нет. НО: мини-реестр MINI_STEPS имеет
+  // route:'' (нет deep-link на под-шаг — шаг гонится sig.currentStep на бэке, роут один). Поэтому
+  // StepProgress физически не может довести клик до смены под-шага, а его модель «текущий шаг
+  // обратим ⇒ ВСЕ прочие сегменты кликабельны» открыла бы и прыжок ВПЕРЁД (consents → vkyc), что
+  // неверно. Единственная обратимая под-фаза — самая первая (consents), назад от неё прыгать некуда.
+  // Поэтому держим сегменты некликабельными (isIrreversible→true), а реальную обратимость на
+  // consents/summary обеспечивает кнопка «Назад/Выйти» в теле шага. Помечено как компромисс в отчёте.
   const progress = step !== 'done'
-    // P2: сегменты мини-прогресса сессии — route:'' (нет цели). Делаем некликабельными
-    // (isIrreversible→true ⇒ все не-текущие сегменты disabled), чтобы убрать мёртвый аффорданс navigate('').
     ? <StepProgress currentStepId={STEP_TO_PROGRESS[step]} steps={MINI_STEPS} backRoute={exitRoute ?? COMPANY_DASHBOARD_ROUTE} isIrreversible={() => true} hideBack={exitRoute === null} />
     : undefined;
 
@@ -315,7 +374,7 @@ export const CompanySignatory = () => {
             </SummaryList>
             <SummaryTime>{t.summaryTime}</SummaryTime>
             <ButtonRow>
-              {backBtn}
+              {exitBtn}
               <Button view="accent" size="l" text={t.summaryStart} onClick={() => setShowSummary(false)} />
             </ButtonRow>
           </CardBody>
@@ -341,7 +400,7 @@ export const CompanySignatory = () => {
             <ConsentRow><Checkbox label={t.cPrivacy} description={t.cPrivacyDesc} checked={cPrivacy} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCPrivacy(e.target.checked)} /></ConsentRow>
             <ConsentRow><Checkbox label={t.cAadhaar} description={t.cAadhaarDesc} checked={cAadhaar} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCAadhaar(e.target.checked)} /></ConsentRow>
             <ButtonRow>
-              {backBtn}
+              {exitBtn}
               <Button view="accent" size="l" text={t.cont} disabled={!ready} onClick={next} />
             </ButtonRow>
           </CardBody>
@@ -361,7 +420,11 @@ export const CompanySignatory = () => {
     return (
       <ScreenV2 progress={progress}>
         <Card>
-          <CardHeader>{eyebrow}<Title>{t.aadhaarTitle}</Title><Subtitle>{t.aadhaarSub}</Subtitle></CardHeader>
+          <CardHeader>
+            {eyebrow}<Title>{t.aadhaarTitle}</Title><Subtitle>{t.aadhaarSub}</Subtitle>
+            {/* Необратимость: после скана данные UIDAI зафиксированы — нейтральный маркер, не warning. */}
+            {aadhaarPhase !== 'qr' && <IrreversibleMarker><span className="ic">✓</span>{t.irreversibleMarker}</IrreversibleMarker>}
+          </CardHeader>
           <CardBody>
             {/* Инструкция «как это работает» + успокаивающий тон — общий компонент (#46), сессия подписанта. */}
             {aadhaarPhase === 'qr' && <AadhaarHowTo variant="session" />}
@@ -373,7 +436,7 @@ export const CompanySignatory = () => {
               <>
                 <ConsentRow><Checkbox label={t.aadhaarConsent} description={t.aadhaarConsentDesc} checked={aadhaarConsent} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAadhaarConsent(e.target.checked)} /></ConsentRow>
                 <ButtonRow>
-                  {backBtn}
+                  {exitBtn}
                   <Button view="accent" size="l" text={t.ctaScanned} disabled={!aadhaarConsent} onClick={onScan} />
                 </ButtonRow>
               </>
@@ -399,13 +462,17 @@ export const CompanySignatory = () => {
     return (
       <ScreenV2 progress={progress}>
         <Card>
-          <CardHeader>{eyebrow}<Title>{t.vkycTitle}</Title><Subtitle>{t.vkycSub}</Subtitle></CardHeader>
+          <CardHeader>
+            {eyebrow}<Title>{t.vkycTitle}</Title><Subtitle>{t.vkycSub}</Subtitle>
+            {/* Необратимость: видео запущено/пройдено — сессия зафиксирована, нейтральный маркер. */}
+            {videoPhase !== 'idle' && <IrreversibleMarker><span className="ic">✓</span>{t.irreversibleMarker}</IrreversibleMarker>}
+          </CardHeader>
           <CardBody>
             {videoPhase === 'idle' && (
               <>
                 <ConsentRow><Checkbox label={t.vkycConsent} description={t.vkycConsentDesc} checked={vkycConsent} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVkycConsent(e.target.checked)} /></ConsentRow>
                 <ButtonRow>
-                  {backBtn}
+                  {exitBtn}
                   <Button view="accent" size="l" text={t.ctaStartVideo} disabled={!vkycConsent} onClick={start} />
                 </ButtonRow>
               </>

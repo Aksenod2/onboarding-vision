@@ -208,6 +208,13 @@ export const setFatca = (classification: FatcaClassification, taxResidency: stri
   return delay(undefined);
 };
 
+// Загрузить подтверждающий документ под изменённое reg-поле «Данные компании».
+// BRD: modified reg-field → upload supportive document → DVU. Generic-заглушка (по типу поля не дробим, демо).
+// Состояние proof-флага per-field живёт в UI; здесь — только имитация загрузки (контракт под будущий DocType).
+export const uploadCompanyFieldProof = (_fieldKey: string, _fileName: string): Promise<void> => {
+  return delay(undefined);
+};
+
 // --- Документы компании (#16 — fallback-загрузка) ---
 
 // Загрузить недостающий документ (source 'required' → 'uploaded').

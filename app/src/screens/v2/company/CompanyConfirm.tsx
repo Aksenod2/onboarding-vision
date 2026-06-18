@@ -13,7 +13,7 @@ import {
   getCompany, getSignatories, getUbo, confirmCompanyData,
   updateCompanyData, addUbo, updateUbo, removeUbo, setUboDeclared, setFatca,
   getCompanyDocuments, uploadCompanyDocument, replaceCompanyDocument,
-  setUboModified, uploadUboShareholdingDoc,
+  setUboModified, uploadUboShareholdingDoc, uploadCompanyFieldProof,
 } from '../../../mock/v2/companyApi';
 import { roleLabel } from '../../../mock/v2/companyTypes';
 import type { CompanyDetails, Signatory, Ubo, FatcaClassification, CompanyDocument } from '../../../mock/v2/companyTypes';
@@ -32,7 +32,11 @@ const dict: Record<Lang, {
   fromRegistry: string; prefilled: string; back: string; cta: string;
   edit: string; save: string; cancel: string;
   labels: { legalName: string; pan: string; cin: string; gstin: string; address: string; correspondence: string };
+  addrLine: string; addrCity: string; addrState: string; addrPin: string;
   correspondencePlaceholder: string;
+  // Edit reg-поля: правка → подтверждающий документ → DVU (паттерн SP06)
+  regProofLabel: string; regProofRequired: string; regProofUpload: string; regProofUploaded: string;
+  regDvuTitle: string; regDvuText: string;
   sectionUbo: string; uboHint: string;
   uboShare: string; uboName: string;
   uboAdd: string; uboRemove: string;
@@ -66,7 +70,14 @@ const dict: Record<Lang, {
       legalName: 'Юридическое наименование', pan: 'PAN', cin: 'CIN', gstin: 'GSTIN',
       address: 'Юридический адрес', correspondence: 'Адрес для переписки',
     },
+    addrLine: 'Адрес (строка)', addrCity: 'Город', addrState: 'Штат', addrPin: 'PIN-код',
     correspondencePlaceholder: 'Если отличается от юридического',
+    regProofLabel: 'Подтвердите изменение — загрузите документ',
+    regProofRequired: 'требуется документ',
+    regProofUpload: 'Загрузить документ',
+    regProofUploaded: 'Загружено',
+    regDvuTitle: 'Данные уйдут на проверку',
+    regDvuText: 'Изменённые реестровые данные будут направлены в отдел проверки банка (DVU). Решение по счёту обычно от этого не меняется.',
     sectionUbo: 'Бенефициарные владельцы (UBO)',
     uboHint: 'Лица с долей владения 25% и более. Подтянуты из данных компании — проверьте и дополните при необходимости.',
     uboShare: 'Доля, %',
@@ -116,7 +127,14 @@ const dict: Record<Lang, {
       legalName: 'Legal name', pan: 'PAN', cin: 'CIN', gstin: 'GSTIN',
       address: 'Registered address', correspondence: 'Correspondence address',
     },
+    addrLine: 'Address line', addrCity: 'City', addrState: 'State', addrPin: 'PIN code',
     correspondencePlaceholder: 'If different from registered address',
+    regProofLabel: 'Confirm the change — upload a document',
+    regProofRequired: 'document required',
+    regProofUpload: 'Upload document',
+    regProofUploaded: 'Uploaded',
+    regDvuTitle: 'Changes will be reviewed',
+    regDvuText: 'The edited registry data will be sent to the bank Document Verification Unit (DVU). This usually does not affect the account decision.',
     sectionUbo: 'Ultimate Beneficial Owners (UBO)',
     uboHint: 'Persons holding 25% or more. Pulled from company data — review and add if needed.',
     uboShare: 'Share, %',
@@ -178,8 +196,26 @@ const LinkBtn = styled.button`
 `;
 const EditRow = styled.div`display:flex; gap:0.75rem; align-items:center;`;
 
-// Редактируемая форма данных компании (минимум — адрес переписки, помеченный manual).
+// Редактируемая форма данных компании (reg-поля редактируемы в edit + адрес переписки, manual).
 const EditForm = styled.div`display:flex; flex-direction:column; gap:0.75rem;`;
+
+// Группа поля + блок proof под ним (паттерн SP06.renderProofBlock).
+const FieldGroup = styled.div`display:flex; flex-direction:column; gap:0.375rem;`;
+
+// Блок «подтвердите изменение — загрузите документ» под изменённым reg-полем.
+// $error — подсветка незакрытого proof при попытке подтвердить (паттерн SP06 proofError).
+const ProofBlock = styled.div<{ $error?: boolean }>`
+  display:flex; flex-direction:column; gap:0.55rem;
+  padding:0.75rem 0.9rem; border-radius:${radii.panel};
+  background:${({ $error }) => ($error ? 'rgba(255,59,48,0.06)' : 'rgba(0,0,0,0.03)')};
+  border:1.5px solid ${({ $error }) => ($error ? 'rgba(255,59,48,0.55)' : 'rgba(0,0,0,0.1)')};
+`;
+const ProofLabel = styled.span`font-size:0.8rem; color:${textSecondary};`;
+const ProofReq = styled.span`font-size:0.72rem; color:${textSecondary}; opacity:0.8;`;
+const ProofUploaded = styled.span`
+  display:inline-flex; align-items:center; gap:0.3rem; font-size:0.78rem; font-weight:600; color:${textPositive};
+  &::before { content:'✓'; }
+`;
 
 // UBO-карточка.
 const UboCard = styled.div`
@@ -272,6 +308,15 @@ export const CompanyConfirm = () => {
   const [editingCompany, setEditingCompany] = useState(false);
   const [correspondenceDraft, setCorrespondenceDraft] = useState('');
 
+  // Edit reg-полей (legalName/cin/gstin + адрес): правка → подтверждающий документ → DVU (паттерн SP06).
+  // Черновик top-level reg-полей и sub-полей адреса; снимок original — для детекта изменения.
+  const [regDraft, setRegDraft] = useState<{ legalName?: string; cin?: string; gstin?: string }>({});
+  const [addrDraft, setAddrDraft] = useState<{ line?: string; city?: string; state?: string; pin?: string }>({});
+  // per-field флаг загруженного подтверждающего документа (ключи: 'legalName','cin','gstin','addr_line',…).
+  const [regProofs, setRegProofs] = useState<Record<string, boolean>>({});
+  // Попытка подтвердить без обязательного документа — подсвечиваем незакрытые proof-блоки красным.
+  const [regProofError, setRegProofError] = useState(false);
+
   // #17 — UBO-строки + декларация + FATCA/CRS.
   const [uboRows, setUboRows] = useState<UboRow[]>([]);
   const [declared, setDeclared] = useState(false);
@@ -338,14 +383,60 @@ export const CompanyConfirm = () => {
 
   const startEdit = () => {
     setCorrespondenceDraft(company?.correspondenceAddress ?? '');
+    setRegDraft({});
+    setAddrDraft({});
+    setRegProofs({});
+    setRegProofError(false);
     setEditingCompany(true);
   };
   const cancelEdit = () => {
     setCorrespondenceDraft(company?.correspondenceAddress ?? '');
+    setRegDraft({});
+    setAddrDraft({});
+    setRegProofs({});
+    setRegProofError(false);
     setEditingCompany(false);
   };
+
+  // Текущее значение reg-поля: черновик или исходное.
+  const regVal = (key: 'legalName' | 'cin' | 'gstin'): string =>
+    regDraft[key] !== undefined ? (regDraft[key] as string) : (company?.[key] ?? '');
+  const addrFieldVal = (key: 'line' | 'city' | 'state' | 'pin'): string =>
+    addrDraft[key] !== undefined ? (addrDraft[key] as string) : (company?.registeredAddress[key] ?? '');
+
+  // Изменилось ли поле относительно исходного.
+  const isRegChanged = (key: 'legalName' | 'cin' | 'gstin'): boolean =>
+    regDraft[key] !== undefined && regDraft[key] !== company?.[key];
+  const isAddrChanged = (key: 'line' | 'city' | 'state' | 'pin'): boolean =>
+    addrDraft[key] !== undefined && addrDraft[key] !== company?.registeredAddress[key];
+
+  // Изменённые reg-поля без загруженного proof — блокируют сохранение/CTA.
+  const missingRegProofKeys = [
+    ...(['legalName', 'cin', 'gstin'] as const).filter((k) => isRegChanged(k) && !regProofs[k]),
+    ...(['line', 'city', 'state', 'pin'] as const).filter((k) => isAddrChanged(k) && !regProofs[`addr_${k}`]),
+  ];
+  // Есть ли хоть одно изменённое reg-поле (для DVU-плашки).
+  const hasRegChanges =
+    (['legalName', 'cin', 'gstin'] as const).some(isRegChanged) ||
+    (['line', 'city', 'state', 'pin'] as const).some(isAddrChanged);
+
+  const handleRegProofUpload = async (fieldKey: string) => {
+    await uploadCompanyFieldProof(fieldKey, 'supportive-document.pdf');
+    setRegProofs((p) => ({ ...p, [fieldKey]: true }));
+    setRegProofError(false);
+  };
+
   const saveEdit = async () => {
-    const updated = await updateCompanyData({ correspondenceAddress: correspondenceDraft.trim() || undefined });
+    // Документ при правке reg-поля ОБЯЗАТЕЛЕН — без него не сохраняем, подсвечиваем proof-блоки.
+    if (missingRegProofKeys.length > 0) { setRegProofError(true); return; }
+    const patch: Partial<CompanyDetails> = {
+      correspondenceAddress: correspondenceDraft.trim() || undefined,
+      ...regDraft,
+    };
+    if (Object.keys(addrDraft).length > 0 && company) {
+      patch.registeredAddress = { ...company.registeredAddress, ...addrDraft };
+    }
+    const updated = await updateCompanyData(patch);
     setCompany(updated);
     setEditingCompany(false);
   };
@@ -418,6 +509,49 @@ export const CompanyConfirm = () => {
     await setFatca(opt, taxRes);
   };
 
+  // Блок proof под изменённым reg-полем (паттерн SP06.renderProofBlock).
+  const renderProofBlock = (fieldKey: string, changed: boolean) => {
+    if (!changed) return null;
+    const done = !!regProofs[fieldKey];
+    return (
+      <ProofBlock $error={regProofError && !done}>
+        <ProofLabel>{t.regProofLabel}</ProofLabel>
+        {done ? (
+          <ProofUploaded>{t.regProofUploaded}</ProofUploaded>
+        ) : (
+          <>
+            <ProofReq>{t.regProofRequired}</ProofReq>
+            <Button view="secondary" size="s" text={t.regProofUpload} onClick={() => handleRegProofUpload(fieldKey)} />
+          </>
+        )}
+      </ProofBlock>
+    );
+  };
+
+  const renderRegField = (key: 'legalName' | 'cin' | 'gstin', label: string) => (
+    <FieldGroup>
+      <TextField
+        label={label}
+        value={regVal(key)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRegDraft((d) => ({ ...d, [key]: e.target.value }))}
+        size="m"
+      />
+      {renderProofBlock(key, isRegChanged(key))}
+    </FieldGroup>
+  );
+
+  const renderAddrField = (key: 'line' | 'city' | 'state' | 'pin', label: string) => (
+    <FieldGroup>
+      <TextField
+        label={label}
+        value={addrFieldVal(key)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddrDraft((d) => ({ ...d, [key]: e.target.value }))}
+        size="m"
+      />
+      {renderProofBlock(`addr_${key}`, isAddrChanged(key))}
+    </FieldGroup>
+  );
+
   const progress = <StepProgress currentStepId="co-confirm" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;
 
   return (
@@ -458,15 +592,33 @@ export const CompanyConfirm = () => {
                 </Grid>
               ) : (
                 <EditForm>
-                  {/* Pre-filled поля из реестра — бейдж серым, не редактируются */}
+                  {/* DVU-плашка при наличии изменений reg-полей (паттерн SP06 dvuWarning) */}
+                  {hasRegChanges && (
+                    <UboDvuNote>
+                      <span>
+                        <strong style={{ color: textPrimary }}>{t.regDvuTitle}.</strong> {t.regDvuText}
+                      </span>
+                    </UboDvuNote>
+                  )}
+
+                  {/* reg-поля редактируемы; правка → требует подтверждающий документ → DVU */}
+                  {renderRegField('legalName', t.labels.legalName)}
+                  {/* PAN — идентификатор, не редактируется (как и в view: без бейджа из реестра) */}
                   <Grid>
-                    <DT>{t.labels.legalName}</DT><DD>{company.legalName}<Reg>{t.fromRegistry}</Reg></DD>
                     <DT>{t.labels.pan}</DT><DD>{company.pan}</DD>
-                    <DT>{t.labels.cin}</DT><DD>{company.cin}<Reg>{t.fromRegistry}</Reg></DD>
-                    <DT>{t.labels.gstin}</DT><DD>{company.gstin}<Reg>{t.fromRegistry}</Reg></DD>
-                    <DT>{t.labels.address}</DT><DD>{addr}<Reg>{t.fromRegistry}</Reg></DD>
                   </Grid>
-                  {/* manual-поле — редактируемое */}
+                  {renderRegField('cin', t.labels.cin)}
+                  {renderRegField('gstin', t.labels.gstin)}
+
+                  {/* Юридический адрес — sub-поля редактируемы, каждое изменённое → документ */}
+                  {renderAddrField('line', t.addrLine)}
+                  <Row>
+                    {renderAddrField('city', t.addrCity)}
+                    {renderAddrField('state', t.addrState)}
+                    {renderAddrField('pin', t.addrPin)}
+                  </Row>
+
+                  {/* manual-поле — редактируемое, БЕЗ proof (не reg-поле) */}
                   <TextField
                     label={t.labels.correspondence}
                     placeholder={t.correspondencePlaceholder}
@@ -643,7 +795,7 @@ export const CompanyConfirm = () => {
 
           <ButtonRow>
             <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/signatories-br')} />
-            <Button view="accent" size="l" text={t.cta} disabled={!respGate || uboDocMissing} onClick={handleConfirm} />
+            <Button view="accent" size="l" text={t.cta} disabled={!respGate || uboDocMissing || (editingCompany && missingRegProofKeys.length > 0)} onClick={handleConfirm} />
           </ButtonRow>
         </CardBody>
       </Card>
