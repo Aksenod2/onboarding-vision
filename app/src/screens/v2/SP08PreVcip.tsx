@@ -53,7 +53,7 @@ const dict: Record<
     summaryLabels: { entityType: 'Тип структуры', pan: 'PAN', name: 'Бизнес', gstin: 'GSTIN', udyam: 'Udyam', address: 'Адрес' },
     privacyTitle: 'Уведомление о конфиденциальности',
     privacyText:
-      'В ходе видеоидентификации Сбербанк Индия произведёт видеозапись сессии и проверит ваш документ, удостоверяющий личность. Данные обрабатываются исключительно в целях KYC-верификации в соответствии с ',
+      'В ходе видеоидентификации Банк произведёт видеозапись сессии и проверит ваш документ, удостоверяющий личность. Данные обрабатываются исключительно в целях KYC-верификации в соответствии с ',
     privacyLinkLabel: 'Политикой конфиденциальности',
     // Согласие на VKYC (текст из BRD 9-Consents-Dashboard → «Consent for VKYC», suggested)
     consentLabel: 'Согласие на проведение видеоидентификации (VKYC)',
@@ -71,7 +71,7 @@ const dict: Record<
     summaryLabels: { entityType: 'Entity type', pan: 'PAN', name: 'Business name', gstin: 'GSTIN', udyam: 'Udyam', address: 'Address' },
     privacyTitle: 'Privacy notice',
     privacyText:
-      'During video identification, Sberbank India will record the session and verify your identity document. Data is processed solely for KYC verification purposes in accordance with the ',
+      'During video identification, the Bank will record the session and verify your identity document. Data is processed solely for KYC verification purposes in accordance with the ',
     privacyLinkLabel: 'Privacy Notice',
     // Consent for VKYC — текст из BRD 9-Consents-Dashboard (suggested, не финальный verbatim)
     consentLabel: 'Consent to conduct Video KYC (VKYC)',
@@ -293,7 +293,7 @@ export const SP08PreVcip = () => {
             <PrivacyText>
               {t.privacyText}
               <PrivacyLink
-                href="https://sberbank.co.in/customer-information/privacy-notice#appendix_iv"
+                href="#"
                 target="_blank"
                 rel="noopener noreferrer"
               >

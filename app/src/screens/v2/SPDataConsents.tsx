@@ -52,7 +52,7 @@ const dict: Record<
     selectAll: 'Выбрать все',
     consentDataPrincipalsLabel: 'Конфиденциальность субъектов данных',
     consentDataPrincipalsDesc:
-      'Я подтверждаю, что в случае предоставления персональных данных других субъектов данных, гарантирую: такие лица уведомлены об обработке их персональных данных Sberbank Branch in India в соответствии с Политикой конфиденциальности, и я получил их явное согласие на такую обработку. Я обязуюсь освободить Sberbank Branch in India от любой ответственности, убытков и обязательств, связанных с такой передачей данных.',
+      'Я подтверждаю, что в случае предоставления персональных данных других субъектов данных, гарантирую: такие лица уведомлены об обработке их персональных данных Банком в соответствии с Политикой конфиденциальности, и я получил их явное согласие на такую обработку. Я обязуюсь освободить Банк от любой ответственности, убытков и обязательств, связанных с такой передачей данных.',
     consentKmpLabel: 'Данные ключевых руководителей',
     consentKmpDesc:
       'Я подтверждаю, что предоставлю информацию по всем ключевым руководящим лицам (Key Managerial Personnel) данного предприятия.',
@@ -68,7 +68,7 @@ const dict: Record<
     selectAll: 'Select all',
     consentDataPrincipalsLabel: 'Data Principals Privacy',
     consentDataPrincipalsDesc:
-      'I hereby acknowledge and confirm that in case I have provided personal data of other Data Principals, I guarantee that such Data Principals are notified about Sberbank Branch in India processing of their personal data as described in the Privacy Notice and I obtained their explicit consent for such processing and shall keep Sberbank Branch in India indemnified and hold harmless against any loss, damage, liabilities, obligations caused to the Sberbank Branch in India.',
+      'I hereby acknowledge and confirm that in case I have provided personal data of other Data Principals, I guarantee that such Data Principals are notified about the Bank processing of their personal data as described in the Privacy Notice and I obtained their explicit consent for such processing and shall keep the Bank indemnified and hold harmless against any loss, damage, liabilities, obligations caused to the Bank.',
     consentKmpLabel: 'KMP Confirmation',
     // Канон: «I confirm that will provide…» — грамматическая опечатка источника; показываем с «I»,
     // отмечено как вопрос к Марго (не молчаливая правка verbatim)

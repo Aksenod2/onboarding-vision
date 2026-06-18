@@ -109,7 +109,7 @@ export const ScreenV2 = ({ children, progress }: ScreenV2Props) => {
       <Header>
         {/* Логотип → возврат на лендинг (первый экран) */}
         <Logo onClick={() => navigate('/v2')}>
-          SBER<LogoBank>{lang === 'ru' ? 'Банк' : 'Bank'}</LogoBank>
+          <LogoBank>{lang === 'ru' ? 'Банк' : 'Bank'}</LogoBank>
         </Logo>
         <LangSwitcher>
           <LangBtn $active={lang === 'ru'} onClick={() => setLang('ru')}>

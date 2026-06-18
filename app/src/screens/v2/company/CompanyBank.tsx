@@ -140,7 +140,7 @@ export const CompanyBank = () => {
     <Page>
       <BankHeader>
         <HeaderInner>
-          <Logo>SBER<LogoSub>{lang === 'ru' ? 'Банк' : 'Bank'}</LogoSub></Logo>
+          <Logo><LogoSub>{lang === 'ru' ? 'Банк' : 'Bank'}</LogoSub></Logo>
           <HeaderTag>{lang === 'ru' ? 'Интернет-банк' : 'Internet banking'}</HeaderTag>
         </HeaderInner>
       </BankHeader>

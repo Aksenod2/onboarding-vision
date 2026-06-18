@@ -32,7 +32,7 @@ const dict: Record<Lang, {
     bank: 'Банк',
     eyebrow: 'БАНК · INDIA–RUSSIA TRADE',
     h1: 'Банковские решения для торговли Индия–Россия',
-    subtitle: 'Откройте счёт в Сбербанк Индия для ведения бизнеса с Россией',
+    subtitle: 'Откройте счёт в Банке для ведения бизнеса с Россией',
     cta: 'Стать клиентом',
     internetBanking: 'Интернет-банк',
     getInTouch: 'Связаться',
@@ -42,7 +42,7 @@ const dict: Record<Lang, {
     bank: 'Bank',
     eyebrow: 'BANK · INDIA–RUSSIA TRADE',
     h1: 'Banking built for India–Russia trade flows',
-    subtitle: 'Open a Sberbank India account to manage your business with Russia',
+    subtitle: 'Open a Bank account to manage your business with Russia',
     cta: 'Become our customer',
     internetBanking: 'Internet banking',
     getInTouch: 'Get in touch',
@@ -242,7 +242,7 @@ export const SP01Landing = () => {
   return (
     <Page>
       <Header>
-        <Logo>SBER<LogoBank>{t.bank}</LogoBank></Logo>
+        <Logo><LogoBank>{t.bank}</LogoBank></Logo>
         <HeaderRight>
           <ServiceLabel>{t.india}</ServiceLabel>
           <ServiceLabel>{t.internetBanking}</ServiceLabel>

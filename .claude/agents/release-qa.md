@@ -30,5 +30,5 @@ model: inherit
 - Не правишь продуктовый код: нашёл баг → точный репорт оркестратору.
 
 <project-specifics>
-Прод-URL Render — уточнить у Дениса/в дашборде Render (имя сервиса `sber-onboarding-prototype`). Команда E2E: Playwright против переменной базового URL (localhost:5174 локально / Render-URL для прод-смоука). Ядро смоука: вход ИП, вход Компании, сессия подписанта, «счёт открыт».
+**Прод-URL Render: `https://onboarding-vision.onrender.com`** (дал Денис 2026-06-18). Auto-deploy из main (Aksenod2/onboarding-vision); Render free tier может уходить в cold-start — ждать/повторять. Команда E2E: Playwright против базового URL (localhost:5174 локально / прод-URL для прод-смоука). Ядро смоука: вход ИП, вход Компании (Aadhaar+пин), сессия подписанта, «счёт открыт», SPA-rewrite на прямых роутах (/company/bnq, /company/bank не 404).
 </project-specifics>

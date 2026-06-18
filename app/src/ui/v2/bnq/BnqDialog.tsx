@@ -162,7 +162,7 @@ const dict: Record<Lang, {
     q10Hint: 'Например: Russia, UAE, China',
     q11Label: 'Документ IEC (Importer Exporter Code)',
     q11Disclaimer:
-      '⚠️ Для обработки международных платежей и торговых операций SBER Банк требует ваш IEC в соответствии с нормами FEMA. Без действительного IEC мы не сможем обработать ваши трансграничные платежи. Вы можете загрузить IEC сейчас или позже в интернет-банке после открытия счёта. Загрузка позже не влияет на открытие счёта, но мы рекомендуем загрузить сейчас.',
+      '⚠️ Для обработки международных платежей и торговых операций Банк требует ваш IEC в соответствии с нормами FEMA. Без действительного IEC мы не сможем обработать ваши трансграничные платежи. Вы можете загрузить IEC сейчас или позже в интернет-банке после открытия счёта. Загрузка позже не влияет на открытие счёта, но мы рекомендуем загрузить сейчас.',
   },
   en: {
     title: 'Tell us more about your business',
@@ -213,7 +213,7 @@ const dict: Record<Lang, {
     q10Hint: 'E.g.: Russia, UAE, China',
     q11Label: 'IEC Document (Importer Exporter Code)',
     q11Disclaimer:
-      '⚠️ For processing international payments and trade transactions, your IEC is required by SberBank under FEMA regulations. Without a valid IEC, we may not be able to process your cross-border payments. You can upload your IEC document now, or upload it later through the online bank after account opening. Upload-later will not affect account opening, although we recommend uploading now.',
+      '⚠️ For processing international payments and trade transactions, your IEC is required by the Bank under FEMA regulations. Without a valid IEC, we may not be able to process your cross-border payments. You can upload your IEC document now, or upload it later through the online bank after account opening. Upload-later will not affect account opening, although we recommend uploading now.',
   },
 };
 

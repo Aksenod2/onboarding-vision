@@ -64,14 +64,14 @@ const dict: Record<
     phoneLabel: 'Телефон',
     phonePlaceholder: '00000 00000',
     cookieLabel:
-      'Sberbank Branch in India использует cookie (файлы с данными о прошлых посещениях сайта) для персонализации сервисов и удобства пользователей. Sberbank Branch in India обязуется защищать персональные данные. ',
+      'Банк использует cookie (файлы с данными о прошлых посещениях сайта) для персонализации сервисов и удобства пользователей. Банк обязуется защищать персональные данные. ',
     cookieLinkText: 'Ознакомьтесь с условиями и принципами обработки данных.',
     cookieTail: ' Вы можете запретить сохранение cookie в настройках браузера.',
     tcLabel:
-      'Настоящим я уполномочиваю Sberbank Branch in India проверить мои данные в цифровом или ином порядке по усмотрению банка.',
+      'Настоящим я уполномочиваю Банк проверить мои данные в цифровом или ином порядке по усмотрению банка.',
     privacyLabel: 'Я подтверждаю, что ознакомился с ',
     privacyTail:
-      ' и даю явное согласие на обработку моих персональных данных в целях представления моей компании в клиентских отношениях с Sberbank Branch in India и в соответствии с условиями, изложенными в вышеуказанных документах.',
+      ' и даю явное согласие на обработку моих персональных данных в целях представления моей компании в клиентских отношениях с Банком и в соответствии с условиями, изложенными в вышеуказанных документах.',
     privacyLink: 'Политикой конфиденциальности',
     ctaSend: 'Продолжить',
     ctaSending: 'Отправляем…',
@@ -95,14 +95,14 @@ const dict: Record<
     phonePlaceholder: '00000 00000',
     // Тексты согласий 1 / 2b / 3 — VERBATIM из docs/Consents — список (current).md, не редактировать
     cookieLabel:
-      'Sberbank Branch in India uses cookies (files with data about previous visits to the site) for personalization of services and convenience of users. Sberbank Branch in India is committed to protect personal data. ',
+      'The Bank uses cookies (files with data about previous visits to the site) for personalization of services and convenience of users. The Bank is committed to protect personal data. ',
     cookieLinkText: 'Please read the terms and principles of data processing.',
     cookieTail: ' You can prevent cookies from being stored in your browser settings.',
     tcLabel:
-      'I hereby authorize Sberbank Branch in India to verify my details digitally or otherwise in any manner that Sberbank Branch in India may deem fit.',
+      'I hereby authorize the Bank to verify my details digitally or otherwise in any manner that the Bank may deem fit.',
     privacyLabel: 'I acknowledge I have read ',
     privacyTail:
-      ' and hereby provide explicit consent to process my personal data for the purpose of representing my company in a client relationship with the Sberbank Branch in India and in accordance with the terms set out in the aforementioned documents.',
+      ' and hereby provide explicit consent to process my personal data for the purpose of representing my company in a client relationship with the Bank and in accordance with the terms set out in the aforementioned documents.',
     privacyLink: 'Privacy Notice',
     ctaSend: 'Continue',
     ctaSending: 'Sending…',
@@ -345,7 +345,7 @@ export const SP03Register = () => {
                     {t.cookieLabel}
                     {/* «terms and principles of data processing» — гиперссылка по канону */}
                     <ConsentLink
-                      href="https://sberbank.co.in/customer-information/privacy-notice"
+                      href="#"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -377,7 +377,7 @@ export const SP03Register = () => {
                   <CheckText>
                     {t.privacyLabel}
                     <ConsentLink
-                      href="https://sberbank.co.in/customer-information/privacy-notice#appendix_iv"
+                      href="#"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
