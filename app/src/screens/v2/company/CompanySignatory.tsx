@@ -37,8 +37,8 @@ const dict: Record<Lang, {
   vkycTitle: string; vkycSub: string; vkycConsent: string; vkycConsentDesc: string;
   ctaStartVideo: string; videoRunning: string; videoDone: string;
   // dsc
-  dscTitle: string; dscSub: string; dscDocs: { title: string; body: string }[]; dscBtn: string;
-  dscOpenHint: string; docPreviewClose: string;
+  dscTitle: string; dscSub: string; dscDocs: { title: string; desc: string; icon: string; body: string }[]; dscBtn: string;
+  dscOpenHint: string; docPreviewBtn: string; docPreviewClose: string;
   otpTitle: string; otpHint: string; otpDemo: string; otpErr: string;
   // summary (#31) — вводный экран сессии подписанта
   // summaryIntro зависит от sessionOrigin: invited (приглашён) vs initiator (сам подал заявку).
@@ -73,19 +73,26 @@ const dict: Record<Lang, {
     dscDocs: [
       {
         title: 'Board Resolution',
+        desc: 'Решение совета директоров об открытии счёта и назначении уполномоченных лиц.',
+        icon: '📄',
         body: 'РЕШЕНИЕ СОВЕТА ДИРЕКТОРОВ\n\nMehta Textiles Private Limited\nCIN: U17110MH2018PTC312045\n\nНа заседании Совета директоров принято решение:\n\n1. Открыть расчётный счёт компании в Банке.\n2. Уполномочить нижеуказанных лиц подписывать документы и распоряжаться счётом.\n3. Утвердить условия обслуживания и тарифы Банка.\n\nНастоящее решение принято единогласно и вступает в силу с даты подписания.',
       },
       {
         title: 'Заявление на открытие счёта',
+        desc: 'Заявление компании на открытие расчётного счёта с подтверждением сведений.',
+        icon: '📋',
         body: 'ЗАЯВЛЕНИЕ НА ОТКРЫТИЕ РАСЧЁТНОГО СЧЁТА\n\nПрошу открыть расчётный счёт на имя Mehta Textiles Private Limited в соответствии с предоставленными учредительными документами и сведениями.\n\nПодтверждаю достоверность предоставленных данных и согласие с правилами обслуживания и тарифами Банка.',
       },
       {
         title: 'Декларация',
+        desc: 'Декларация подписанта: достоверность сведений, полномочия, FATCA/CRS.',
+        icon: '📝',
         body: 'ДЕКЛАРАЦИЯ ПОДПИСАНТА\n\nЯ подтверждаю, что:\n\n• сведения, предоставленные мной, достоверны и полны;\n• я уполномочен(а) действовать от имени компании;\n• я ознакомлен(а) с условиями FATCA/CRS и подтверждаю налоговый статус компании;\n• я обязуюсь уведомлять Банк об изменении предоставленных сведений.',
       },
     ],
     dscBtn: 'Подписать сертификатом (DSC)',
-    dscOpenHint: 'Нажмите на документ, чтобы открыть и прочитать его перед подписанием.',
+    dscOpenHint: 'Нажмите «Просмотреть документ», чтобы открыть и прочитать его перед подписанием.',
+    docPreviewBtn: 'Просмотреть документ',
     docPreviewClose: 'Закрыть',
     otpTitle: 'Подтверждение подписи', otpHint: 'Введите ПИН вашего сертификата DSC.', otpDemo: 'Демо-ПИН: 0000', otpErr: 'Неверный ПИН. Демо: 0000.',
     summaryTitle: 'Подписание документов на открытие счёта',
@@ -129,19 +136,26 @@ const dict: Record<Lang, {
     dscDocs: [
       {
         title: 'Board Resolution',
+        desc: 'Board resolution to open the account and authorise the signatories.',
+        icon: '📄',
         body: 'BOARD RESOLUTION\n\nMehta Textiles Private Limited\nCIN: U17110MH2018PTC312045\n\nThe Board of Directors hereby resolves to:\n\n1. Open a current account for the company with the Bank.\n2. Authorise the persons named below to sign documents and operate the account.\n3. Approve the Bank’s service terms and tariffs.\n\nThis resolution is passed unanimously and is effective from the date of signing.',
       },
       {
         title: 'Account opening application',
+        desc: 'The company’s application to open a current account, confirming the data.',
+        icon: '📋',
         body: 'CURRENT ACCOUNT OPENING APPLICATION\n\nWe request to open a current account in the name of Mehta Textiles Private Limited based on the incorporation documents and information provided.\n\nWe confirm the accuracy of the data provided and our acceptance of the Bank’s service rules and tariffs.',
       },
       {
         title: 'Declaration',
+        desc: 'Signatory declaration: accuracy of data, authority, FATCA/CRS.',
+        icon: '📝',
         body: 'SIGNATORY DECLARATION\n\nI hereby confirm that:\n\n• the information provided by me is true and complete;\n• I am authorised to act on behalf of the company;\n• I am aware of the FATCA/CRS terms and confirm the company’s tax status;\n• I undertake to notify the Bank of any change to the information provided.',
       },
     ],
     dscBtn: 'Sign with certificate (DSC)',
-    dscOpenHint: 'Click a document to open and read it before signing.',
+    dscOpenHint: 'Click “Preview document” to open and read it before signing.',
+    docPreviewBtn: 'Preview document',
     docPreviewClose: 'Close',
     otpTitle: 'Confirm signature', otpHint: 'Enter the PIN of your DSC certificate.', otpDemo: 'Demo PIN: 0000', otpErr: 'Invalid PIN. Demo: 0000.',
     summaryTitle: 'Signing documents to open the account',
@@ -179,14 +193,26 @@ const QrCaption = styled.p`margin:0; text-align:center; font-size:0.82rem; color
 const spin = keyframes`to { transform: rotate(360deg); }`;
 const Spinner = styled.span`width:40px; height:40px; border-radius:50%; border:3px solid rgba(33,160,56,0.18); border-top-color:rgb(33,160,56); animation:${spin} 0.9s linear infinite; align-self:center;`;
 const WaitText = styled.p`margin:0; text-align:center; font-size:0.85rem; color:${textSecondary};`;
-const DocList = styled.div`display:flex; flex-direction:column; gap:0.6rem;`;
-// #18b — документ открываемый: клик → лайтбокс-превью. Стрелка справа подсказывает кликабельность.
-const DocItem = styled.button`
-  display:flex; align-items:center; gap:0.6rem; width:100%; text-align:left; cursor:pointer;
-  padding:0.8rem 1rem; border-radius:${radii.panel}; background:#f7f9f8; border:1px solid rgba(0,0,0,0.07);
-  font-size:0.88rem; color:${textPrimary}; ${bodySBold}; transition:border-color .15s, background .15s;
-  &:hover { border-color:${textAccent}; background:#fff; }
-  & .chev { margin-left:auto; color:${textSecondary}; font-weight:400; }
+const DocList = styled.div`display:flex; flex-direction:column; gap:0.75rem;`;
+// Документы для подписи — паттерн из Sole Proprietor (SPSign): карточка-строка с иконкой,
+// названием и кнопкой-ссылкой «Просмотреть документ» (открывает лайтбокс). НЕ аккордеон.
+const DocItem = styled.div`
+  display:flex; align-items:flex-start; gap:0.75rem;
+  padding:1rem 1.125rem; border-radius:${radii.panel};
+  background:#f7f9f8; border:1px solid rgba(0,0,0,0.07);
+`;
+const DocIconWrap = styled.div`
+  width:36px; height:36px; border-radius:8px; background:rgba(0,0,0,0.06);
+  display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0;
+`;
+const DocContent = styled.div`display:flex; flex-direction:column; gap:0.2rem;`;
+const DocTitle = styled.span`font-size:0.9rem; font-weight:600; color:${textPrimary};`;
+const DocDesc = styled.p`margin:0; font-size:0.82rem; color:${textSecondary}; line-height:1.45;`;
+const DocPreviewLink = styled.button`
+  align-self:flex-start; margin-top:0.4rem; padding:0; background:none; border:none; cursor:pointer;
+  font:inherit; font-size:0.8rem; font-weight:600; color:${textAccent};
+  text-decoration:underline; text-underline-offset:2px;
+  &:hover { opacity:0.8; }
 `;
 // Лайтбокс предпросмотра документа — паттерн из Sole Proprietor (SPSign).
 const LightboxBackdrop = styled.div`
@@ -504,13 +530,21 @@ export const CompanySignatory = () => {
           <CardHeader>{eyebrow}<Title>{t.dscTitle}</Title><Subtitle>{t.dscSub}</Subtitle></CardHeader>
           <CardBody>
             <Hint>{t.dscOpenHint}</Hint>
+            {/* Документы как карточки-кнопки (паттерн SPSign): иконка + название + «Просмотреть документ». */}
             <DocList>
               {t.dscDocs.map((d, i) => (
-                <DocItem key={d.title} type="button" onClick={() => setPreviewDoc(i)}>
-                  📄 {d.title}<span className="chev">›</span>
+                <DocItem key={d.title}>
+                  <DocIconWrap>{d.icon}</DocIconWrap>
+                  <DocContent>
+                    <DocTitle>{d.title}</DocTitle>
+                    <DocDesc>{d.desc}</DocDesc>
+                    <DocPreviewLink type="button" onClick={() => setPreviewDoc(i)}>{t.docPreviewBtn}</DocPreviewLink>
+                  </DocContent>
                 </DocItem>
               ))}
             </DocList>
+            {/* Присяга необратимости перед подписанием (BRD): после DSC данные изменить нельзя. */}
+            {!otpPhase && <SignOath><span className="ic">🔒</span>{t.signOath}</SignOath>}
             {!otpPhase && <ButtonRowEnd><Button view="accent" size="l" text={t.dscBtn} onClick={onSign} /></ButtonRowEnd>}
             {otpPhase && (
               <>
