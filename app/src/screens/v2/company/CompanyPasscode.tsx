@@ -20,8 +20,9 @@ import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './compan
 // Роут: /company/passcode → /company/pan
 
 const dict: Record<Lang, {
-  enterTitle: string; subtitle: string;
-  repeatTitle: string;
+  pageTitle: string; subtitle: string;
+  stepEnter: string; stepRepeat: string;
+  promptEnter: string; promptRepeat: string;
   loginLabel: string;
   demoHint: string;
   mismatch: string;
@@ -29,9 +30,15 @@ const dict: Record<Lang, {
   cta: string; creating: string; createdToast: string;
 }> = {
   ru: {
-    enterTitle: 'Придумайте пин-код',
+    // Единый заголовок на весь шаг — НЕ меняется при enter→repeat (одна страница, не два экрана).
+    pageTitle: 'Создание пин-кода',
     subtitle: 'Пин-код из 4 цифр — он же код для входа в интернет-банк. Логин привязан к вашему email из Aadhaar.',
-    repeatTitle: 'Повторите пин-код',
+    // Индикатор «N из 2» над полем — видно, что repeat не «то же поле снова».
+    stepEnter: 'Шаг 1 из 2',
+    stepRepeat: 'Шаг 2 из 2',
+    // Инструкция — в лейбле НАД полем, не в Title.
+    promptEnter: 'Придумайте пин-код',
+    promptRepeat: 'Повторите ещё раз',
     loginLabel: 'Логин (email из Aadhaar):',
     demoHint: 'Для демо подойдёт любой пин из 4 цифр',
     mismatch: 'Пин-коды не совпадают. Повторите ввод.',
@@ -41,9 +48,12 @@ const dict: Record<Lang, {
     createdToast: 'Личный кабинет создан',
   },
   en: {
-    enterTitle: 'Create a passcode',
+    pageTitle: 'Create a passcode',
     subtitle: 'A 4-digit passcode — it is also your internet-bank login code. Your login is tied to the email from Aadhaar.',
-    repeatTitle: 'Repeat the passcode',
+    stepEnter: 'Step 1 of 2',
+    stepRepeat: 'Step 2 of 2',
+    promptEnter: 'Choose a passcode',
+    promptRepeat: 'Repeat it once more',
     loginLabel: 'Login (email from Aadhaar):',
     demoHint: 'For the demo any 4-digit passcode works',
     mismatch: 'Passcodes do not match. Please re-enter.',
@@ -54,8 +64,15 @@ const dict: Record<Lang, {
   },
 };
 
-const FieldBlock = styled.div`display:flex; flex-direction:column; gap:0.5rem;`;
+const FieldBlock = styled.div`display:flex; flex-direction:column; gap:0.5rem; align-items:center;`;
 const CodeWrap = styled.div`display:flex; justify-content:center;`;
+// Индикатор «Шаг N из 2» — над полем, чтобы repeat не выглядел как «то же поле снова».
+const StepBadge = styled.span`
+  font-size:0.72rem; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
+  color:#1a7a28; background:rgba(33,160,56,0.1); border-radius:0.5rem; padding:0.2rem 0.6rem;
+`;
+// Инструкция над полем («Придумайте пин-код» / «Повторите ещё раз») — лейбл, не Title.
+const FieldPrompt = styled.p`margin:0; ${bodyM}; font-size:0.95rem; font-weight:600; text-align:center; color:${textPrimary};`;
 const DemoNote = styled.p`margin:0; ${bodyM}; font-size:0.78rem; text-align:center; color:${textSecondary}; opacity:0.7;`;
 const LoginRow = styled.p`margin:0; font-size:0.85rem; color:${textPrimary}; .label { color:${textSecondary}; margin-right:0.35rem; }`;
 const spin = keyframes`to { transform: rotate(360deg); }`;
@@ -124,7 +141,7 @@ export const CompanyPasscode = () => {
     return (
       <ScreenV2>
         <Card>
-          <CardHeader><Title>{t.enterTitle}</Title><Subtitle>{t.subtitle}</Subtitle></CardHeader>
+          <CardHeader><Title>{t.pageTitle}</Title><Subtitle>{t.subtitle}</Subtitle></CardHeader>
           <CardBody><Spinner /><WaitText>{t.creating}</WaitText></CardBody>
         </Card>
       </ScreenV2>
@@ -135,7 +152,8 @@ export const CompanyPasscode = () => {
     <ScreenV2>
       <Card>
         <CardHeader>
-          <Title>{subStep === 'enter' ? t.enterTitle : t.repeatTitle}</Title>
+          {/* Единый заголовок на весь шаг — не меняется при enter→repeat. */}
+          <Title>{t.pageTitle}</Title>
           {/* Subtitle про email — только на под-шаге «придумайте». */}
           {subStep === 'enter' && <Subtitle>{t.subtitle}</Subtitle>}
         </CardHeader>
@@ -145,6 +163,9 @@ export const CompanyPasscode = () => {
           )}
 
           <FieldBlock>
+            {/* Индикатор шага + инструкция над полем — повтор виден как отдельный шаг. */}
+            <StepBadge>{subStep === 'enter' ? t.stepEnter : t.stepRepeat}</StepBadge>
+            <FieldPrompt>{subStep === 'enter' ? t.promptEnter : t.promptRepeat}</FieldPrompt>
             <CodeWrap>
               {/* КРИТИЧНО (Костя): один смонтированный CodeField; разные key в ветках; сброс — ремоунтом. */}
               {subStep === 'enter' ? (

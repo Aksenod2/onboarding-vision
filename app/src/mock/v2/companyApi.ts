@@ -191,6 +191,18 @@ export const setUboDeclared = (declared: boolean): Promise<void> => {
   return delay(undefined);
 };
 
+// Раздел UBO правился вручную (добавлен/изменён бенефициар не из реестра) → modified → в DVU.
+export const setUboModified = (modified: boolean): Promise<void> => {
+  state.uboModified = modified;
+  return delay(undefined);
+};
+
+// Загрузить Shareholding Pattern (заверен CA, действующий UDIN) — один на весь раздел UBO.
+export const uploadUboShareholdingDoc = (fileName: string): Promise<void> => {
+  state.uboShareholdingDoc = { fileName };
+  return delay(undefined);
+};
+
 export const setFatca = (classification: FatcaClassification, taxResidency: string): Promise<void> => {
   state.fatcaClassification = classification;
   state.taxResidency = taxResidency;
@@ -288,6 +300,41 @@ export const signByDsc = (id: string): Promise<Signatory[]> => {
       ? { ...s, signature: { signed: true, method: 'DSC', timestamp: ts }, currentStep: 'vkyc', status: 'in_progress' }
       : s,
   );
+  return delay(state.signatories);
+};
+
+// --- Демо-симуляция живого мониторинга ---
+// Линейная цепочка прогресса подписанта (для авто-продвижения по Refresh).
+const STEP_CHAIN: SignatoryStep[] = ['waiting', 'consents', 'aadhaar', 'vkyc', 'dsc-sign', 'done'];
+
+// Продвинуть всех ещё не завершённых подписантов фазы B на следующий этап.
+// Демо: каждый клик «Обновить статусы» двигает не-done подписантов вперёд.
+// Чтобы выглядело «вживую» (вразнобой), на первом продвижении даём головной
+// старт первому подписанту в списке — так за 2–3 клика картина: один done,
+// другой в процессе, третий ждёт. Через несколько кликов — все done.
+let advanceTick = 0;
+export const advanceSignatories = (): Promise<Signatory[]> => {
+  advanceTick += 1;
+  state.signatories = state.signatories.map((s, idx) => {
+    if (!goesThroughPhaseB(s) || s.status === 'done') return s;
+    const cur = STEP_CHAIN.indexOf(s.currentStep);
+    const base = cur < 0 ? 0 : cur;
+    // Лёгкий разнобой: первый клик двигает «верхних» в списке на шаг больше.
+    const boost = advanceTick === 1 && idx === 0 ? 2 : 1;
+    const nextIdx = Math.min(base + boost, STEP_CHAIN.length - 1);
+    const step = STEP_CHAIN[nextIdx];
+    const status: Signatory['status'] =
+      step === 'done' ? 'done' : step === 'waiting' ? 'waiting' : 'in_progress';
+    // Дотягиваем артефакты, чтобы карточка/детали были консистентны при done.
+    const signature = step === 'done' || base >= STEP_CHAIN.indexOf('dsc-sign')
+      ? { signed: true as const, method: 'DSC' as const, timestamp: nowIST() }
+      : s.signature;
+    const vcip = step === 'done' || base >= STEP_CHAIN.indexOf('vkyc')
+      ? { ...s.vcip, status: 'Passed' as const }
+      : s.vcip;
+    return { ...s, currentStep: step, status, signature, vcip };
+  });
+  recomputeCompletion();
   return delay(state.signatories);
 };
 

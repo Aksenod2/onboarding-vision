@@ -8,7 +8,7 @@ import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import { useCompany } from '../../../ui/v2/CompanyContext';
-import { getCompanyCase, remindSignatory, uploadDvuDocument } from '../../../mock/v2/companyApi';
+import { getCompanyCase, remindSignatory, uploadDvuDocument, advanceSignatories } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { CompanyCaseV2, Signatory, SignatoryStep } from '../../../mock/v2/companyTypes';
 
@@ -173,8 +173,21 @@ export const CompanyDashboard = () => {
   const [toast, setToast] = useState<string | null>(null);
   const [dvuUploading, setDvuUploading] = useState(false); // #34
 
-  const load = () => getCompanyCase().then(setData);
+  // getCompanyCase() резолвит ОДИН и тот же mock-объект state (общий reference).
+  // setData(тот же reference) → React.memo bail-out, ре-рендера нет, продвинутые
+  // статусы не видны. Поэтому создаём новый объект + новый массив signatories —
+  // и обычная загрузка, и refresh идут через этот reference-safe вариант.
+  const load = () =>
+    getCompanyCase().then((c) => setData({ ...c, signatories: [...c.signatories] }));
   useEffect(() => { load(); }, []);
+
+  // «Обновить статусы» — демо-симуляция живого мониторинга: продвигаем
+  // не завершённых подписантов на следующий этап, затем перечитываем кейс
+  // (подхватит status=Completed, когда все done → блок «Счёт открыт»).
+  const refresh = async () => {
+    await advanceSignatories();
+    await load();
+  };
 
   const flashToast = (msg: string) => {
     setToast(msg);
@@ -254,7 +267,7 @@ export const CompanyDashboard = () => {
 
       <SectionHead>
         <SectionTitle>{t.signatories}</SectionTitle>
-        <Button view="clear" size="s" text={t.refresh} onClick={load} />
+        <Button view="clear" size="s" text={t.refresh} onClick={refresh} />
       </SectionHead>
       {!done && <Hint>{t.hint}</Hint>}
       <List>

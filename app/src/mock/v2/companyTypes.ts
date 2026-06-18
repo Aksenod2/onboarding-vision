@@ -14,7 +14,7 @@ export type Role =
   | 'CustomerRepresentative' // заполнитель/инициатор заявки (термин Дениса)
   | 'Director' // директор компании (подписывает BR)
   | 'AuthorizedSignatory' // распоряжается счётом (Admin role); по BRD — обычно один из директоров
-  | 'UBO'; // бенефициар >10%
+  | 'UBO'; // бенефициар ≥25%
 
 // Тип юрлица сценария Company (EntityType в types.ts остаётся 'Sole Proprietorship' для SP).
 export type CompanyEntityType = 'Company';
@@ -133,6 +133,10 @@ export interface CompanyCaseV2 {
   // --- Бизнес-профиль (BRD #8): UBO-декларация + FATCA/CRS-классификация ---
   ubo: Ubo[];
   uboDeclared: boolean; // представитель подтвердил, что указаны все UBO ≥ 25%
+  // BRD: ручное добавление/правка UBO требует Shareholding Pattern (заверен CA, действующий UDIN)
+  // — ОДИН документ на весь раздел UBO. Правка помечает раздел modified → уходит в DVU.
+  uboModified?: boolean; // в раздел UBO внесены ручные правки (добавлен/изменён бенефициар не из реестра)
+  uboShareholdingDoc?: { fileName: string }; // загруженный Shareholding Pattern (CA, UDIN); undefined — не загружен
   fatcaClassification: FatcaClassification;
   taxResidency: string; // страна налогового резидентства компании (по умолчанию India)
   // #34 — догрузка документа по обратному запросу банка (DVU). null — запроса нет.

@@ -13,6 +13,7 @@ import {
   getCompany, getSignatories, getUbo, confirmCompanyData,
   updateCompanyData, addUbo, updateUbo, removeUbo, setUboDeclared, setFatca,
   getCompanyDocuments, uploadCompanyDocument, replaceCompanyDocument,
+  setUboModified, uploadUboShareholdingDoc,
 } from '../../../mock/v2/companyApi';
 import { roleLabel } from '../../../mock/v2/companyTypes';
 import type { CompanyDetails, Signatory, Ubo, FatcaClassification, CompanyDocument } from '../../../mock/v2/companyTypes';
@@ -36,6 +37,9 @@ const dict: Record<Lang, {
   uboShare: string; uboPan: string; uboName: string;
   uboAdd: string; uboRemove: string;
   uboDeclare: string;
+  // BRD — ручные правки UBO: Shareholding Pattern (CA, UDIN) + маркер DVU
+  uboDocTitle: string; uboDocHint: string; uboDocUpload: string; uboDocUploading: string; uboDocUploaded: string;
+  uboDvuNote: string;
   sectionFatca: string; fatcaHint: string;
   fatcaOpts: Record<FatcaClassification, string>;
   taxResidency: string;
@@ -64,13 +68,19 @@ const dict: Record<Lang, {
     },
     correspondencePlaceholder: 'Если отличается от юридического',
     sectionUbo: 'Бенефициарные владельцы (UBO)',
-    uboHint: 'Лица с долей владения свыше 10%. Подтянуты из данных компании — проверьте и дополните при необходимости.',
+    uboHint: 'Лица с долей владения 25% и более. Подтянуты из данных компании — проверьте и дополните при необходимости.',
     uboShare: 'Доля, %',
     uboPan: 'PAN',
     uboName: 'ФИО',
     uboAdd: '+ Добавить бенефициара',
     uboRemove: 'Удалить',
-    uboDeclare: 'Подтверждаю, что указаны все бенефициары с долей свыше 10%',
+    uboDeclare: 'Подтверждаю, что указаны все бенефициары с долей 25% и более',
+    uboDocTitle: 'Shareholding Pattern (CA, UDIN)',
+    uboDocHint: 'Загрузите Shareholding Pattern, заверенный аудитором (CA), с действующим номером UDIN. Один документ на весь раздел бенефициаров.',
+    uboDocUpload: 'Выбрать файл',
+    uboDocUploading: 'Загрузка…',
+    uboDocUploaded: 'Загружено',
+    uboDvuNote: 'Раздел бенефициаров изменён вручную — он уйдёт на проверку специалисту банка (DVU). На решение по счёту это обычно не влияет.',
     sectionFatca: 'FATCA / CRS',
     fatcaHint: 'Налоговая классификация компании для обмена налоговой информацией. Для торговой компании-резидента Индии обычно Active NFFE.',
     fatcaOpts: {
@@ -109,13 +119,19 @@ const dict: Record<Lang, {
     },
     correspondencePlaceholder: 'If different from registered address',
     sectionUbo: 'Ultimate Beneficial Owners (UBO)',
-    uboHint: 'Persons holding more than 10%. Pulled from company data — review and add if needed.',
+    uboHint: 'Persons holding 25% or more. Pulled from company data — review and add if needed.',
     uboShare: 'Share, %',
     uboPan: 'PAN',
     uboName: 'Full name',
     uboAdd: '+ Add beneficiary',
     uboRemove: 'Remove',
-    uboDeclare: 'I confirm that all beneficial owners holding more than 10% are listed',
+    uboDeclare: 'I confirm that all beneficial owners holding 25% or more are listed',
+    uboDocTitle: 'Shareholding Pattern (CA, UDIN)',
+    uboDocHint: 'Upload the Shareholding Pattern certified by a Chartered Accountant (CA) with a valid UDIN. One document for the whole beneficiaries section.',
+    uboDocUpload: 'Choose file',
+    uboDocUploading: 'Uploading…',
+    uboDocUploaded: 'Uploaded',
+    uboDvuNote: 'The beneficiaries section was edited manually — it will be sent for review by a bank specialist (DVU). This usually does not affect the account decision.',
     sectionFatca: 'FATCA / CRS',
     fatcaHint: 'Company tax classification for tax-information exchange. A trading company resident in India is usually an Active NFFE.',
     fatcaOpts: {
@@ -189,6 +205,15 @@ const AddBtn = styled.button`
   padding:0.6rem 1rem; border-radius:${radii.panel}; transition:border-color .15s, background .15s;
   &:hover { border-color:${textAccent}; background:rgba(33,160,56,0.04); }
 `;
+// DVU-маркер раздела (ручные правки уходят на проверку). Нейтральная инфо-плашка, НЕ warning/оранж
+// (по гайду: загрузка/проверка ≠ ошибка). Тот же паттерн, что InfoNote в CompanySignatoriesBr.
+const UboDvuNote = styled.div`
+  padding:0.85rem 1rem; border-radius:${radii.panel};
+  background:rgba(0,0,0,0.03); border:1px solid rgba(0,0,0,0.1);
+  font-size:0.82rem; color:${textSecondary}; line-height:1.5;
+  display:flex; gap:0.5rem; align-items:flex-start;
+  &::before { content:'ℹ'; flex-shrink:0; color:${textSecondary}; }
+`;
 
 // Радио-карточка FATCA (паттерн BR-опций).
 const RadioCard = styled.label<{ $selected: boolean }>`
@@ -260,18 +285,29 @@ export const CompanyConfirm = () => {
   const [docs, setDocs] = useState<CompanyDocument[]>([]);
   const [docPhase, setDocPhase] = useState<Record<string, DocUploadPhase>>({});
 
+  // BRD — Shareholding Pattern (CA, UDIN), один на раздел UBO; нужен при ручных правках UBO.
+  const [uboDocFile, setUboDocFile] = useState<string | null>(null);
+  const [uboDocPhase, setUboDocPhase] = useState<DocUploadPhase>('idle');
+  // Снимок исходных (предзаполненных) значений UBO — чтобы отличить правку от исходного состояния.
+  const [uboBaseline, setUboBaseline] = useState<Record<string, { fullName: string; sharePct: string; pan: string }>>({});
+
   useEffect(() => {
     getCompany().then((c) => {
       setCompany(c);
       setCorrespondenceDraft(c.correspondenceAddress ?? '');
     });
     getSignatories().then(setSignatories);
-    getUbo().then((list) =>
-      setUboRows(list.map((u) => ({
+    getUbo().then((list) => {
+      const rows = list.map((u) => ({
         id: u.id, fullName: u.fullName, sharePct: String(u.sharePct), pan: u.pan,
         prefilled: u.source === 'registry',
-      }))),
-    );
+      }));
+      setUboRows(rows);
+      // Базовый снимок предзаполненных строк — для детекта ручной правки.
+      const base: Record<string, { fullName: string; sharePct: string; pan: string }> = {};
+      rows.forEach((r) => { if (r.prefilled) base[r.id] = { fullName: r.fullName, sharePct: r.sharePct, pan: r.pan }; });
+      setUboBaseline(base);
+    });
     getCompanyDocuments().then(setDocs);
   }, []);
 
@@ -336,10 +372,30 @@ export const CompanyConfirm = () => {
     }
   };
 
+  // Раздел UBO правился вручную, если есть строка не из реестра ИЛИ предзаполненная строка изменена.
+  const uboModified = uboRows.some((r) => {
+    if (!r.prefilled) return true;
+    const b = uboBaseline[r.id];
+    return !b || b.fullName !== r.fullName || b.sharePct !== r.sharePct || b.pan !== r.pan;
+  });
+  // При ручных правках нужен Shareholding Pattern; без него раздел незавершён и CTA блокируется.
+  const uboDocNeeded = uboModified;
+  const uboDocMissing = uboDocNeeded && !uboDocFile;
+
+  const handleUploadUboDoc = async () => {
+    setUboDocPhase('uploading');
+    const fileName = 'shareholding-pattern-ca-udin.pdf';
+    await uploadUboShareholdingDoc(fileName);
+    setUboDocFile(fileName);
+    setUboDocPhase('idle');
+  };
+
   const handleConfirm = async () => {
+    if (uboDocMissing) return; // защита — CTA и так disabled
     try {
       await persistUbo();
       await setUboDeclared(declared);
+      await setUboModified(uboModified);
       await setFatca(fatca, taxRes);
       await confirmCompanyData();
     } catch (_) { /* игнорируем — демо */ }
@@ -466,6 +522,32 @@ export const CompanyConfirm = () => {
               </UboCard>
             ))}
             <AddBtn type="button" onClick={handleAddUbo}>{t.uboAdd}</AddBtn>
+
+            {/* Ручные правки UBO → нужен Shareholding Pattern (CA, UDIN), один на раздел.
+                + нейтральный маркер «уйдёт в DVU». Предзаполненные из Probe42 документа не требуют. */}
+            {uboDocNeeded && (
+              <>
+                <UboDvuNote>{t.uboDvuNote}</UboDvuNote>
+                <DocRow>
+                  <DocInfo>
+                    <DocName>{t.uboDocTitle}</DocName>
+                    {uboDocFile
+                      ? <DocUploaded>{t.uboDocUploaded}{` · ${uboDocFile}`}</DocUploaded>
+                      : <DocReq>{t.docRequired}</DocReq>}
+                  </DocInfo>
+                  {!uboDocFile && (
+                    <Button
+                      view="secondary" size="s"
+                      text={uboDocPhase === 'uploading' ? t.uboDocUploading : t.uboDocUpload}
+                      disabled={uboDocPhase === 'uploading'}
+                      onClick={handleUploadUboDoc}
+                    />
+                  )}
+                </DocRow>
+                <Hint>{t.uboDocHint}</Hint>
+              </>
+            )}
+
             <ConsentRow>
               <Checkbox
                 label={t.uboDeclare}
@@ -539,7 +621,7 @@ export const CompanyConfirm = () => {
 
           <ButtonRow>
             <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/signatories-br')} />
-            <Button view="accent" size="l" text={t.cta} disabled={!respGate} onClick={handleConfirm} />
+            <Button view="accent" size="l" text={t.cta} disabled={!respGate || uboDocMissing} onClick={handleConfirm} />
           </ButtonRow>
         </CardBody>
       </Card>
