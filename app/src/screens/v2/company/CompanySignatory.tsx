@@ -95,10 +95,10 @@ const dict: Record<Lang, {
     docPreviewBtn: 'Просмотреть документ',
     docPreviewClose: 'Закрыть',
     otpTitle: 'Подтверждение подписи', otpHint: 'Введите ПИН вашего сертификата DSC.', otpDemo: 'Демо-ПИН: 0000', otpErr: 'Неверный ПИН. Демо: 0000.',
-    summaryTitle: 'Подписание документов на открытие счёта',
+    summaryTitle: 'Подписание банковских документов',
     summaryIntro: {
-      invited: 'Вас пригласили на площадку Банка для подписания документов на открытие счёта. Вам потребуется:',
-      initiator: 'Вы — инициатор заявки. Подпишите свои документы на открытие счёта. Вам потребуется:',
+      invited: 'Вас пригласили на площадку Банка для подписания банковских документов. Вам потребуется:',
+      initiator: 'Вы — инициатор заявки. Подпишите свои банковские документы. Вам потребуется:',
     },
     summarySteps: [
       'подтвердить личность через Aadhaar;',
@@ -158,10 +158,10 @@ const dict: Record<Lang, {
     docPreviewBtn: 'Preview document',
     docPreviewClose: 'Close',
     otpTitle: 'Confirm signature', otpHint: 'Enter the PIN of your DSC certificate.', otpDemo: 'Demo PIN: 0000', otpErr: 'Invalid PIN. Demo: 0000.',
-    summaryTitle: 'Signing documents to open the account',
+    summaryTitle: 'Signing banking documents',
     summaryIntro: {
-      invited: 'You have been invited to the Bank’s platform to sign the documents for opening an account. You will need to:',
-      initiator: 'You are the applicant. Please sign your documents for opening the account. You will need to:',
+      invited: 'You have been invited to the Bank’s platform to sign the banking documents. You will need to:',
+      initiator: 'You are the applicant. Please sign your banking documents. You will need to:',
     },
     summarySteps: [
       'verify your identity via Aadhaar;',

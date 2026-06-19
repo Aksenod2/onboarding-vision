@@ -10,7 +10,7 @@ import { COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible } from 
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
-  getSignatories, getBoardResolution, confirmBoardResolution,
+  getSignatories, getBoardResolution, getCompany, confirmBoardResolution,
   setBoardResolutionSource, setBrSignerConfig, setBrSignerContacts,
   setAsFromDirector, setAsNewPerson,
 } from '../../../mock/v2/companyApi';
@@ -39,9 +39,11 @@ const dict: Record<Lang, {
   asNameLabel: string; asPanLabel: string; asPanError: string;
   secGovTitle: string; govLabel: string; govPlaceholder: string; govHelper: string;
   govNominated: string; govDecision: string; govResolutionText: string;
+  govNominatedDesc: string; govDecisionDesc: string;
   secBrTitle: string;
   brTemplateTitle: string; brTemplateNote: string;
-  brViewResolution: string; brResolutionTitle: string; brResolutionBody: string; brResolutionClose: string;
+  brDocHeader: string; brGovHeading: string; brGovPending: string;
+  brViewResolution: string; brExpand: string; brResolutionTitle: string; brResolutionBody: string; brResolutionClose: string;
   brUploadLink: string; brPickFile: string; brRecognizing: string; brRecognized: string; brDvuNote: string;
   back: string; cta: string;
 }> = {
@@ -55,14 +57,14 @@ const dict: Record<Lang, {
     signerDirectorsDesc: 'Решение подписывают как минимум двое директоров.',
     signerSecretary: 'Один Company Secretary (singly)',
     signerSecretaryDesc: 'Решение подписывает один секретарь компании.',
-    directorsHint: 'Выбраны из реестра (Probe42). Отметьте минимум двоих — на каждого укажите email и телефон.',
+    directorsHint: 'Заполнено автоматически из официальных данных компании. Отметьте минимум двоих — на каждого укажите email и телефон.',
     minTwoError: 'Выберите минимум двух директоров.',
     secNameLabel: 'ФИО секретаря',
     emailLabel: 'Email',
     phoneLabel: 'Телефон',
     emailError: 'Укажите email',
     phoneError: 'Укажите телефон',
-    fromRegistry: 'из реестра',
+    fromRegistry: 'автоматически',
     secAsTitle: 'Authorised Signatory (распоряжается)',
     asHint: 'Authorised Signatory распоряжается продуктами банка от имени компании. Он один.',
     asFromDirectors: 'Назначить из директоров',
@@ -79,10 +81,16 @@ const dict: Record<Lang, {
     govNominated: 'Nominated Authorized Official of the Company',
     govDecision: 'Decision Pursuant based on Board Resolution',
     govResolutionText: 'РЕШЕНО, что Совет директоров настоящим уполномочивает, что любое добавление, изменение или исключение уполномоченных должностных лиц / подписантов для распоряжения банковским(и) счётом(ами) компании производится исключительно в соответствии с выбранным вариантом (1) Nominated Authorized Official of the Company или 2) Decision Pursuant based on Board Resolution), и Банк настоящим уполномочен исполнять такие изменения и придавать им силу при подаче через допустимые онлайн-каналы интернет-банка или офлайн-каналы; такие изменения действительны и обязательны для компании.',
+    govNominatedDesc: 'Сменить уполномоченного подписанта в будущем сможет назначенное уполномоченное лицо компании — без нового решения совета директоров. Быстрее, но полномочие по смене закрепляется за этим лицом.',
+    govDecisionDesc: 'Любая смена уполномоченного подписанта оформляется новым решением совета директоров. Дольше, но каждое изменение проходит через совет.',
     secBrTitle: 'Документ Board Resolution',
     brTemplateTitle: 'Документ формируется по шаблону банка',
     brTemplateNote: 'Форма Board Resolution будет сгенерирована и подписана участниками по DSC в их персональных сессиях.',
+    brDocHeader: 'Board Resolution',
+    brGovHeading: 'Governance for Authorised Signatory changes',
+    brGovPending: '(вариант смены подписанта будет подставлен после выбора выше)',
     brViewResolution: 'Посмотреть Board Resolution',
+    brExpand: 'Развернуть на весь экран',
     brResolutionTitle: 'Board Resolution — текст решения',
     brResolutionBody:
       'РЕШЕНО, что компания [заполняется автоматически] настоящим уполномочена устанавливать и поддерживать банковские отношения с Банком и пользоваться такими банковскими продуктами, услугами, инструментами и механизмами, какие могут потребоваться время от времени.\n\n' +
@@ -109,14 +117,14 @@ const dict: Record<Lang, {
     signerDirectorsDesc: 'The resolution is signed by at least two directors.',
     signerSecretary: 'One Company Secretary (singly)',
     signerSecretaryDesc: 'The resolution is signed by a single company secretary.',
-    directorsHint: 'Selected from the registry (Probe42). Tick at least two — provide email and phone for each.',
+    directorsHint: 'Auto-filled from the company’s official data. Tick at least two — provide email and phone for each.',
     minTwoError: 'Select at least two directors.',
     secNameLabel: 'Secretary full name',
     emailLabel: 'Email',
     phoneLabel: 'Phone',
     emailError: 'Enter an email',
     phoneError: 'Enter a phone',
-    fromRegistry: 'from registry',
+    fromRegistry: 'auto-filled',
     secAsTitle: 'Authorised Signatory (operates products)',
     asHint: 'The Authorised Signatory operates the bank’s products on behalf of the company. There is exactly one.',
     asFromDirectors: 'Appoint from directors',
@@ -133,10 +141,16 @@ const dict: Record<Lang, {
     govNominated: 'Nominated Authorized Official of the Company',
     govDecision: 'Decision Pursuant based on Board Resolution',
     govResolutionText: 'RESOLVED THAT the Board hereby authorises that any addition, modification, or removal of Authorized Officials / Signatories for operating the Company’s bank account(s) shall be effected solely in accordance with the option selected (1) Nominated Authorized Official of the Company or 2) Decision Pursuant based on Board Resolution), and the Bank is hereby authorized to act upon and give effect to such changes when submitted through permitted online Internet banking or offline channels, which shall be valid and binding on the Company.',
+    govNominatedDesc: 'In the future, a nominated authorized official of the company can change the Authorised Signatory — without a new board resolution. Faster, but the authority to make changes rests with that official.',
+    govDecisionDesc: 'Any change of the Authorised Signatory is made by a new board resolution. Slower, but every change goes through the board.',
     secBrTitle: 'Board Resolution document',
     brTemplateTitle: 'The document is generated from the bank template',
     brTemplateNote: 'The Board Resolution form will be generated and signed by participants via DSC in their personal sessions.',
+    brDocHeader: 'Board Resolution',
+    brGovHeading: 'Governance for Authorised Signatory changes',
+    brGovPending: '(the signatory-change option will be inserted after you choose above)',
     brViewResolution: 'View Board Resolution',
+    brExpand: 'Expand to full screen',
     brResolutionTitle: 'Board Resolution — resolution text',
     brResolutionBody:
       'RESOLVED THAT the Company [ auto-populated ] be and is hereby authorized to establish and maintain banking relationships with the Bank and to avail such banking products, services, facilities, and arrangements as may be required from time to time.\n\n' +
@@ -193,6 +207,26 @@ const TemplateBox = styled.div`
 `;
 const TemplateTitle = styled.span`${bodySBold}; color:${textPrimary}; font-size:0.9rem;`;
 const TemplateNote = styled.span`font-size:0.82rem; color:${textSecondary}; line-height:1.5;`;
+
+// Inline-«лист» Board Resolution — сам документ всегда виден на экране (замысел Марго «вести по борде»).
+// Белый лист с прокруткой внутри, чтобы не растягивать экран на весь объём текста.
+const InlineDoc = styled.div`
+  ${enter(0)}; display:flex; flex-direction:column; gap:0.9rem;
+  padding:1.5rem 1.75rem; border-radius:${radii.panel};
+  background:#fff; border:1px solid rgba(0,0,0,0.12);
+  max-height:360px; overflow-y:auto;
+  &:focus-visible { outline:2px solid ${textAccent}; outline-offset:2px; }
+`;
+const InlineDocHeader = styled.div`font-size:0.78rem; color:${textSecondary}; letter-spacing:0.02em;`;
+const InlineDocBody = styled.p`
+  margin:0; font-size:0.85rem; line-height:1.65; color:${textPrimary};
+  white-space:pre-line; /* verbatim-текст резолюции с абзацами */
+`;
+const InlineDocGov = styled.div`
+  display:flex; flex-direction:column; gap:0.4rem;
+  padding-top:0.9rem; border-top:1px solid rgba(0,0,0,0.08);
+`;
+const InlineDocGovHeading = styled.span`${bodySBold}; color:${textPrimary}; font-size:0.82rem;`;
 // «Посмотреть шаблон» / «upload your own» — нейтральные ссылки (не конкурируют с зелёным CTA).
 const LinkBtn = styled.button`
   align-self:flex-start; border:none; background:none; cursor:pointer;
@@ -243,6 +277,8 @@ export const CompanySignatoriesBr = () => {
   const t = dict[lang];
 
   const [signatories, setSignatories] = useState<Signatory[]>([]);
+  // Реквизиты компании для шапки inline-листа BR (mock из Probe-данных).
+  const [companyHeader, setCompanyHeader] = useState({ legalName: '', legalType: '' });
 
   // СЕКЦИЯ 1 — кто подписывает BR
   const [signerMode, setSignerMode] = useState<BrSignerMode>('directors');
@@ -268,8 +304,10 @@ export const CompanySignatoriesBr = () => {
   const [showErrors, setShowErrors] = useState(false);
 
   useEffect(() => {
-    Promise.all([getSignatories(), getBoardResolution()]).then(([list, br]) => {
+    Promise.all([getSignatories(), getBoardResolution(), getCompany()]).then(([list, br, company]) => {
       setSignatories(list);
+      // «Private Limited» — человеческий тип для шапки листа (entityType в mock = 'Company').
+      setCompanyHeader({ legalName: company.legalName, legalType: 'Private Limited' });
       const directors = list.filter((s) => s.roles.includes('Director'));
       // дефолт: подписывают все директора из реестра
       setPickedSigners(new Set(directors.map((s) => s.id)));
@@ -378,6 +416,15 @@ export const CompanySignatoriesBr = () => {
     { value: 'nominated-official', label: t.govNominated },
     { value: 'decision-pursuant-br', label: t.govDecision },
   ];
+
+  // Короткое пояснение ИМЕННО выбранной governance-опции (под дропдауном, Р2).
+  const govDesc =
+    governance === 'nominated-official' ? t.govNominatedDesc :
+    governance === 'decision-pursuant-br' ? t.govDecisionDesc : '';
+  // Подпись выбранной опции для inline-листа BR (полный юр-текст governance + выбор).
+  const govPickedLabel =
+    governance === 'nominated-official' ? t.govNominated :
+    governance === 'decision-pursuant-br' ? t.govDecision : '';
 
   const progress = <StepProgress currentStepId="co-signatories-br" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;
 
@@ -560,7 +607,7 @@ export const CompanySignatoriesBr = () => {
               value={governance}
               onChange={(value: string) => setGovernance(value as GovernanceOption)}
             />
-            {governance !== '' && <Hint>{t.govResolutionText}</Hint>}
+            {govDesc && <Hint>{govDesc}</Hint>}
           </Section>
 
           {/* СЕКЦИЯ 4 — документ BR: шаблон-дефолт + upload мелко */}
@@ -572,7 +619,17 @@ export const CompanySignatoriesBr = () => {
                   <TemplateTitle>{t.brTemplateTitle}</TemplateTitle>
                   <TemplateNote>{t.brTemplateNote}</TemplateNote>
                 </TemplateBox>
-                <Button view="clear" size="s" text={t.brViewResolution} onClick={() => setShowResolution(true)} />
+                {/* Inline-«лист» BR: всегда виден, прокрутка внутри, отражает выбор governance. */}
+                <InlineDoc tabIndex={0} role="document" aria-label={t.brResolutionTitle}>
+                  <InlineDocHeader>{t.brDocHeader} · {companyHeader.legalType} · {companyHeader.legalName}</InlineDocHeader>
+                  <InlineDocBody>{t.brResolutionBody}</InlineDocBody>
+                  <InlineDocGov>
+                    <InlineDocGovHeading>{t.brGovHeading}</InlineDocGovHeading>
+                    <InlineDocBody>{t.govResolutionText}</InlineDocBody>
+                    <InlineDocBody>{govPickedLabel ? govPickedLabel : t.brGovPending}</InlineDocBody>
+                  </InlineDocGov>
+                </InlineDoc>
+                <LinkBtn type="button" onClick={() => setShowResolution(true)}>{t.brExpand}</LinkBtn>
                 <LinkBtn type="button" onClick={onShowUpload}>{t.brUploadLink}</LinkBtn>
               </>
             )}
@@ -612,6 +669,8 @@ export const CompanySignatoriesBr = () => {
           <LightboxDoc onClick={(e) => e.stopPropagation()}>
             <LightboxTitle>{t.brResolutionTitle}</LightboxTitle>
             <LightboxText>{t.brResolutionBody}</LightboxText>
+            <LightboxTitle as="h3" style={{ fontSize: '1rem' }}>{t.brGovHeading}</LightboxTitle>
+            <LightboxText>{t.govResolutionText}{'\n\n'}{govPickedLabel ? govPickedLabel : t.brGovPending}</LightboxText>
             <LightboxFoot>
               <Button view="secondary" size="m" text={t.brResolutionClose} onClick={() => setShowResolution(false)} />
             </LightboxFoot>
