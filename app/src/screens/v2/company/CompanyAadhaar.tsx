@@ -9,8 +9,9 @@ import { AadhaarHowTo } from '../../../ui/v2/AadhaarHowTo';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import { passCompanyAadhaar } from '../../../mock/v2/companyApi';
+import type { AadhaarResult } from '../../../mock/v2/companyTypes';
 import { useEntryGuard } from '../../../ui/v2/useEntryGuard';
-import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRowEnd, SuccessNote } from './companyUi';
+import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRowEnd, SuccessNote, AadhaarResultBox } from './companyUi';
 
 // CO-AADHAAR — точка входа компании: Aadhaar-авторизация (целевка Марго #1/#3).
 // QR + ссылка на приложение Aadhaar + всплывашка-инструкция «как сделать Aadhaar».
@@ -22,40 +23,34 @@ const dict: Record<Lang, {
   qrCaption: string; appLink: string;
   ctaScanned: string; waiting: string; success: string;
   errorTitle: string; errorText: string; retry: string; demoFail: string;
-  contactsLabel: string; emailLabel: string; phoneLabel: string; cont: string;
+  cont: string;
 }> = {
   ru: {
     title: 'Вход через Aadhaar',
-    subtitle: 'Отсканируйте QR-код приложением Aadhaar — мы подтянем ваши контактные данные из UIDAI.',
+    subtitle: 'Отсканируйте QR-код приложением Aadhaar — мы подтянем ваши данные из UIDAI.',
     qrCaption: 'Наведите камеру сюда',
     appLink: 'Скачать приложение Aadhaar',
     ctaScanned: 'Я отсканировал код',
     waiting: 'Получаем данные из UIDAI…',
-    success: 'Aadhaar-данные получены. Контакты подтянуты из UIDAI',
+    success: 'Aadhaar-данные получены из UIDAI',
     errorTitle: 'Не удалось получить данные из UIDAI',
     errorText: 'Проверьте подключение и отсканируйте QR-код заново.',
     retry: 'Повторить скан',
     demoFail: 'Демо: имитировать ошибку скана',
-    contactsLabel: 'Контактные данные из Aadhaar',
-    emailLabel: 'Email',
-    phoneLabel: 'Телефон',
     cont: 'Продолжить',
   },
   en: {
     title: 'Sign in with Aadhaar',
-    subtitle: 'Scan the QR code with the Aadhaar App — we will retrieve your contact details from UIDAI.',
+    subtitle: 'Scan the QR code with the Aadhaar App — we will retrieve your data from UIDAI.',
     qrCaption: 'Point your camera here',
     appLink: 'Download the Aadhaar App',
     ctaScanned: 'I have scanned the code',
     waiting: 'Fetching data from UIDAI…',
-    success: 'Aadhaar data received. Contacts retrieved from UIDAI',
+    success: 'Aadhaar data received from UIDAI',
     errorTitle: 'Could not retrieve data from UIDAI',
     errorText: 'Check your connection and scan the QR code again.',
     retry: 'Scan again',
     demoFail: 'Demo: simulate scan error',
-    contactsLabel: 'Contact details from Aadhaar',
-    emailLabel: 'Email',
-    phoneLabel: 'Phone',
     cont: 'Continue',
   },
 };
@@ -80,9 +75,6 @@ const AppLink = styled.a`align-self:center; color:${textSecondary}; font-size:0.
 const spin = keyframes`to { transform: rotate(360deg); }`;
 const Spinner = styled.span`width:40px; height:40px; border-radius:50%; border:3px solid rgba(33,160,56,0.18); border-top-color:rgb(33,160,56); animation:${spin} 0.9s linear infinite; align-self:center;`;
 const WaitText = styled.p`margin:0; text-align:center; font-size:0.85rem; color:${textSecondary};`;
-const ContactBox = styled.div`display:flex; flex-direction:column; gap:0.4rem; padding:1rem 1.1rem; border-radius:${radii.panel}; background:#f7f9f8; border:1px solid rgba(0,0,0,0.07);`;
-const ContactRow = styled.div`display:flex; gap:0.5rem; font-size:0.88rem; color:${textPrimary}; .label { color:${textSecondary}; min-width:5rem; }`;
-const ContactsTitle = styled.p`margin:0; font-size:0.78rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:${textSecondary};`;
 
 // Mock QR — фиксированная матрица 10×10 (тот же мок-QR, что в SPAadhaarQr) для консистентности.
 const QR_MATRIX = [
@@ -107,7 +99,7 @@ export const CompanyAadhaar = () => {
   const { ready } = useEntryGuard('consents'); // нет согласий → редирект на /company/consents
 
   const [phase, setPhase] = useState<'qr' | 'waiting' | 'success' | 'error'>('qr');
-  const [contacts, setContacts] = useState<{ email: string; phone: string } | null>(null);
+  const [aadhaar, setAadhaar] = useState<AadhaarResult | null>(null);
   const failNext = useRef(false); // демо-триггер: следующий скан вернёт ошибку
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -123,7 +115,7 @@ export const CompanyAadhaar = () => {
         return;
       }
       const c = await passCompanyAadhaar();
-      setContacts(c);
+      setAadhaar(c);
       setPhase('success');
     }, 2000);
     timers.current.push(tt);
@@ -182,13 +174,7 @@ export const CompanyAadhaar = () => {
           {phase === 'success' && (
             <>
               <SuccessNote><span className="ic">✓</span>{t.success}</SuccessNote>
-              {contacts && (
-                <ContactBox>
-                  <ContactsTitle>{t.contactsLabel}</ContactsTitle>
-                  <ContactRow><span className="label">{t.emailLabel}</span>{contacts.email}</ContactRow>
-                  <ContactRow><span className="label">{t.phoneLabel}</span>{contacts.phone}</ContactRow>
-                </ContactBox>
-              )}
+              {aadhaar && <AadhaarResultBox data={aadhaar} lang={lang} />}
               <ButtonRowEnd>
                 <Button view="accent" size="l" text={t.cont} onClick={() => navigate('/company/passcode')} />
               </ButtonRowEnd>

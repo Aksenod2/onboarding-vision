@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import styled, { keyframes } from 'styled-components';
-import { Button, TextField } from '@salutejs/sdds-serv'; // TODO свериться с MCP
+import styled from 'styled-components';
+import { Button, TextField, Notification, Radiobox, Checkbox, Select, Attach, Spinner } from '@salutejs/sdds-serv'; // имена сверены по @salutejs/sdds-serv/types
 import { textPrimary, textSecondary, textAccent, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
@@ -10,201 +10,202 @@ import { COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible } from 
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
-  getSignatories, confirmBoardResolution, addSignatory, removeSignatory,
-  updateSignatoryContact, setBoardResolutionSource,
+  getSignatories, getBoardResolution, confirmBoardResolution,
+  setBoardResolutionSource, setBrSignerConfig, setBrSignerContacts,
+  setAsFromDirector, setAsNewPerson,
 } from '../../../mock/v2/companyApi';
-import type { Signatory, BrSource } from '../../../mock/v2/companyTypes';
+import type { Signatory, BrSource, BrSignerMode, AsMode, GovernanceOption } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './companyUi';
 
-// CO-SIGNATORIES-BR — шаг фазы A после диалога: директора-подписанты + Authorized Signatories + Board Resolution.
-// Выделено из бывшего CompanyBnqBr (решение Кости 2026-06-18): анкета теперь — отдельный пошаговый
-// диалог (CompanyBnqDialog), а блоки подписантов/BR живут здесь как самостоятельный экран без аккордеона.
-// Секции DirectorCard/AsCard/BrOption перенесены КАК ЕСТЬ.
+// CO-SIGNATORIES-BR — акт назначения ОДНОГО Authorised Signatory + оформление Board Resolution.
+// Переустроен по дизайн-брифу Ульяны 19.06 (Экран А): интро-плашка → кто подписывает BR (директора/секретарь)
+// → кто AS (из директоров / новое лицо, итог ОДИН) → governance смены AS → документ BR (шаблон-дефолт + upload).
+// Самодельные radio/checkbox (issue #50) заменены на боевые SDDS Radiobox/Checkbox.
 // Роут: /company/signatories-br
 
 const dict: Record<Lang, {
   title: string; subtitle: string;
-  sectionDirectors: string; directorsHint: string;
-  sectionAs: string; asHint: string;
-  asNameLabel: string; asEmailLabel: string; asPhoneLabel: string;
-  asAdd: string; asRemove: string; asRemoveLast: string; asPrefilled: string;
-  sectionBr: string; brHint: string;
-  brTemplateNote: string;
-  brOptTemplateTitle: string; brOptTemplateDesc: string;
-  brOptUploadTitle: string; brOptUploadDesc: string;
-  brViewTemplate: string; brViewTemplateToast: string;
-  brPickFile: string; brRecognizing: string; brRecognized: string;
-  brDvuNote: string;
-  back: string; cta: string;
+  introTitle: string; introText: string;
+  secSignerTitle: string;
+  signerDirectors: string; signerDirectorsDesc: string;
+  signerSecretary: string; signerSecretaryDesc: string;
+  directorsHint: string; minTwoError: string;
+  secNameLabel: string; emailLabel: string; phoneLabel: string;
+  emailError: string; phoneError: string;
   fromRegistry: string;
+  secAsTitle: string; asHint: string;
+  asFromDirectors: string; asNewPerson: string;
+  asPickDirector: string; asPickError: string;
+  asNameLabel: string; asPanLabel: string; asPanError: string;
+  secGovTitle: string; govLabel: string; govPlaceholder: string; govHelper: string;
+  govNominated: string; govDecision: string; govResolutionText: string;
+  secBrTitle: string;
+  brTemplateTitle: string; brTemplateNote: string;
+  brViewResolution: string; brResolutionTitle: string; brResolutionBody: string; brResolutionClose: string;
+  brUploadLink: string; brPickFile: string; brRecognizing: string; brRecognized: string; brDvuNote: string;
+  back: string; cta: string;
 }> = {
   ru: {
-    title: 'Подписанты и Board Resolution',
-    subtitle: 'Укажите, кто подписывает Board Resolution и кто распоряжается счётом.',
-    sectionDirectors: 'Директора-подписанты',
-    directorsHint: 'Выбраны из реестра (Probe42). Минимум двое подписывают Board Resolution.',
-    sectionAs: 'Уполномоченные подписанты (распоряжаются счётом)',
-    asHint: 'Может быть директором или отдельным лицом. На каждый контакт уйдёт ссылка для идентификации. Можно добавить нескольких.',
+    title: 'Board Resolution',
+    subtitle: 'Назначьте уполномоченного подписанта и оформите решение совета директоров.',
+    introTitle: 'Один уполномоченный подписант (Authorised Signatory)',
+    introText: 'Вы назначаете одного Authorised Signatory, уполномоченного действовать от имени компании по всем банковским продуктам и сервисам: интернет-банк, услуги FEMA, депозиты, кредиты, аккредитивы и гарантии.',
+    secSignerTitle: 'Кто подписывает Board Resolution',
+    signerDirectors: 'Минимум два директора',
+    signerDirectorsDesc: 'Решение подписывают как минимум двое директоров.',
+    signerSecretary: 'Один Company Secretary (singly)',
+    signerSecretaryDesc: 'Решение подписывает один секретарь компании.',
+    directorsHint: 'Выбраны из реестра (Probe42). Отметьте минимум двоих — на каждого укажите email и телефон.',
+    minTwoError: 'Выберите минимум двух директоров.',
+    secNameLabel: 'ФИО секретаря',
+    emailLabel: 'Email',
+    phoneLabel: 'Телефон',
+    emailError: 'Укажите email',
+    phoneError: 'Укажите телефон',
+    fromRegistry: 'из реестра',
+    secAsTitle: 'Authorised Signatory (распоряжается)',
+    asHint: 'Authorised Signatory распоряжается продуктами банка от имени компании. Он один.',
+    asFromDirectors: 'Назначить из директоров',
+    asNewPerson: 'Добавить новое лицо',
+    asPickDirector: 'Выберите директора как Authorised Signatory',
+    asPickError: 'Выберите Authorised Signatory.',
     asNameLabel: 'ФИО подписанта',
-    asEmailLabel: 'Email',
-    asPhoneLabel: 'Телефон',
-    asAdd: '+ Добавить подписанта',
-    asRemove: 'Удалить',
-    asRemoveLast: 'Должен остаться хотя бы один подписант',
-    asPrefilled: 'Предзаполнено',
-    sectionBr: 'Board Resolution',
-    brHint: 'Выберите, как оформить решение совета директоров.',
-    brTemplateNote: 'Шаблон банка — подписывается участниками по DSC в их персональных сессиях.',
-    brOptTemplateTitle: 'Шаблон банка',
-    brOptTemplateDesc: 'Документ сгенерируется по шаблону банка на основе указанных данных. Самый быстрый путь.',
-    brOptUploadTitle: 'Загрузить свой Board Resolution',
-    brOptUploadDesc: 'Загрузите готовый документ компании. Его распознают и проверят вручную.',
-    brViewTemplate: 'Посмотреть шаблон',
-    brViewTemplateToast: 'Откроется PDF-шаблон банка',
+    asPanLabel: 'PAN',
+    asPanError: 'Укажите корректный PAN (формат ABCDE1234F)',
+    secGovTitle: 'Смена Authorised Signatory в будущем',
+    govLabel: 'Как будет проходить смена Authorised Signatory',
+    govPlaceholder: 'Выберите вариант',
+    govHelper: 'Определяет порядок будущей замены уполномоченного подписанта.',
+    govNominated: 'Nominated Authorized Official of the Company',
+    govDecision: 'Decision Pursuant based on Board Resolution',
+    govResolutionText: 'РЕШЕНО, что Совет директоров настоящим уполномочивает, что любое добавление, изменение или исключение уполномоченных должностных лиц / подписантов для распоряжения банковским(и) счётом(ами) компании производится исключительно в соответствии с выбранным вариантом (1) Nominated Authorized Official of the Company или 2) Decision Pursuant based on Board Resolution), и Банк настоящим уполномочен исполнять такие изменения и придавать им силу при подаче через допустимые онлайн-каналы интернет-банка или офлайн-каналы; такие изменения действительны и обязательны для компании.',
+    secBrTitle: 'Документ Board Resolution',
+    brTemplateTitle: 'Документ формируется по шаблону банка',
+    brTemplateNote: 'Форма Board Resolution будет сгенерирована и подписана участниками по DSC в их персональных сессиях.',
+    brViewResolution: 'Посмотреть Board Resolution',
+    brResolutionTitle: 'Board Resolution — текст решения',
+    brResolutionBody:
+      'РЕШЕНО, что компания [заполняется автоматически] настоящим уполномочена устанавливать и поддерживать банковские отношения с Банком и пользоваться такими банковскими продуктами, услугами, инструментами и механизмами, какие могут потребоваться время от времени.\n\n' +
+      'РЕШЕНО ДАЛЕЕ, что указанное(ые) ниже уполномоченное(ые) должностное(ые) лицо(а) настоящим назначаются и уполномочиваются действовать за компанию и от её имени в отношении таких банковских продуктов и услуг, а в случаях, допускаемых настоящим решением, назначать дополнительных уполномоченных подписантов.\n\n' +
+      'Уполномоченное(ые) должностное(ые) лицо(а) в пределах предоставленных полномочий вправе подавать заявки, получать доступ, пользоваться, распоряжаться и использовать банковские продукты и услуги, предлагаемые Банком, включая, помимо прочего: интернет-банк, услуги, связанные с FEMA, депозиты, кредиты и кредитные линии, покупку и дисконтирование векселей, аккредитивы, банковские гарантии, услуги торгового финансирования и любые иные банковские продукты, услуги или инструменты, предлагаемые Банком время от времени, в соответствии с применимыми условиями Банка.\n\n' +
+      'РЕШЕНО ДАЛЕЕ, что Банк уполномочен исполнять все чеки, цифровые поручения, e-sign-мандаты и электронные операции, совершённые уполномоченными подписантами.\n\n' +
+      'РЕШЕНО ДАЛЕЕ, что настоящее решение остаётся в силе до подачи в Банк изменённого решения.',
+    brResolutionClose: 'Закрыть',
+    brUploadLink: 'Загрузить свой Board Resolution',
     brPickFile: 'Выбрать файл',
     brRecognizing: 'Распознаём документ…',
     brRecognized: 'Распознано',
     brDvuNote: 'Документ уйдёт на проверку менеджеру банка (вне автоматического маршрута). Это может занять больше времени.',
     back: 'Назад',
     cta: 'Сформировать BR и продолжить',
-    fromRegistry: 'из реестра',
   },
   en: {
-    title: 'Signatories & Board Resolution',
-    subtitle: 'Specify who signs the Board Resolution and who operates the account.',
-    sectionDirectors: 'Director signatories',
-    directorsHint: 'Selected from the registry (Probe42). At least two sign the Board Resolution.',
-    sectionAs: 'Authorized Signatories (operate the account)',
-    asHint: 'May be a director or a separate person. The identification link is sent to each contact. You can add several.',
+    title: 'Board Resolution',
+    subtitle: 'Appoint the Authorised Signatory and prepare the board resolution.',
+    introTitle: 'One single Authorised Signatory',
+    introText: 'You appoint one Authorised Signatory, authorised to act on behalf of the company across all banking products and services: Internet Banking, FEMA-related services, deposits, loans, letters of credit and bank guarantees.',
+    secSignerTitle: 'Who signs the Board Resolution',
+    signerDirectors: 'At least two directors',
+    signerDirectorsDesc: 'The resolution is signed by at least two directors.',
+    signerSecretary: 'One Company Secretary (singly)',
+    signerSecretaryDesc: 'The resolution is signed by a single company secretary.',
+    directorsHint: 'Selected from the registry (Probe42). Tick at least two — provide email and phone for each.',
+    minTwoError: 'Select at least two directors.',
+    secNameLabel: 'Secretary full name',
+    emailLabel: 'Email',
+    phoneLabel: 'Phone',
+    emailError: 'Enter an email',
+    phoneError: 'Enter a phone',
+    fromRegistry: 'from registry',
+    secAsTitle: 'Authorised Signatory (operates products)',
+    asHint: 'The Authorised Signatory operates the bank’s products on behalf of the company. There is exactly one.',
+    asFromDirectors: 'Appoint from directors',
+    asNewPerson: 'Add a new person',
+    asPickDirector: 'Choose a director as the Authorised Signatory',
+    asPickError: 'Choose the Authorised Signatory.',
     asNameLabel: 'Signatory full name',
-    asEmailLabel: 'Email',
-    asPhoneLabel: 'Phone',
-    asAdd: '+ Add signatory',
-    asRemove: 'Remove',
-    asRemoveLast: 'At least one signatory must remain',
-    asPrefilled: 'Pre-filled',
-    sectionBr: 'Board Resolution',
-    brHint: 'Choose how to provide the board resolution.',
-    brTemplateNote: 'Bank template — signed by participants via DSC in their personal sessions.',
-    brOptTemplateTitle: "Bank's template",
-    brOptTemplateDesc: 'The document is generated from the bank template based on the data provided. The fastest path.',
-    brOptUploadTitle: 'Upload your own Board Resolution',
-    brOptUploadDesc: 'Upload the company document. It will be recognized and reviewed manually.',
-    brViewTemplate: 'View template',
-    brViewTemplateToast: 'The bank PDF template will open',
+    asPanLabel: 'PAN',
+    asPanError: 'Enter a valid PAN (format ABCDE1234F)',
+    secGovTitle: 'Future change of the Authorised Signatory',
+    govLabel: 'How the Authorised Signatory will be changed',
+    govPlaceholder: 'Choose an option',
+    govHelper: 'Defines the procedure for replacing the Authorised Signatory in the future.',
+    govNominated: 'Nominated Authorized Official of the Company',
+    govDecision: 'Decision Pursuant based on Board Resolution',
+    govResolutionText: 'RESOLVED THAT the Board hereby authorises that any addition, modification, or removal of Authorized Officials / Signatories for operating the Company’s bank account(s) shall be effected solely in accordance with the option selected (1) Nominated Authorized Official of the Company or 2) Decision Pursuant based on Board Resolution), and the Bank is hereby authorized to act upon and give effect to such changes when submitted through permitted online Internet banking or offline channels, which shall be valid and binding on the Company.',
+    secBrTitle: 'Board Resolution document',
+    brTemplateTitle: 'The document is generated from the bank template',
+    brTemplateNote: 'The Board Resolution form will be generated and signed by participants via DSC in their personal sessions.',
+    brViewResolution: 'View Board Resolution',
+    brResolutionTitle: 'Board Resolution — resolution text',
+    brResolutionBody:
+      'RESOLVED THAT the Company [ auto-populated ] be and is hereby authorized to establish and maintain banking relationships with the Bank and to avail such banking products, services, facilities, and arrangements as may be required from time to time.\n\n' +
+      'RESOLVED FURTHER THAT the Authorized Official(s) mentioned below be and are hereby nominated and authorized to act for and on behalf of the Company in relation to such banking products and services and, where permitted under this Resolution, to nominate additional authorized signatories.\n\n' +
+      'The Authorized Official(s) shall, within the scope of the authority granted herein, be entitled to apply for, access, avail, operate, and utilize the banking products and services offered by the Bank, including but not limited to Internet Banking, FEMA-related services, deposits, loans and credit facilities, bill purchase and discounting facilities, letters of credit, bank guarantees, trade finance services, and any other banking products, services, or facilities offered by the Bank from time to time, in accordance with the applicable terms and conditions of the Bank.\n\n' +
+      'RESOLVED FURTHER THAT the Bank is authorized to honor all cheques, digital instructions, e-sign mandates, and electronic transactions executed by the authorised signatories.\n\n' +
+      'RESOLVED FURTHER THAT this resolution shall remain in force until a revised resolution is submitted to the Bank.',
+    brResolutionClose: 'Close',
+    brUploadLink: 'Upload your own Board Resolution',
     brPickFile: 'Choose file',
     brRecognizing: 'Recognizing document…',
     brRecognized: 'Recognized',
     brDvuNote: 'The document will be sent to a bank manager for review (outside the automatic route). This may take longer.',
     back: 'Back',
     cta: 'Generate BR and continue',
-    fromRegistry: 'from registry',
   },
 };
 
 const Section = styled.section`display:flex; flex-direction:column; gap:0.75rem;`;
 const SectionTitle = styled.div`${bodySBold}; color:${textPrimary}; font-size:0.95rem;`;
 const Hint = styled.p`margin:0; font-size:0.82rem; color:${textSecondary}; line-height:1.45;`;
+const ErrorHint = styled.p`margin:0; font-size:0.8rem; color:#c0392b; line-height:1.4;`;
 
-const DirectorCard = styled.label<{ $checked: boolean }>`
-  display:flex; align-items:flex-start; gap:0.75rem; cursor:pointer;
-  padding:0.9rem 1rem; border-radius:${radii.panel};
+// Карточка-обёртка вокруг боевого Radiobox/Checkbox (рамка выбранного состояния).
+const PickCard = styled.div<{ $checked: boolean }>`
+  display:flex; flex-direction:column; gap:0.6rem; cursor:pointer;
+  padding:0.85rem 1rem; border-radius:${radii.panel};
   border:1.5px solid ${({ $checked }) => ($checked ? textAccent : 'rgba(0,0,0,0.12)')};
   background:${({ $checked }) => ($checked ? 'rgba(33,160,56,0.05)' : '#fff')};
   transition:border-color .15s, background .15s;
 `;
-const Box = styled.span<{ $checked: boolean }>`
-  flex-shrink:0; width:20px; height:20px; border-radius:5px; margin-top:1px;
-  border:2px solid ${({ $checked }) => ($checked ? textAccent : 'rgba(0,0,0,0.25)')};
-  background:${({ $checked }) => ($checked ? textAccent : '#fff')};
-  display:flex; align-items:center; justify-content:center; color:#fff; font-size:0.7rem;
-`;
-const DirInfo = styled.div`display:flex; flex-direction:column; gap:0.15rem; min-width:0;`;
-const DirName = styled.span`${bodySBold}; color:${textPrimary}; font-size:0.9rem;`;
-const DirMeta = styled.span`font-size:0.78rem; color:${textSecondary};`;
+const PickMeta = styled.span`font-size:0.78rem; color:${textSecondary};`;
 const RegBadge = styled.span`
   display:inline-flex; align-items:center; gap:0.25rem; font-size:0.68rem; color:${textSecondary};
   opacity:0.8; margin-left:0.4rem;
   &::before { content:'✦'; font-size:0.55rem; }
 `;
+const ContactFields = styled.div`
+  ${enter(0)}; display:flex; gap:1rem; flex-wrap:wrap; padding-left:2rem;
+  & > * { flex:1 1 200px; }
+`;
 const Field = styled.div`display:flex; flex-direction:column; gap:0.375rem;`;
 const Row = styled.div`display:flex; gap:1rem; flex-wrap:wrap; & > * { flex:1 1 200px; }`;
-
-// --- AS-карточка (ручной ввод, удаляемая) ---
-const AsCard = styled.div`
+const FormBox = styled.div`
   ${enter(0)}; display:flex; flex-direction:column; gap:0.75rem;
   padding:1rem; border-radius:${radii.panel}; border:1px solid rgba(0,0,0,0.12); background:#fff;
 `;
-const AsHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.5rem;`;
-const PrefilledBadge = styled.span`
-  display:inline-flex; align-items:center; gap:0.25rem; font-size:0.68rem; color:${textSecondary};
-  opacity:0.8;
-  &::before { content:'✦'; font-size:0.55rem; }
-`;
-const RemoveBtn = styled.button`
-  border:none; background:none; cursor:pointer; color:${textSecondary}; font-size:0.95rem; line-height:1;
-  padding:0.25rem; border-radius:6px; transition:color .15s, background .15s;
-  &:hover:not(:disabled) { color:#c0392b; background:rgba(192,57,43,0.08); }
-  &:disabled { opacity:0.3; cursor:not-allowed; }
-`;
-const AddBtn = styled.button`
-  align-self:flex-start; border:1.5px dashed rgba(0,0,0,0.22); background:none; cursor:pointer;
-  color:${textAccent}; ${bodySBold}; font-size:0.85rem;
-  padding:0.6rem 1rem; border-radius:${radii.panel}; transition:border-color .15s, background .15s;
-  &:hover { border-color:${textAccent}; background:rgba(33,160,56,0.04); }
-`;
 
-// --- BR: радио-карточки источника (паттерн DirectorCard) ---
-const BrOption = styled.label<{ $selected: boolean }>`
-  display:flex; align-items:flex-start; gap:0.75rem; cursor:pointer;
-  padding:0.9rem 1rem; border-radius:${radii.panel};
-  border:1.5px solid ${({ $selected }) => ($selected ? textAccent : 'rgba(0,0,0,0.12)')};
-  background:${({ $selected }) => ($selected ? 'rgba(33,160,56,0.05)' : '#fff')};
-  transition:border-color .15s, background .15s;
-`;
-const Radio = styled.span<{ $selected: boolean }>`
-  flex-shrink:0; width:20px; height:20px; border-radius:50%; margin-top:1px;
-  border:2px solid ${({ $selected }) => ($selected ? textAccent : 'rgba(0,0,0,0.25)')};
-  display:flex; align-items:center; justify-content:center;
-  &::after {
-    content:''; width:10px; height:10px; border-radius:50%;
-    background:${({ $selected }) => ($selected ? textAccent : 'transparent')};
-  }
-`;
-const BrOptBody = styled.div`display:flex; flex-direction:column; gap:0.2rem; min-width:0;`;
-const BrOptTitle = styled.span`${bodySBold}; color:${textPrimary}; font-size:0.9rem;`;
-const BrOptDesc = styled.span`font-size:0.8rem; color:${textSecondary}; line-height:1.45;`;
-
-const BrNote = styled.div`
-  ${enter(0)}; padding:0.85rem 1rem; border-radius:${radii.panel};
+// Документ BR: шаблон-дефолт + upload мелкой ссылкой.
+const TemplateBox = styled.div`
+  ${enter(0)}; display:flex; flex-direction:column; gap:0.4rem;
+  padding:0.95rem 1.1rem; border-radius:${radii.panel};
   background:rgba(33,160,56,0.04); border:1px solid rgba(33,160,56,0.18);
-  font-size:0.82rem; color:${textSecondary}; line-height:1.5;
 `;
-// «Посмотреть шаблон» — нейтральная ссылка (P2): не конкурирует с зелёным CTA шага.
+const TemplateTitle = styled.span`${bodySBold}; color:${textPrimary}; font-size:0.9rem;`;
+const TemplateNote = styled.span`font-size:0.82rem; color:${textSecondary}; line-height:1.5;`;
+// «Посмотреть шаблон» / «upload your own» — нейтральные ссылки (не конкурируют с зелёным CTA).
 const LinkBtn = styled.button`
   align-self:flex-start; border:none; background:none; cursor:pointer;
   color:${textSecondary}; ${bodySBold}; font-size:0.82rem; padding:0; text-decoration:underline; text-underline-offset:2px;
   &:hover { color:${textPrimary}; }
 `;
-const Toast = styled.div`
-  ${enter(0)}; align-self:flex-start; padding:0.5rem 0.85rem; border-radius:8px;
-  background:${textPrimary}; color:#fff; font-size:0.8rem;
-`;
-
-const UploadZone = styled.div`
+const UploadBox = styled.div`
   ${enter(0)}; display:flex; flex-direction:column; gap:0.75rem;
-  padding:1rem; border-radius:${radii.panel}; border:1.5px dashed rgba(0,0,0,0.22); background:#fff;
+  padding:1rem; border-radius:${radii.panel}; border:1px solid rgba(0,0,0,0.12); background:#fff;
 `;
-const FileLine = styled.div`display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:${textPrimary};`;
 const RecognizeLine = styled.div`display:flex; align-items:center; gap:0.6rem; font-size:0.82rem; color:${textSecondary};`;
 const RecognizedLine = styled.div`display:flex; align-items:center; gap:0.4rem; font-size:0.85rem; font-weight:600; color:#1a7a28;`;
-const spin = keyframes`to { transform:rotate(360deg); }`;
-const MiniSpinner = styled.span`
-  width:18px; height:18px; border-radius:50%; flex-shrink:0;
-  border:2px solid rgba(33,160,56,0.18); border-top-color:rgb(33,160,56);
-  animation:${spin} 0.8s linear infinite;
-`;
-// Информационная плашка (НЕ warning) — DVU человеческими словами.
+// DVU человеческими словами — нейтральная info-плашка (НЕ warning).
 const InfoNote = styled.div`
   ${enter(0)}; padding:0.85rem 1rem; border-radius:${radii.panel};
   background:rgba(0,0,0,0.03); border:1px solid rgba(0,0,0,0.1);
@@ -213,8 +214,28 @@ const InfoNote = styled.div`
   &::before { content:'ℹ'; flex-shrink:0; color:${textSecondary}; }
 `;
 
-// Локальное представление AS-карточки в форме.
-type AsRow = { id: string; fullName: string; email: string; phone: string; prefilled: boolean };
+// Лайтбокс предпросмотра текста резолюции BR: тёмный фон + «лист документа» (паттерн из SPSign).
+const LightboxBackdrop = styled.div`
+  position: fixed; inset: 0; z-index: 10010;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center; padding: 2rem;
+`;
+const LightboxDoc = styled.div`
+  background: #ffffff; border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  width: min(640px, 100%); max-height: 80vh; overflow-y: auto;
+  padding: 2.5rem 2.75rem; display: flex; flex-direction: column; gap: 1rem;
+`;
+const LightboxTitle = styled.h2`margin: 0; font-size: 1.15rem; font-weight: 700; color: ${textPrimary};`;
+const LightboxText = styled.p`
+  margin: 0; font-size: 0.9rem; line-height: 1.7; color: ${textPrimary};
+  white-space: pre-line; /* verbatim-текст резолюции с абзацами */
+`;
+const LightboxFoot = styled.div`display: flex; justify-content: flex-end; padding-top: 0.5rem;`;
+
+// PAN-формат: 5 букв, 4 цифры, 1 буква.
+const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+type Contact = { email: string; phone: string };
 
 export const CompanySignatoriesBr = () => {
   const navigate = useNavigate();
@@ -222,68 +243,97 @@ export const CompanySignatoriesBr = () => {
   const t = dict[lang];
 
   const [signatories, setSignatories] = useState<Signatory[]>([]);
-  // выбранные директора (по умолчанию — все директора из реестра отмечены)
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  // AS — список карточек (первый предзаполнен из золотой записи)
-  const [asRows, setAsRows] = useState<AsRow[]>([]);
 
-  // BR — источник + состояние загрузки
+  // СЕКЦИЯ 1 — кто подписывает BR
+  const [signerMode, setSignerMode] = useState<BrSignerMode>('directors');
+  const [pickedSigners, setPickedSigners] = useState<Set<string>>(new Set());
+  const [signerContacts, setSignerContacts] = useState<Record<string, Contact>>({});
+  const [secretaryName, setSecretaryName] = useState('');
+  const [secretaryContact, setSecretaryContact] = useState<Contact>({ email: '', phone: '' });
+
+  // СЕКЦИЯ 2 — Authorised Signatory (ровно один)
+  const [asMode, setAsMode] = useState<AsMode>('from-directors');
+  const [asDirectorId, setAsDirectorId] = useState<string>('');
+  const [newAs, setNewAs] = useState({ fullName: '', pan: '', email: '', phone: '' });
+
+  // СЕКЦИЯ 3 — governance смены AS
+  const [governance, setGovernance] = useState<GovernanceOption | ''>('');
+
+  // СЕКЦИЯ 4 — документ BR
   const [brSource, setBrSource] = useState<BrSource>('template');
-  const [showTemplateToast, setShowTemplateToast] = useState(false);
+  const [showResolution, setShowResolution] = useState(false);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'recognizing' | 'done'>('idle');
   const UPLOADED_FILE = 'board-resolution.pdf';
 
+  const [showErrors, setShowErrors] = useState(false);
+
   useEffect(() => {
-    getSignatories().then((list) => {
+    Promise.all([getSignatories(), getBoardResolution()]).then(([list, br]) => {
       setSignatories(list);
       const directors = list.filter((s) => s.roles.includes('Director'));
-      setPicked(new Set(directors.map((s) => s.id)));
-      // «чистые» AS (роль AuthorizedSignatory без Director) — редактируемые карточки
-      const asList = list.filter((s) => s.roles.includes('AuthorizedSignatory') && !s.roles.includes('Director'));
-      setAsRows(asList.map((s) => ({ id: s.id, fullName: s.fullName, email: s.email, phone: s.phone, prefilled: true })));
+      // дефолт: подписывают все директора из реестра
+      setPickedSigners(new Set(directors.map((s) => s.id)));
+      setSignerContacts(
+        Object.fromEntries(directors.map((s) => [s.id, { email: s.email, phone: s.phone }])),
+      );
+      // AS по умолчанию — директор с ролью AuthorizedSignatory (золотая запись)
+      const asDir = directors.find((s) => s.roles.includes('AuthorizedSignatory'));
+      if (asDir) setAsDirectorId(asDir.id);
+      // восстановить срез из стейта
+      const cfg = br.signerConfig;
+      setSignerMode(cfg.signerMode);
+      setAsMode(cfg.asMode);
+      setGovernance(cfg.governance ?? '');
+      setSecretaryName(cfg.secretaryName);
+      setSecretaryContact({ email: cfg.secretaryEmail, phone: cfg.secretaryPhone });
+      setBrSource(br.brSource);
     });
   }, []);
 
   const directors = signatories.filter((s) => s.roles.includes('Director'));
 
-  const toggle = (id: string) => {
-    setPicked((prev) => {
+  const toggleSigner = (id: string) => {
+    setPickedSigners((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
+  const updateSignerContact = (id: string, patch: Partial<Contact>) =>
+    setSignerContacts((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { email: '', phone: '' }), ...patch } }));
 
-  const updateAs = (id: string, patch: Partial<AsRow>) =>
-    setAsRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  // --- Валидация ---
+  const signersValid = signerMode === 'directors'
+    ? pickedSigners.size >= 2 &&
+      [...pickedSigners].every((id) => {
+        const c = signerContacts[id];
+        return c && c.email.trim() && c.phone.trim();
+      })
+    : secretaryName.trim() && secretaryContact.email.trim() && secretaryContact.phone.trim();
 
-  const handleAddAs = async () => {
-    const id = await addSignatory({ fullName: '', email: '', phone: '' });
-    setAsRows((rows) => [...rows, { id, fullName: '', email: '', phone: '', prefilled: false }]);
-  };
+  const asValid = asMode === 'from-directors'
+    ? !!asDirectorId
+    : newAs.fullName.trim() && PAN_RE.test(newAs.pan.trim().toUpperCase()) && newAs.email.trim() && newAs.phone.trim();
 
-  const handleRemoveAs = async (id: string) => {
-    if (asRows.length <= 1) return; // минимум один остаётся
-    await removeSignatory(id);
-    setAsRows((rows) => rows.filter((r) => r.id !== id));
-  };
+  const govValid = governance !== '';
+
+  const canContinue = !!signersValid && !!asValid && govValid;
+
+  // Контакты директора, выбранного как AS (переиспользуем из секции 1, если он там отмечен).
+  const asDirContact: Contact = asDirectorId
+    ? signerContacts[asDirectorId] ?? { email: '', phone: '' }
+    : { email: '', phone: '' };
 
   const pickTemplate = async () => {
     setBrSource('template');
     setUploadPhase('idle');
     await setBoardResolutionSource('template');
   };
-
-  const pickUpload = async () => {
+  const onShowUpload = async () => {
     setBrSource('upload');
-    setShowTemplateToast(false);
+    setShowResolution(false);
+    await setBoardResolutionSource('upload');
   };
-
-  const onViewTemplate = () => {
-    setShowTemplateToast(true);
-    setTimeout(() => setShowTemplateToast(false), 2200);
-  };
-
   const onPickFile = async () => {
     setUploadPhase('recognizing');
     await setBoardResolutionSource('upload', UPLOADED_FILE);
@@ -291,31 +341,43 @@ export const CompanySignatoriesBr = () => {
   };
 
   const handleContinue = async () => {
-    // зафиксировать введённые данные AS в стейте бэкенда (для Dispatch/Dashboard/сессий)
-    try { await persistAs(); } catch (_) { /* игнор */ }
-    try { await confirmBoardResolution(); } catch (_) { /* игнорируем */ }
+    if (!canContinue) { setShowErrors(true); return; }
+    try {
+      // 1) срез акта назначения
+      await setBrSignerConfig({
+        signerMode,
+        asMode,
+        governance: (governance || null) as GovernanceOption | null,
+        secretaryName,
+        secretaryEmail: secretaryContact.email,
+        secretaryPhone: secretaryContact.phone,
+      });
+      // 2) контакты подписывающих директоров (ветка директора)
+      if (signerMode === 'directors') {
+        const map: Record<string, Contact> = {};
+        for (const id of pickedSigners) map[id] = signerContacts[id];
+        await setBrSignerContacts(map);
+      }
+      // 3) единственный AS
+      if (asMode === 'from-directors') {
+        await setAsFromDirector(asDirectorId, asDirContact);
+      } else {
+        await setAsNewPerson({
+          fullName: newAs.fullName,
+          pan: newAs.pan.trim().toUpperCase(),
+          email: newAs.email,
+          phone: newAs.phone,
+        });
+      }
+      await confirmBoardResolution();
+    } catch (_) { /* демо: игнорируем */ }
     navigate('/company/confirm');
   };
 
-  // Переносим значения карточек AS в data-слой: пересоздаём актуальный список «чистых» AS.
-  const persistAs = async () => {
-    const current = await getSignatories();
-    const existingAs = current.filter((s) => s.roles.includes('AuthorizedSignatory') && !s.roles.includes('Director'));
-    // удалить тех, кого больше нет в форме
-    const keepIds = new Set(asRows.map((r) => r.id));
-    for (const s of existingAs) {
-      if (!keepIds.has(s.id)) await removeSignatory(s.id);
-    }
-    // синхронизировать значения: существующие — обновить, новые (без id в стейте) — добавить
-    for (const r of asRows) {
-      const inState = existingAs.find((s) => s.id === r.id);
-      if (inState) {
-        await updateSignatoryContact(r.id, { fullName: r.fullName, email: r.email, phone: r.phone });
-      } else {
-        await addSignatory({ fullName: r.fullName, email: r.email, phone: r.phone });
-      }
-    }
-  };
+  const govItems = [
+    { value: 'nominated-official', label: t.govNominated },
+    { value: 'decision-pursuant-br', label: t.govDecision },
+  ];
 
   const progress = <StepProgress currentStepId="co-signatories-br" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;
 
@@ -327,128 +389,235 @@ export const CompanySignatoriesBr = () => {
           <Subtitle>{t.subtitle}</Subtitle>
         </CardHeader>
         <CardBody>
-          {/* Директора-подписанты — из реестра, чекбокс-карточки */}
+          {/* СЕКЦИЯ 0 — интро «one single AS» + полномочия (нейтральный Notification) */}
+          <Notification view="info" layout="vertical" title={t.introTitle}>{t.introText}</Notification>
+
+          {/* СЕКЦИЯ 1 — кто подписывает Board Resolution */}
           <Section>
-            <SectionTitle>{t.sectionDirectors}</SectionTitle>
-            <Hint>{t.directorsHint}</Hint>
-            {directors.map((d) => {
-              const checked = picked.has(d.id);
-              return (
-                <DirectorCard key={d.id} $checked={checked} onClick={() => toggle(d.id)}>
-                  <Box $checked={checked}>{checked ? '✓' : ''}</Box>
-                  <DirInfo>
-                    <DirName>{d.fullName}<RegBadge>{t.fromRegistry}</RegBadge></DirName>
-                    <DirMeta>{d.designation} · {d.pan}</DirMeta>
-                  </DirInfo>
-                </DirectorCard>
-              );
-            })}
-          </Section>
+            <SectionTitle>{t.secSignerTitle}</SectionTitle>
+            <PickCard $checked={signerMode === 'directors'} onClick={() => setSignerMode('directors')}>
+              <Radiobox
+                size="m" view="accent" name="br-signer-mode" value="directors"
+                checked={signerMode === 'directors'} onChange={() => setSignerMode('directors')}
+                label={t.signerDirectors} description={t.signerDirectorsDesc}
+              />
+            </PickCard>
+            <PickCard $checked={signerMode === 'secretary'} onClick={() => setSignerMode('secretary')}>
+              <Radiobox
+                size="m" view="accent" name="br-signer-mode" value="secretary"
+                checked={signerMode === 'secretary'} onChange={() => setSignerMode('secretary')}
+                label={t.signerSecretary} description={t.signerSecretaryDesc}
+              />
+            </PickCard>
 
-          {/* AS — список карточек, добавление/удаление (BRD «can add other AS») */}
-          <Section>
-            <SectionTitle>{t.sectionAs}</SectionTitle>
-            <Hint>{t.asHint}</Hint>
-            {asRows.map((r) => {
-              const onlyOne = asRows.length <= 1;
-              return (
-                <AsCard key={r.id}>
-                  <AsHead>
-                    {r.prefilled
-                      ? <PrefilledBadge>{t.asPrefilled}</PrefilledBadge>
-                      : <span />}
-                    <RemoveBtn
-                      type="button"
-                      onClick={() => handleRemoveAs(r.id)}
-                      disabled={onlyOne}
-                      title={onlyOne ? t.asRemoveLast : t.asRemove}
-                      aria-label={t.asRemove}
-                    >✕</RemoveBtn>
-                  </AsHead>
-                  <Field>
-                    <TextField
-                      label={t.asNameLabel}
-                      value={r.fullName}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAs(r.id, { fullName: e.target.value })}
-                      size="m"
-                    />
-                  </Field>
-                  <Row>
-                    <TextField
-                      label={t.asEmailLabel}
-                      value={r.email}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAs(r.id, { email: e.target.value })}
-                      size="m"
-                    />
-                    <TextField
-                      label={t.asPhoneLabel}
-                      value={r.phone}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAs(r.id, { phone: e.target.value })}
-                      size="m"
-                    />
-                  </Row>
-                </AsCard>
-              );
-            })}
-            <AddBtn type="button" onClick={handleAddAs}>{t.asAdd}</AddBtn>
-          </Section>
-
-          {/* Board Resolution — выбор источника: шаблон банка / загрузка своего */}
-          <Section>
-            <SectionTitle>{t.sectionBr}</SectionTitle>
-            <Hint>{t.brHint}</Hint>
-
-            <BrOption $selected={brSource === 'template'} onClick={pickTemplate}>
-              <Radio $selected={brSource === 'template'} />
-              <BrOptBody>
-                <BrOptTitle>{t.brOptTemplateTitle}</BrOptTitle>
-                <BrOptDesc>{t.brOptTemplateDesc}</BrOptDesc>
-              </BrOptBody>
-            </BrOption>
-
-            <BrOption $selected={brSource === 'upload'} onClick={pickUpload}>
-              <Radio $selected={brSource === 'upload'} />
-              <BrOptBody>
-                <BrOptTitle>{t.brOptUploadTitle}</BrOptTitle>
-                <BrOptDesc>{t.brOptUploadDesc}</BrOptDesc>
-              </BrOptBody>
-            </BrOption>
-
-            {brSource === 'template' && (
+            {signerMode === 'directors' && (
               <>
-                <BrNote>{t.brTemplateNote}</BrNote>
-                <LinkBtn type="button" onClick={onViewTemplate}>{t.brViewTemplate}</LinkBtn>
-                {showTemplateToast && <Toast>{t.brViewTemplateToast}</Toast>}
+                <Hint>{t.directorsHint}</Hint>
+                {directors.map((d) => {
+                  const checked = pickedSigners.has(d.id);
+                  const c = signerContacts[d.id] ?? { email: '', phone: '' };
+                  const emailErr = showErrors && checked && !c.email.trim();
+                  const phoneErr = showErrors && checked && !c.phone.trim();
+                  return (
+                    <PickCard key={d.id} $checked={checked}>
+                      <Checkbox
+                        size="m" view="accent" checked={checked} onChange={() => toggleSigner(d.id)}
+                        label={<>{d.fullName}<RegBadge>{t.fromRegistry}</RegBadge></>}
+                        description={<PickMeta>{d.designation} · {d.pan}</PickMeta>}
+                      />
+                      {checked && (
+                        <ContactFields>
+                          <TextField
+                            label={t.emailLabel} value={c.email} size="m"
+                            view={emailErr ? 'negative' : 'default'}
+                            leftHelper={emailErr ? t.emailError : undefined}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSignerContact(d.id, { email: e.target.value })}
+                          />
+                          <TextField
+                            label={t.phoneLabel} value={c.phone} size="m"
+                            view={phoneErr ? 'negative' : 'default'}
+                            leftHelper={phoneErr ? t.phoneError : undefined}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSignerContact(d.id, { phone: e.target.value })}
+                          />
+                        </ContactFields>
+                      )}
+                    </PickCard>
+                  );
+                })}
+                {showErrors && pickedSigners.size < 2 && <ErrorHint>{t.minTwoError}</ErrorHint>}
               </>
             )}
 
+            {signerMode === 'secretary' && (
+              <FormBox>
+                <Field>
+                  <TextField
+                    label={t.secNameLabel} value={secretaryName} size="m"
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSecretaryName(e.target.value)}
+                  />
+                </Field>
+                <Row>
+                  <TextField
+                    label={t.emailLabel} value={secretaryContact.email} size="m"
+                    view={showErrors && !secretaryContact.email.trim() ? 'negative' : 'default'}
+                    leftHelper={showErrors && !secretaryContact.email.trim() ? t.emailError : undefined}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSecretaryContact((p) => ({ ...p, email: e.target.value }))}
+                  />
+                  <TextField
+                    label={t.phoneLabel} value={secretaryContact.phone} size="m"
+                    view={showErrors && !secretaryContact.phone.trim() ? 'negative' : 'default'}
+                    leftHelper={showErrors && !secretaryContact.phone.trim() ? t.phoneError : undefined}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSecretaryContact((p) => ({ ...p, phone: e.target.value }))}
+                  />
+                </Row>
+              </FormBox>
+            )}
+          </Section>
+
+          {/* СЕКЦИЯ 2 — Authorised Signatory (ровно один) */}
+          <Section>
+            <SectionTitle>{t.secAsTitle}</SectionTitle>
+            <Hint>{t.asHint}</Hint>
+            <PickCard $checked={asMode === 'from-directors'} onClick={() => setAsMode('from-directors')}>
+              <Radiobox
+                size="m" view="accent" name="as-mode" value="from-directors"
+                checked={asMode === 'from-directors'} onChange={() => setAsMode('from-directors')}
+                label={t.asFromDirectors}
+              />
+            </PickCard>
+
+            {asMode === 'from-directors' && (
+              <FormBox>
+                <Hint>{t.asPickDirector}</Hint>
+                {directors.map((d) => {
+                  const sel = asDirectorId === d.id;
+                  return (
+                    <PickCard key={d.id} $checked={sel} onClick={() => setAsDirectorId(d.id)}>
+                      <Radiobox
+                        size="m" view="accent" name="as-director" value={d.id}
+                        checked={sel} onChange={() => setAsDirectorId(d.id)}
+                        label={<>{d.fullName}<RegBadge>{t.fromRegistry}</RegBadge></>}
+                        description={<PickMeta>{d.designation} · {d.pan}</PickMeta>}
+                      />
+                    </PickCard>
+                  );
+                })}
+                {showErrors && asMode === 'from-directors' && !asDirectorId && <ErrorHint>{t.asPickError}</ErrorHint>}
+              </FormBox>
+            )}
+
+            <PickCard $checked={asMode === 'new-person'} onClick={() => setAsMode('new-person')}>
+              <Radiobox
+                size="m" view="accent" name="as-mode" value="new-person"
+                checked={asMode === 'new-person'} onChange={() => setAsMode('new-person')}
+                label={t.asNewPerson}
+              />
+            </PickCard>
+
+            {asMode === 'new-person' && (
+              <FormBox>
+                <Field>
+                  <TextField
+                    label={t.asNameLabel} value={newAs.fullName} size="m"
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAs((p) => ({ ...p, fullName: e.target.value }))}
+                  />
+                </Field>
+                <Field>
+                  <TextField
+                    label={t.asPanLabel} value={newAs.pan} size="m"
+                    view={showErrors && !PAN_RE.test(newAs.pan.trim().toUpperCase()) ? 'negative' : 'default'}
+                    leftHelper={showErrors && !PAN_RE.test(newAs.pan.trim().toUpperCase()) ? t.asPanError : undefined}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAs((p) => ({ ...p, pan: e.target.value }))}
+                  />
+                </Field>
+                <Row>
+                  <TextField
+                    label={t.emailLabel} value={newAs.email} size="m"
+                    view={showErrors && !newAs.email.trim() ? 'negative' : 'default'}
+                    leftHelper={showErrors && !newAs.email.trim() ? t.emailError : undefined}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAs((p) => ({ ...p, email: e.target.value }))}
+                  />
+                  <TextField
+                    label={t.phoneLabel} value={newAs.phone} size="m"
+                    view={showErrors && !newAs.phone.trim() ? 'negative' : 'default'}
+                    leftHelper={showErrors && !newAs.phone.trim() ? t.phoneError : undefined}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewAs((p) => ({ ...p, phone: e.target.value }))}
+                  />
+                </Row>
+              </FormBox>
+            )}
+          </Section>
+
+          {/* СЕКЦИЯ 3 — governance смены AS */}
+          <Section>
+            <SectionTitle>{t.secGovTitle}</SectionTitle>
+            <Select
+              label={t.govLabel}
+              placeholder={t.govPlaceholder}
+              helperText={t.govHelper}
+              target="textfield-like"
+              items={govItems}
+              value={governance}
+              onChange={(value: string) => setGovernance(value as GovernanceOption)}
+            />
+            {governance !== '' && <Hint>{t.govResolutionText}</Hint>}
+          </Section>
+
+          {/* СЕКЦИЯ 4 — документ BR: шаблон-дефолт + upload мелко */}
+          <Section>
+            <SectionTitle>{t.secBrTitle}</SectionTitle>
+            {brSource === 'template' && (
+              <>
+                <TemplateBox>
+                  <TemplateTitle>{t.brTemplateTitle}</TemplateTitle>
+                  <TemplateNote>{t.brTemplateNote}</TemplateNote>
+                </TemplateBox>
+                <Button view="clear" size="s" text={t.brViewResolution} onClick={() => setShowResolution(true)} />
+                <LinkBtn type="button" onClick={onShowUpload}>{t.brUploadLink}</LinkBtn>
+              </>
+            )}
             {brSource === 'upload' && (
               <>
-                <UploadZone>
+                <UploadBox>
                   {uploadPhase === 'idle' && (
-                    <Button view="secondary" size="m" text={t.brPickFile} onClick={onPickFile} />
+                    <Attach
+                      text={t.brPickFile}
+                      buttonType="button"
+                      acceptedFileFormats={['application/pdf']}
+                      onChange={onPickFile}
+                    />
                   )}
-                  {uploadPhase !== 'idle' && (
-                    <FileLine>📄 {UPLOADED_FILE}</FileLine>
-                  )}
+                  {uploadPhase !== 'idle' && <RecognizeLine>📄 {UPLOADED_FILE}</RecognizeLine>}
                   {uploadPhase === 'recognizing' && (
-                    <RecognizeLine><MiniSpinner />{t.brRecognizing}</RecognizeLine>
+                    <RecognizeLine><Spinner size={18} />{t.brRecognizing}</RecognizeLine>
                   )}
-                  {uploadPhase === 'done' && (
-                    <RecognizedLine>✓ {t.brRecognized}</RecognizedLine>
-                  )}
-                </UploadZone>
+                  {uploadPhase === 'done' && <RecognizedLine>✓ {t.brRecognized}</RecognizedLine>}
+                </UploadBox>
                 <InfoNote>{t.brDvuNote}</InfoNote>
+                <LinkBtn type="button" onClick={pickTemplate}>{t.brTemplateTitle}</LinkBtn>
               </>
             )}
           </Section>
 
           <ButtonRow>
             <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/bnq')} />
-            <Button view="accent" size="l" text={t.cta} onClick={handleContinue} />
+            <Button view="accent" size="l" text={t.cta} onClick={handleContinue} disabled={showErrors && !canContinue} />
           </ButtonRow>
         </CardBody>
       </Card>
+
+      {/* Лайтбокс: полный текст резолюции BR (документ в preview) */}
+      {showResolution && (
+        <LightboxBackdrop onClick={() => setShowResolution(false)}>
+          <LightboxDoc onClick={(e) => e.stopPropagation()}>
+            <LightboxTitle>{t.brResolutionTitle}</LightboxTitle>
+            <LightboxText>{t.brResolutionBody}</LightboxText>
+            <LightboxFoot>
+              <Button view="secondary" size="m" text={t.brResolutionClose} onClick={() => setShowResolution(false)} />
+            </LightboxFoot>
+          </LightboxDoc>
+        </LightboxBackdrop>
+      )}
     </ScreenV2>
   );
 };

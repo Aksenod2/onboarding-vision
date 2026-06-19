@@ -13,11 +13,11 @@ import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import { useCompany } from '../../../ui/v2/CompanyContext';
 import {
-  getSignatory, giveSignatoryConsent, setSignatoryStep, passSignatoryVcip, signByDsc,
+  getSignatory, giveSignatoryConsent, setSignatoryStep, passSignatoryVcip, signByDsc, passSignatoryAadhaar,
 } from '../../../mock/v2/companyApi';
 import { roleLabel } from '../../../mock/v2/companyTypes';
-import type { Signatory, SignatoryStep } from '../../../mock/v2/companyTypes';
-import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ButtonRowEnd, ConsentRow, SuccessNote } from './companyUi';
+import type { Signatory, SignatoryStep, AadhaarResult } from '../../../mock/v2/companyTypes';
+import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ButtonRowEnd, ConsentRow, SuccessNote, AadhaarResultBox } from './companyUi';
 
 // CO-SIGNATORY — персональная сессия подписанта (фаза B), один экран-роутер по currentStep:
 // consents → aadhaar → dsc-sign → vkyc → done (#35: подпись ДО видео, видео финальное).
@@ -295,6 +295,7 @@ export const CompanySignatory = () => {
   const [cPrivacy, setCPrivacy] = useState(false);
   const [cAadhaar, setCAadhaar] = useState(false);
   const [aadhaarPhase, setAadhaarPhase] = useState<'qr' | 'waiting' | 'success'>('qr');
+  const [aadhaarResult, setAadhaarResult] = useState<AadhaarResult | null>(null);
   const [aadhaarConsent, setAadhaarConsent] = useState(false);
   const [vkycConsent, setVkycConsent] = useState(false);
   const [videoPhase, setVideoPhase] = useState<'idle' | 'running' | 'done'>('idle');
@@ -439,7 +440,11 @@ export const CompanySignatory = () => {
   if (step === 'aadhaar') {
     const onScan = () => {
       setAadhaarPhase('waiting');
-      const tt = setTimeout(() => setAadhaarPhase('success'), 2000);
+      const tt = setTimeout(async () => {
+        const res = await passSignatoryAadhaar(id);
+        setAadhaarResult(res);
+        setAadhaarPhase('success');
+      }, 2000);
       timers.current.push(tt);
     };
     const next = async () => { await setSignatoryStep(id, 'dsc-sign'); await refresh(); };
@@ -457,7 +462,13 @@ export const CompanySignatory = () => {
             <QrFrame><QrMock /></QrFrame>
             <QrCaption>{t.qrCaption}</QrCaption>
             {aadhaarPhase === 'waiting' && <><Spinner /><WaitText>{t.aadhaarWaiting}</WaitText></>}
-            {aadhaarPhase === 'success' && <SuccessNote><span className="ic">✓</span>{t.aadhaarSuccess}</SuccessNote>}
+            {aadhaarPhase === 'success' && (
+              <>
+                <SuccessNote><span className="ic">✓</span>{t.aadhaarSuccess}</SuccessNote>
+                {/* Те же 5 полей, что у инициатора компании (единый вид). Номер маскирован. */}
+                {aadhaarResult && <AadhaarResultBox data={aadhaarResult} lang={lang} />}
+              </>
+            )}
             {aadhaarPhase === 'qr' && (
               <>
                 <ConsentRow><Checkbox label={t.aadhaarConsent} description={t.aadhaarConsentDesc} checked={aadhaarConsent} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAadhaarConsent(e.target.checked)} /></ConsentRow>

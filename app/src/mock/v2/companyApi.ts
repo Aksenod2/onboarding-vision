@@ -4,7 +4,8 @@
 import { mehtaTextiles } from './companySeed';
 import type {
   CompanyCaseV2, CompanyDetails, Signatory, SignatoryStep, BoardResolution, BrSource,
-  Ubo, FatcaClassification, CompanyDocument,
+  Ubo, FatcaClassification, CompanyDocument, AadhaarResult, BrSignerConfig,
+  ApplicationBlock,
 } from './companyTypes';
 import { goesThroughPhaseB } from './companyTypes';
 import type { ConsentType, BnqAnswer } from './types';
@@ -29,6 +30,27 @@ export const getBnq = (): Promise<BnqAnswer[]> => delay(state.bnq);
 export const getUbo = (): Promise<Ubo[]> => delay(state.ubo);
 export const getCompanyDocuments = (): Promise<CompanyDocument[]> => delay(state.companyDocuments);
 
+// --- Блоки заявки (верхний уровень двухуровневого дашборда, Б.1/Б.3) ---
+// Возвращаем обзор блоков «что с моей заявкой» со статусами. Статус блока
+// «Personal Identification & Signing» выводим из прогресса подписантов; остальные —
+// демо-значения (банк ещё не подтвердил → 'verify', спокойный сине-серый).
+// TODO: полный перечень блоков от Марго (ОВ-Б1) — список конфигурируемый, дополняется без правки UI.
+export const getApplicationBlocks = (): Promise<ApplicationBlock[]> => {
+  const required = state.signatories.filter(goesThroughPhaseB);
+  const allDone = required.length > 0 && required.every((s) => s.status === 'done');
+  const anyStarted = required.some((s) => s.status !== 'waiting');
+  const identStatus: ApplicationBlock['status'] = allDone ? 'done' : anyStarted ? 'in-progress' : 'verify';
+  const blocks: ApplicationBlock[] = [
+    { id: 'company-details', titleRu: 'Данные компании', titleEn: 'Company details', status: 'verify', kind: 'static' },
+    { id: 'board-resolution', titleRu: 'Board Resolution', titleEn: 'Board Resolution', status: state.br.confirmed ? 'done' : 'verify', kind: 'static' },
+    { id: 'identification-signing', titleRu: 'Идентификация и подписание участников', titleEn: 'Personal Identification & Signing', status: identStatus, kind: 'identification-signing' },
+    { id: 'business-profile', titleRu: 'Бизнес-профиль и UBO', titleEn: 'Business profile / UBO', status: 'verify', kind: 'static' },
+    { id: 'vkyc', titleRu: 'Видеоидентификация (VKYC)', titleEn: 'VKYC', status: allDone ? 'done' : 'verify', kind: 'static' },
+    // TODO: полный перечень блоков от Марго (например, FATCA/CRS, Source of funds) — добавить сюда.
+  ];
+  return delay(blocks);
+};
+
 // --- Вход компании (точка входа = Aadhaar-авторизация) ---
 
 const emptyEntry = () => ({ consentsGiven: false, aadhaarVerified: false, passcodeSet: false });
@@ -46,14 +68,43 @@ export const giveCompanyEntryConsent = (): Promise<void> => {
   return delay(undefined);
 };
 
-// Aadhaar-авторизация инициатора: «скан» QR → данные из UIDAI (подтягиваем email/phone).
-export const passCompanyAadhaar = (): Promise<{ email: string; phone: string }> => {
-  // Контакты инициатора (демо) — из первого директора сид-компании.
+// Aadhaar-авторизация инициатора: «скан» QR → данные из UIDAI (5 полей; номер маскирован).
+// Письмо Марго 19.06: name / aadhaar number ******XXXX / telephone / email / address.
+export const passCompanyAadhaar = (): Promise<AadhaarResult> => {
+  // Данные инициатора (демо) — из Aadhaar-результата первого директора сид-компании.
   const initiator = state.signatories[0];
-  const email = initiator?.email ?? 'rajesh.mehta@mehtatextiles.in';
-  const phone = initiator?.phone ?? '+91 98201 33445';
-  state.entry = { ...(state.entry ?? emptyEntry()), aadhaarVerified: true, email, phone };
-  return delay({ email, phone });
+  const result: AadhaarResult = initiator?.aadhaarResult ?? {
+    name: 'Rajesh Mehta',
+    aadhaarMasked: 'XXXX XXXX 4521',
+    phone: '+91 98201 33445',
+    email: 'rajesh.mehta@mehtatextiles.in',
+    address: 'Flat 12B, Sea Breeze Apartments, Bandra West, Mumbai, Maharashtra — 400050',
+  };
+  state.entry = {
+    ...(state.entry ?? emptyEntry()),
+    aadhaarVerified: true,
+    email: result.email,
+    phone: result.phone,
+    aadhaar: result,
+  };
+  return delay(result);
+};
+
+// Aadhaar eKYC приглашённого подписанта (фаза B): «скан» QR → 5 полей из UIDAI.
+// Если у подписанта в сиде нет aadhaarResult (добавлен вручную) — собираем из его контактов.
+export const passSignatoryAadhaar = (id: string): Promise<AadhaarResult> => {
+  const sig = state.signatories.find((s) => s.id === id);
+  const result: AadhaarResult = sig?.aadhaarResult ?? {
+    name: sig?.fullName ?? '',
+    aadhaarMasked: 'XXXX XXXX 0000',
+    phone: sig?.phone ?? '',
+    email: sig?.email ?? '',
+    address: 'India',
+  };
+  state.signatories = state.signatories.map((s) =>
+    s.id === id ? { ...s, aadhaarResult: result } : s,
+  );
+  return delay(result);
 };
 
 // Пин-код (цифры) = креды интернет-банка. Логин привязан к email (заглушка Марго).
@@ -141,6 +192,95 @@ export const setBoardResolutionSource = (source: BrSource, fileName?: string): P
     brFileName: source === 'upload' ? fileName : undefined,
   };
   return delay(state.br);
+};
+
+// Сохранить срез акта назначения AS (кто подписывает BR / кто AS / governance смены).
+export const setBrSignerConfig = (patch: Partial<BrSignerConfig>): Promise<BoardResolution> => {
+  state.br = { ...state.br, signerConfig: { ...state.br.signerConfig, ...patch } };
+  return delay(state.br);
+};
+
+// Назначить РОВНО ОДНОГО Authorised Signatory из директоров (ветка 'from-directors').
+// Снимает роль AuthorizedSignatory со всех директоров, ставит её выбранному.
+// «Чистые» AS (новое лицо) при этом удаляются — единственный AS теперь директор.
+export const setAsFromDirector = (
+  directorId: string,
+  contact?: { email?: string; phone?: string },
+): Promise<Signatory[]> => {
+  state.signatories = state.signatories
+    // выкинуть «чистых» AS (новое лицо), оставшихся от прошлой ветки
+    .filter((s) => !(s.roles.includes('AuthorizedSignatory') && !s.roles.includes('Director')))
+    .map((s) => {
+      if (!s.roles.includes('Director')) return s;
+      const isTarget = s.id === directorId;
+      // пересобрать роли: убрать AS у всех директоров, добавить выбранному
+      const roles: Signatory['roles'] = s.roles.filter((r) => r !== 'AuthorizedSignatory');
+      if (isTarget) roles.push('AuthorizedSignatory');
+      const patch = isTarget && contact ? { email: contact.email ?? s.email, phone: contact.phone ?? s.phone } : {};
+      return { ...s, roles, ...patch };
+    });
+  return delay(state.signatories);
+};
+
+// Назначить единственного AS как НОВОЕ ЛИЦО (ветка 'new-person').
+// Снимает роль AuthorizedSignatory со всех директоров, держит ровно одну «чистую» AS-запись.
+let asNewSeq = 0;
+export const setAsNewPerson = (
+  input: { fullName: string; pan: string; email: string; phone: string },
+): Promise<Signatory[]> => {
+  // снять AS со всех директоров
+  let next = state.signatories.map((s) =>
+    s.roles.includes('Director')
+      ? { ...s, roles: s.roles.filter((r) => r !== 'AuthorizedSignatory') }
+      : s,
+  );
+  // найти существующую «чистую» AS-запись (новое лицо) — обновить, иначе создать
+  const cleanAs = next.find((s) => s.roles.includes('AuthorizedSignatory') && !s.roles.includes('Director'));
+  if (cleanAs) {
+    next = next.map((s) =>
+      s.id === cleanAs.id
+        ? { ...s, fullName: input.fullName, pan: input.pan, email: input.email, phone: input.phone }
+        : s,
+    );
+    // оставить только эту «чистую» AS среди новых лиц (удалить лишние, если были)
+    next = next.filter((s) =>
+      s.id === cleanAs.id || !(s.roles.includes('AuthorizedSignatory') && !s.roles.includes('Director')),
+    );
+  } else {
+    const id = `sig-as-new-${Date.now()}-${asNewSeq++}`;
+    next = [...next, {
+      id,
+      fullName: input.fullName,
+      roles: ['AuthorizedSignatory'],
+      pan: input.pan,
+      panSource: 'manual',
+      email: input.email,
+      phone: input.phone,
+      inviteSent: false,
+      currentStep: 'waiting',
+      status: 'waiting',
+      consents: [
+        { type: 'Privacy Notice', mandatory: true, status: 'pending', screen: 'CO-B1' },
+        { type: 'Data Principals', mandatory: true, status: 'pending', screen: 'CO-B1' },
+        { type: 'Aadhaar', mandatory: true, status: 'pending', screen: 'CO-B2' },
+        { type: 'VKYC', mandatory: true, status: 'pending', screen: 'CO-B3' },
+      ],
+      vcip: { personName: input.fullName, method: 'selfVKYC', status: 'Pending' },
+      signature: { signed: false, method: 'DSC' },
+    }];
+  }
+  state.signatories = next;
+  return delay(state.signatories);
+};
+
+// Обновить контакты подписывающих BR директоров (email/phone — ручной ввод, в Probe их нет).
+export const setBrSignerContacts = (
+  contacts: Record<string, { email: string; phone: string }>,
+): Promise<Signatory[]> => {
+  state.signatories = state.signatories.map((s) =>
+    contacts[s.id] ? { ...s, email: contacts[s.id].email, phone: contacts[s.id].phone } : s,
+  );
+  return delay(state.signatories);
 };
 
 // Подтверждение состава BR (фаза A, BR-вопросы): фиксируем подписантов + генерим BR.

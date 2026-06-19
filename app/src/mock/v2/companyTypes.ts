@@ -46,6 +46,9 @@ export interface Signatory {
   currentStep: SignatoryStep;
   status: SignatoryStatus;
   aadhaar?: Aadhaar; // привязывается на шаге Aadhaar (маска в UI)
+  // Результат запроса по Aadhaar (UIDAI eKYC) — 5 полей, номер маскирован.
+  // Показывается на шаге aadhaar=success в сессии подписанта (как у инициатора компании).
+  aadhaarResult?: AadhaarResult;
   consents: Consent[]; // личные согласия подписанта
   vcip: VCIPSession; // его видеосессия
   signature: { signed: boolean; method: 'DSC'; timestamp?: IST };
@@ -55,6 +58,30 @@ export interface Signatory {
 // Источник BR (первый вопрос BRD): 'template' = онлайн-шаблон банка (STP);
 // 'upload' = клиент грузит свой BR → распознавание (IDP/OCR) → ручная проверка менеджером (No STP → DVU).
 export type BrSource = 'template' | 'upload';
+
+// --- Кто подписывает Board Resolution (BRD 1D-6 #3) ---
+// Это РОЛЬ, отдельная от Authorised Signatory. Варианты: ≥2 директора ИЛИ один Company Secretary (singly).
+export type BrSignerMode = 'directors' | 'secretary';
+
+// --- Как назначается единственный Authorised Signatory (BRD 1D-6 #4) ---
+// 'from-directors' = один из директоров (PAN из Probe); 'new-person' = новое лицо (ручной ввод).
+export type AsMode = 'from-directors' | 'new-person';
+
+// --- Governance будущей смены Authorised Signatory (BRD 1D-6 #5, dropdown 2 опции) ---
+export type GovernanceOption = 'nominated-official' | 'decision-pursuant-br';
+
+// --- Конфигурация акта назначения AS на экране Board Resolution ---
+// Срез ответов BR-вопросов (кто подписывает / кто AS / governance смены) + контакт секретаря,
+// если выбрана ветка «один секретарь». Контакты подписывающих директоров живут на самих Signatory.
+export interface BrSignerConfig {
+  signerMode: BrSignerMode; // ≥2 директора / 1 секретарь
+  // контакты Company Secretary (ветка 'secretary'): в Probe их нет → ручной ввод
+  secretaryName: string;
+  secretaryEmail: string;
+  secretaryPhone: string;
+  asMode: AsMode; // AS из директоров / новое лицо
+  governance: GovernanceOption | null; // выбор governance смены AS (null — ещё не выбрано)
+}
 
 export interface BoardResolution {
   template: 'bank' | 'own'; // happy = 'bank' (генерим); 'own' = загрузка (DVU, out of scope)
@@ -66,6 +93,8 @@ export interface BoardResolution {
   date?: IST; // авто-таймстамп при подтверждении
   confirmed: boolean;
   confirmedAt?: IST;
+  // Срез акта назначения AS (кто подписывает BR / кто AS / governance смены).
+  signerConfig: BrSignerConfig;
 }
 
 // --- FATCA/CRS-классификация компании (требование BRD, аудит дыр #8) ---
@@ -150,6 +179,18 @@ export interface CompanyCaseV2 {
   entry?: CompanyEntry;
 }
 
+// --- Результат запроса по Aadhaar (UIDAI eKYC) ---
+// Письмо Марго 19.06: «Запрос по адхару выдает следующее: name / aadhaar number ******2678 /
+// telephone / email / address». Номер Aadhaar — ВСЕГДА маскирован (только последние 4 цифры).
+// Один и тот же контракт у инициатора компании (вход) и у приглашённого подписанта (фаза B).
+export interface AadhaarResult {
+  name: string;
+  aadhaarMasked: string; // формат «XXXX XXXX 2678» — реальны только последние 4 цифры
+  phone: string;
+  email: string;
+  address: string;
+}
+
 // --- Вход компании (точка входа = Aadhaar-авторизация) ---
 // Согласия даются ДО Aadhaar (регуляторика). Контакты подтягиваются из UIDAI при скане.
 // Пин-код (цифры) = креды интернет-банка; логин привязан к email (заглушка Марго: email+паскод).
@@ -158,9 +199,34 @@ export interface CompanyEntry {
   aadhaarVerified: boolean;
   email?: string; // из Aadhaar (UIDAI)
   phone?: string; // из Aadhaar (UIDAI)
+  aadhaar?: AadhaarResult; // полный результат запроса по Aadhaar (5 полей, номер маскирован)
   passcodeSet: boolean;
   passcode?: string; // демо: хранится в памяти, 4 цифры
 }
+
+// --- Блоки заявки на верхнем уровне дашборда (двухуровневый кабинет, Б.1/Б.3) ---
+// Инициатор видит обзор «что с моей заявкой»: блоки заявки + их статус.
+// 'verify' — банк ещё не подтвердил блок (VKYC, company details): сине-серый, действий не требуется
+//   (Verifying≠warning — НЕ оранжевый). 'in-progress' — синий. 'done' — зелёный.
+//   'action-required' — оранжевый, ТОЛЬКО если реально нужно действие клиента.
+export type ApplicationBlockStatus = 'verify' | 'in-progress' | 'done' | 'action-required';
+
+// Блок «Personal Identification & Signing» — drill-down: список участников с под-статусами.
+// kind помечает блок, в который можно «провалиться» (раскрытие Accordion на дашборде).
+export type ApplicationBlockKind = 'identification-signing' | 'static';
+
+export interface ApplicationBlock {
+  id: string;
+  titleRu: string;
+  titleEn: string;
+  status: ApplicationBlockStatus;
+  kind: ApplicationBlockKind;
+}
+
+// Под-статусы участника на drill-down (Б.2): отдельно подписание, отдельно VKYC.
+// Письмо Марго требует видеть и подписание, И VKYC по каждому участнику.
+// 'pending' — ещё не начал; 'in-progress' — в процессе; 'done' — пройдено.
+export type SubStepStatus = 'pending' | 'in-progress' | 'done';
 
 // --- DVU re-upload (#34): банк запросил догрузить документ по заявке ---
 // Имитация «обратного запроса банка»: представитель видит на дашборде, что нужно догрузить документ,
@@ -190,6 +256,21 @@ export const companyFieldSources: Record<keyof CompanyDetails, FieldSource> = {
 // Подписант проходит фазу B (идентификацию) ⟺ в roles есть Director или AuthorizedSignatory.
 export const goesThroughPhaseB = (s: Signatory): boolean =>
   s.roles.includes('Director') || s.roles.includes('AuthorizedSignatory');
+
+// --- Под-статусы участника: подписание + VKYC (выводим из currentStep/signature/vcip) ---
+// Не храним отдельными полями — выводим из текущего прогресса, чтобы advanceSignatories
+// (reference-safe) и личная сессия оставались единственным источником истины.
+// Порядок цепочки: consents → aadhaar → vkyc → dsc-sign → done. Подпись (DSC) идёт ПОСЛЕ vkyc.
+export const signingSubStatus = (s: Signatory): SubStepStatus => {
+  if (s.signature.signed || s.status === 'done') return 'done';
+  if (s.currentStep === 'dsc-sign') return 'in-progress';
+  return 'pending';
+};
+export const vkycSubStatus = (s: Signatory): SubStepStatus => {
+  if (s.vcip.status === 'Passed' || s.status === 'done') return 'done';
+  if (s.currentStep === 'vkyc') return 'in-progress';
+  return 'pending';
+};
 
 // Человекочитаемая подпись роли (для чипов на дашборде).
 export const roleLabel: Record<Role, { ru: string; en: string }> = {

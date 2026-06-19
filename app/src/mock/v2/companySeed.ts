@@ -57,6 +57,13 @@ export const mehtaTextiles: CompanyCaseV2 = {
       inviteSent: false,
       currentStep: 'waiting',
       status: 'waiting',
+      aadhaarResult: {
+        name: 'Rajesh Mehta',
+        aadhaarMasked: 'XXXX XXXX 4521',
+        phone: '+91 98201 33445',
+        email: 'rajesh.mehta@mehtatextiles.in',
+        address: 'Flat 12B, Sea Breeze Apartments, Bandra West, Mumbai, Maharashtra — 400050',
+      },
       consents: signatoryConsents(),
       vcip: pendingVcip('Rajesh Mehta'),
       signature: { signed: false, method: 'DSC' },
@@ -73,6 +80,13 @@ export const mehtaTextiles: CompanyCaseV2 = {
       inviteSent: false,
       currentStep: 'waiting',
       status: 'waiting',
+      aadhaarResult: {
+        name: 'Priya Mehta',
+        aadhaarMasked: 'XXXX XXXX 7813',
+        phone: '+91 98201 33446',
+        email: 'priya.mehta@mehtatextiles.in',
+        address: 'Flat 12B, Sea Breeze Apartments, Bandra West, Mumbai, Maharashtra — 400050',
+      },
       consents: signatoryConsents(),
       vcip: pendingVcip('Priya Mehta'),
       signature: { signed: false, method: 'DSC' },
@@ -88,6 +102,13 @@ export const mehtaTextiles: CompanyCaseV2 = {
       inviteSent: false,
       currentStep: 'waiting',
       status: 'waiting',
+      aadhaarResult: {
+        name: 'Amit Shah',
+        aadhaarMasked: 'XXXX XXXX 2678',
+        phone: '+91 98330 71290',
+        email: 'amit.shah@mehtatextiles.in',
+        address: '4, Satyam Heights, Satellite Road, Ahmedabad, Gujarat — 380015',
+      },
       consents: signatoryConsents(),
       vcip: pendingVcip('Amit Shah'),
       signature: { signed: false, method: 'DSC' },
@@ -101,6 +122,16 @@ export const mehtaTextiles: CompanyCaseV2 = {
     cin: 'U17110MH2018PTC312045',
     address: 'Unit 7, Apparel Park, MIDC Andheri East, Mumbai — 400093, MH',
     confirmed: false,
+    // Акт назначения AS (BRD 1D-6): дефолт — подписывают директора (≥2),
+    // AS назначается из директоров; governance ещё не выбран (осознанный выбор клиента).
+    signerConfig: {
+      signerMode: 'directors',
+      secretaryName: 'Vikram Iyer', // демо: Company Secretary компании (ветка 'secretary')
+      secretaryEmail: 'vikram.iyer@mehtatextiles.in',
+      secretaryPhone: '+91 98200 55410',
+      asMode: 'from-directors',
+      governance: null,
+    },
   },
 
   // BNQ — как у SP (риск-категоризация); демо-значения для Trading-компании.
@@ -136,8 +167,8 @@ export const mehtaTextiles: CompanyCaseV2 = {
   // GST conditional — компания с GSTIN, поэтому требуется (предзаполнен из реестра).
   companyDocuments: [
     { id: 'doc-coi', name: 'Certificate of Incorporation', source: 'registry' },
-    { id: 'doc-moa', name: 'Memorandum of Association (MOA)', source: 'registry' },
-    { id: 'doc-aoa', name: 'Articles of Association (AOA)', source: 'registry' },
+    // MOA/AOA — одно поле (требование Марго 19.06): не может быть двух раздельных строк.
+    { id: 'doc-moa-aoa', name: 'MOA / AOA', source: 'registry' },
     { id: 'doc-shp', name: 'Shareholding Pattern', source: 'required' },
     { id: 'doc-gst', name: 'GST Registration Certificate', source: 'registry', conditional: true },
   ],
