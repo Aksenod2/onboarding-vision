@@ -11,20 +11,22 @@ import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
   getCompany, getSignatories, getUbo, confirmCompanyData,
-  updateCompanyData, addUbo, updateUbo, removeUbo, setUboDeclared, setFatca,
+  updateCompanyData, addUbo, updateUbo, removeUbo, setUboDeclared,
   getCompanyDocuments, uploadCompanyDocument, replaceCompanyDocument,
   setUboModified, uploadUboShareholdingDoc, uploadCompanyFieldProof,
+  getDirectors, addDirector, updateDirector, removeDirector,
+  setDirectorsModified, uploadDirectorsProofDoc,
 } from '../../../mock/v2/companyApi';
 import { roleLabel } from '../../../mock/v2/companyTypes';
-import type { CompanyDetails, Signatory, Ubo, FatcaClassification, CompanyDocument } from '../../../mock/v2/companyTypes';
+import type { CompanyDetails, Signatory, Ubo, CompanyDocument } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ConsentRow } from './companyUi';
 
-// CO-CONFIRM — шаг 3 фазы A: обзор данных компании + редактирование + бизнес-профиль (UBO, FATCA/CRS).
-// UBO + FATCA/CRS живут здесь (а не в анкете): это «обзор перед отправкой», где представитель
-// подтверждает полноту бенефициаров и налоговую классификацию ДО рассылки подписантам. BRD #8.
-// Роут: /company/confirm
-
-const FATCA_OPTS: FatcaClassification[] = ['Active NFFE', 'Passive NFFE', 'Financial Institution'];
+// CO-CONFIRM — шаг 2 фазы A: обзор данных компании + редактирование + бизнес-профиль (директора, UBO).
+// Идёт ДО Board Resolution (решение Дениса 2026-06-22, подтверждено транскриптом Марго):
+// представитель подтверждает/правит состав директоров ЗДЕСЬ, затем на Board Resolution
+// уполномоченный подписант выбирается из этого состава директоров. BRD #8.
+// FATCA/CRS перенесён в опросник (Q4b) — здесь больше НЕ показывается.
+// Поток: bnq → confirm → signatories-br → dispatch. Роут: /company/confirm
 
 const dict: Record<Lang, {
   title: string; subtitle: string;
@@ -37,6 +39,12 @@ const dict: Record<Lang, {
   // Edit reg-поля: правка → подтверждающий документ → DVU (паттерн SP06)
   regProofLabel: string; regProofRequired: string; regProofUpload: string; regProofUploaded: string;
   regDvuTitle: string; regDvuText: string;
+  // Директора — блок на финальной анкете (правка → документ → DVU)
+  sectionDirectors: string; dirHint: string;
+  dirName: string; dirDesignation: string; dirPan: string;
+  dirAdd: string; dirRemove: string;
+  dirDocTitle: string; dirDocHint: string; dirDocUpload: string; dirDocUploading: string; dirDocUploaded: string;
+  dirDvuNote: string;
   sectionUbo: string; uboHint: string;
   uboShare: string; uboName: string;
   uboAdd: string; uboRemove: string;
@@ -44,9 +52,6 @@ const dict: Record<Lang, {
   // BRD — ручные правки UBO: Shareholding Pattern (CA, UDIN) + маркер DVU
   uboDocTitle: string; uboDocHint: string; uboDocUpload: string; uboDocUploading: string; uboDocUploaded: string;
   uboDvuNote: string;
-  sectionFatca: string; fatcaHint: string;
-  fatcaOpts: Record<FatcaClassification, string>;
-  taxResidency: string;
   sectionDocs: string; docsHint: string;
   docFromRegistry: string; docReplace: string; docUpload: string;
   docUploading: string; docUploaded: string; docRequired: string;
@@ -56,13 +61,13 @@ const dict: Record<Lang, {
 }> = {
   ru: {
     title: 'Проверьте данные компании',
-    subtitle: 'Мы автоматически заполнили сведения из реестров. Проверьте перед отправкой приглашений подписантам.',
+    subtitle: 'Мы автоматически заполнили сведения из реестров. Проверьте и при необходимости измените перед следующим шагом.',
     sectionCompany: 'Данные компании',
     sectionSignatories: 'Подписанты',
     fromRegistry: 'из реестра',
     prefilled: 'Предзаполнено',
     back: 'Назад',
-    cta: 'Подтвердить и пригласить подписантов',
+    cta: 'Продолжить',
     edit: 'Изменить',
     save: 'Сохранить',
     cancel: 'Отмена',
@@ -78,6 +83,19 @@ const dict: Record<Lang, {
     regProofUploaded: 'Загружено',
     regDvuTitle: 'Данные уйдут на проверку',
     regDvuText: 'Изменённые реестровые данные будут направлены в отдел проверки банка (DVU). Решение по счёту обычно от этого не меняется.',
+    sectionDirectors: 'Директора',
+    dirHint: 'Подтянуты из реестра. Проверьте состав и данные, при необходимости измените или дополните.',
+    dirName: 'ФИО',
+    dirDesignation: 'Должность',
+    dirPan: 'PAN',
+    dirAdd: '+ Добавить директора',
+    dirRemove: 'Удалить',
+    dirDocTitle: 'Документ-подтверждение состава директоров',
+    dirDocHint: 'Загрузите документ, подтверждающий изменённый состав директоров. Один документ на весь раздел.',
+    dirDocUpload: 'Выбрать файл',
+    dirDocUploading: 'Загрузка…',
+    dirDocUploaded: 'Загружено',
+    dirDvuNote: 'Раздел директоров изменён вручную — уйдёт на проверку специалисту банка (DVU). На решение по счёту это обычно не влияет.',
     sectionUbo: 'Бенефициарные владельцы (UBO)',
     uboHint: 'Лица с долей владения 25% и более. Подтянуты из данных компании — проверьте и дополните при необходимости.',
     uboShare: 'Доля, %',
@@ -91,14 +109,6 @@ const dict: Record<Lang, {
     uboDocUploading: 'Загрузка…',
     uboDocUploaded: 'Загружено',
     uboDvuNote: 'Раздел бенефициаров изменён вручную — он уйдёт на проверку специалисту банка (DVU). На решение по счёту это обычно не влияет.',
-    sectionFatca: 'FATCA / CRS',
-    fatcaHint: 'Налоговая классификация компании для обмена налоговой информацией. Для торговой компании-резидента Индии обычно Active NFFE.',
-    fatcaOpts: {
-      'Active NFFE': 'Активная нефинансовая структура (Active NFFE)',
-      'Passive NFFE': 'Пассивная нефинансовая структура (Passive NFFE)',
-      'Financial Institution': 'Финансовая организация',
-    },
-    taxResidency: 'Страна налогового резидентства',
     sectionDocs: 'Документы компании',
     docsHint: 'Учредительные документы заполнены автоматически. Недостающие приложите вручную — или замените подтянутый файл своим.',
     docFromRegistry: 'Заполнено автоматически',
@@ -113,13 +123,13 @@ const dict: Record<Lang, {
   },
   en: {
     title: 'Review company details',
-    subtitle: 'We pre-filled the data from registries. Please review before sending invitations to signatories.',
+    subtitle: 'We pre-filled the data from registries. Please review and edit if needed before the next step.',
     sectionCompany: 'Company details',
     sectionSignatories: 'Signatories',
     fromRegistry: 'from registry',
     prefilled: 'Pre-filled',
     back: 'Back',
-    cta: 'Confirm and invite signatories',
+    cta: 'Continue',
     edit: 'Edit',
     save: 'Save',
     cancel: 'Cancel',
@@ -135,6 +145,19 @@ const dict: Record<Lang, {
     regProofUploaded: 'Uploaded',
     regDvuTitle: 'Changes will be reviewed',
     regDvuText: 'The edited registry data will be sent to the bank Document Verification Unit (DVU). This usually does not affect the account decision.',
+    sectionDirectors: 'Directors',
+    dirHint: 'Pulled from the registry. Review the composition and details — edit or add if needed.',
+    dirName: 'Full name',
+    dirDesignation: 'Designation',
+    dirPan: 'PAN',
+    dirAdd: '+ Add director',
+    dirRemove: 'Remove',
+    dirDocTitle: 'Directors composition supporting document',
+    dirDocHint: 'Upload a document confirming the changed directors composition. One document for the whole section.',
+    dirDocUpload: 'Choose file',
+    dirDocUploading: 'Uploading…',
+    dirDocUploaded: 'Uploaded',
+    dirDvuNote: 'The directors section was edited manually — it will be sent for review by a bank specialist (DVU). This usually does not affect the account decision.',
     sectionUbo: 'Ultimate Beneficial Owners (UBO)',
     uboHint: 'Persons holding 25% or more. Pulled from company data — review and add if needed.',
     uboShare: 'Share, %',
@@ -148,14 +171,6 @@ const dict: Record<Lang, {
     uboDocUploading: 'Uploading…',
     uboDocUploaded: 'Uploaded',
     uboDvuNote: 'The beneficiaries section was edited manually — it will be sent for review by a bank specialist (DVU). This usually does not affect the account decision.',
-    sectionFatca: 'FATCA / CRS',
-    fatcaHint: 'Company tax classification for tax-information exchange. A trading company resident in India is usually an Active NFFE.',
-    fatcaOpts: {
-      'Active NFFE': 'Active NFFE (non-financial)',
-      'Passive NFFE': 'Passive NFFE (non-financial)',
-      'Financial Institution': 'Financial Institution',
-    },
-    taxResidency: 'Country of tax residency',
     sectionDocs: 'Company documents',
     docsHint: 'Incorporation documents are auto-filled. Upload any missing ones manually — or replace a fetched file with your own.',
     docFromRegistry: 'Auto-filled',
@@ -249,25 +264,6 @@ const UboDvuNote = styled.div`
   &::before { content:'ℹ'; flex-shrink:0; color:${textSecondary}; }
 `;
 
-// Радио-карточка FATCA (паттерн BR-опций).
-const RadioCard = styled.label<{ $selected: boolean }>`
-  display:flex; align-items:center; gap:0.75rem; cursor:pointer;
-  padding:0.75rem 1rem; border-radius:${radii.panel};
-  border:1.5px solid ${({ $selected }) => ($selected ? textAccent : 'rgba(0,0,0,0.12)')};
-  background:${({ $selected }) => ($selected ? 'rgba(33,160,56,0.05)' : '#fff')};
-  font-size:0.86rem; color:${textPrimary};
-  transition:border-color .15s, background .15s;
-`;
-const Radio = styled.span<{ $selected: boolean }>`
-  flex-shrink:0; width:20px; height:20px; border-radius:50%;
-  border:2px solid ${({ $selected }) => ($selected ? textAccent : 'rgba(0,0,0,0.25)')};
-  display:flex; align-items:center; justify-content:center;
-  &::after {
-    content:''; width:10px; height:10px; border-radius:50%;
-    background:${({ $selected }) => ($selected ? textAccent : 'transparent')};
-  }
-`;
-
 // #16 — строка документа компании: имя + статус источника + действие (Заменить / Выбрать файл).
 const DocRow = styled.div`
   display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;
@@ -293,6 +289,9 @@ const DocReq = styled.span`font-size:0.72rem; color:${textSecondary}; opacity:0.
 // Добавленные вручную (prefilled=false) всегда редактируемы (editing не используется).
 type UboRow = { id: string; fullName: string; sharePct: string; prefilled: boolean; editing: boolean };
 
+// Локальное представление карточки директора (тот же паттерн view/edit, что у UBO).
+type DirRow = { id: string; fullName: string; designation: string; pan: string; prefilled: boolean; editing: boolean };
+
 // Состояние загрузки документа (для спиннера на кнопке).
 type DocUploadPhase = 'idle' | 'uploading';
 
@@ -317,14 +316,19 @@ export const CompanyConfirm = () => {
   // Попытка подтвердить без обязательного документа — подсвечиваем незакрытые proof-блоки красным.
   const [regProofError, setRegProofError] = useState(false);
 
-  // #17 — UBO-строки + декларация + FATCA/CRS.
+  // Директора — строки + снимок baseline + флаг удаления предзаполненного + документ-подтверждение.
+  const [dirRows, setDirRows] = useState<DirRow[]>([]);
+  const [dirBaseline, setDirBaseline] = useState<Record<string, { fullName: string; designation: string; pan: string }>>({});
+  const [dirPrefilledRemoved, setDirPrefilledRemoved] = useState(false);
+  const [dirDocFile, setDirDocFile] = useState<string | null>(null);
+  const [dirDocPhase, setDirDocPhase] = useState<DocUploadPhase>('idle');
+
+  // #17 — UBO-строки + декларация. FATCA/CRS перенесён в опросник (Q4b) — здесь нет.
   const [uboRows, setUboRows] = useState<UboRow[]>([]);
   const [declared, setDeclared] = useState(false);
   // #38 — consent по полноте подписантов; #36 — гейт ответственности перед CTA.
   const [signatoryConsentChecked, setSignatoryConsentChecked] = useState(false);
   const [respGate, setRespGate] = useState(false);
-  const [fatca, setFatcaState] = useState<FatcaClassification>('Active NFFE');
-  const [taxRes, setTaxRes] = useState('India');
 
   // #16 — документы компании + статус загрузки по id.
   const [docs, setDocs] = useState<CompanyDocument[]>([]);
@@ -344,6 +348,16 @@ export const CompanyConfirm = () => {
       setCorrespondenceDraft(c.correspondenceAddress ?? '');
     });
     getSignatories().then(setSignatories);
+    getDirectors().then((list) => {
+      const rows: DirRow[] = list.map((d) => ({
+        id: d.id, fullName: d.fullName, designation: d.designation, pan: d.pan,
+        prefilled: d.source === 'registry', editing: false,
+      }));
+      setDirRows(rows);
+      const base: Record<string, { fullName: string; designation: string; pan: string }> = {};
+      rows.forEach((r) => { if (r.prefilled) base[r.id] = { fullName: r.fullName, designation: r.designation, pan: r.pan }; });
+      setDirBaseline(base);
+    });
     getUbo().then((list) => {
       const rows: UboRow[] = list.map((u) => ({
         id: u.id, fullName: u.fullName, sharePct: String(u.sharePct),
@@ -441,6 +455,51 @@ export const CompanyConfirm = () => {
     setEditingCompany(false);
   };
 
+  // --- Директора (тот же паттерн, что у UBO: view/edit, добавить, удалить, документ при правке) ---
+  const updateDirRow = (id: string, patch: Partial<DirRow>) =>
+    setDirRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  const handleAddDirector = async () => {
+    const list = await addDirector({ fullName: '', designation: '', pan: '' });
+    const created = list[list.length - 1];
+    setDirRows((rows) => [...rows, {
+      id: created.id, fullName: '', designation: '', pan: '', prefilled: false, editing: true,
+    }]);
+  };
+
+  const startEditDir = (id: string) =>
+    setDirRows((rows) => rows.map((r) => (r.id === id ? { ...r, editing: true } : r)));
+
+  const handleRemoveDir = async (id: string) => {
+    const row = dirRows.find((r) => r.id === id);
+    await removeDirector(id);
+    setDirRows((rows) => rows.filter((r) => r.id !== id));
+    // Удаление ПРЕДЗАПОЛНЕННОГО = модификация состава → документ → DVU.
+    if (row?.prefilled) setDirPrefilledRemoved(true);
+  };
+
+  const persistDirectors = async () => {
+    for (const r of dirRows) {
+      await updateDirector(r.id, { fullName: r.fullName, designation: r.designation, pan: r.pan });
+    }
+  };
+
+  // Раздел директоров правился вручную: добавлен не из реестра ИЛИ предзаполненный изменён/удалён.
+  const dirModified = dirPrefilledRemoved || dirRows.some((r) => {
+    if (!r.prefilled) return true;
+    const b = dirBaseline[r.id];
+    return !b || b.fullName !== r.fullName || b.designation !== r.designation || b.pan !== r.pan;
+  });
+  const dirDocMissing = dirModified && !dirDocFile;
+
+  const handleUploadDirDoc = async () => {
+    setDirDocPhase('uploading');
+    const fileName = 'directors-composition-supporting.pdf';
+    await uploadDirectorsProofDoc(fileName);
+    setDirDocFile(fileName);
+    setDirDocPhase('idle');
+  };
+
   const updateUboRow = (id: string, patch: Partial<UboRow>) =>
     setUboRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
@@ -493,20 +552,17 @@ export const CompanyConfirm = () => {
   };
 
   const handleConfirm = async () => {
-    if (uboDocMissing) return; // защита — CTA и так disabled
+    if (uboDocMissing || dirDocMissing) return; // защита — CTA и так disabled
     try {
+      await persistDirectors();
+      await setDirectorsModified(dirModified);
       await persistUbo();
       await setUboDeclared(declared);
       await setUboModified(uboModified);
-      await setFatca(fatca, taxRes);
+      // FATCA/CRS теперь собирается в опроснике (Q4b) — здесь не трогаем.
       await confirmCompanyData();
     } catch (_) { /* игнорируем — демо */ }
-    navigate('/company/dispatch');
-  };
-
-  const pickFatca = async (opt: FatcaClassification) => {
-    setFatcaState(opt);
-    await setFatca(opt, taxRes);
+    navigate('/company/signatories-br');
   };
 
   // Блок proof под изменённым reg-полем (паттерн SP06.renderProofBlock).
@@ -652,6 +708,83 @@ export const CompanyConfirm = () => {
             </ConsentRow>
           </Section>
 
+          {/* Директора: список из реестра + правка/добавление/удаление → документ → DVU */}
+          <Section>
+            <SectionTitle>{t.sectionDirectors}</SectionTitle>
+            <Hint>{t.dirHint}</Hint>
+            {dirRows.map((r) => {
+              // Предзаполненный (registry) в просмотре = read-only: ФИО + должность + PAN, кнопка «Изменить».
+              // Любая правка/удаление/добавление переключает раздел в modified → документ (ниже).
+              const readOnly = r.prefilled && !r.editing;
+              return (
+                <UboCard key={r.id}>
+                  <UboHead>
+                    {r.prefilled ? <PrefilledBadge>{t.prefilled}</PrefilledBadge> : <span />}
+                    <EditRow>
+                      {readOnly && <LinkBtn type="button" onClick={() => startEditDir(r.id)}>{t.edit}</LinkBtn>}
+                      <RemoveBtn type="button" onClick={() => handleRemoveDir(r.id)} title={t.dirRemove} aria-label={t.dirRemove}>✕</RemoveBtn>
+                    </EditRow>
+                  </UboHead>
+                  {readOnly ? (
+                    <Grid>
+                      <DT>{t.dirName}</DT><DD>{r.fullName}</DD>
+                      <DT>{t.dirDesignation}</DT><DD>{r.designation}</DD>
+                      <DT>{t.dirPan}</DT><DD>{r.pan}</DD>
+                    </Grid>
+                  ) : (
+                    <>
+                      <TextField
+                        label={t.dirName}
+                        value={r.fullName}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateDirRow(r.id, { fullName: e.target.value })}
+                        size="m"
+                      />
+                      <Row>
+                        <TextField
+                          label={t.dirDesignation}
+                          value={r.designation}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateDirRow(r.id, { designation: e.target.value })}
+                          size="m"
+                        />
+                        <TextField
+                          label={t.dirPan}
+                          value={r.pan}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateDirRow(r.id, { pan: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) })}
+                          size="m"
+                        />
+                      </Row>
+                    </>
+                  )}
+                </UboCard>
+              );
+            })}
+            <AddBtn type="button" onClick={handleAddDirector}>{t.dirAdd}</AddBtn>
+
+            {/* Ручные правки состава директоров → документ-подтверждение + маркер DVU (паттерн UBO). */}
+            {dirModified && (
+              <>
+                <UboDvuNote>{t.dirDvuNote}</UboDvuNote>
+                <DocRow>
+                  <DocInfo>
+                    <DocName>{t.dirDocTitle}</DocName>
+                    {dirDocFile
+                      ? <DocUploaded>{t.dirDocUploaded}{` · ${dirDocFile}`}</DocUploaded>
+                      : <DocReq>{t.docRequired}</DocReq>}
+                  </DocInfo>
+                  {!dirDocFile && (
+                    <Button
+                      view="secondary" size="s"
+                      text={dirDocPhase === 'uploading' ? t.dirDocUploading : t.dirDocUpload}
+                      disabled={dirDocPhase === 'uploading'}
+                      onClick={handleUploadDirDoc}
+                    />
+                  )}
+                </DocRow>
+                <Hint>{t.dirDocHint}</Hint>
+              </>
+            )}
+          </Section>
+
           {/* #17 — UBO: список + добавить + декларация */}
           <Section>
             <SectionTitle>{t.sectionUbo}</SectionTitle>
@@ -731,23 +864,7 @@ export const CompanyConfirm = () => {
             </ConsentRow>
           </Section>
 
-          {/* #17 — FATCA / CRS: классификация + страна резидентства */}
-          <Section>
-            <SectionTitle>{t.sectionFatca}</SectionTitle>
-            <Hint>{t.fatcaHint}</Hint>
-            {FATCA_OPTS.map((opt) => (
-              <RadioCard key={opt} $selected={fatca === opt} onClick={() => pickFatca(opt)}>
-                <Radio $selected={fatca === opt} />
-                {t.fatcaOpts[opt]}
-              </RadioCard>
-            ))}
-            <TextField
-              label={t.taxResidency}
-              value={taxRes}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTaxRes(e.target.value)}
-              size="m"
-            />
-          </Section>
+          {/* FATCA/CRS перенесён в опросник Компании (Q4b) — на финальной анкете больше не показывается. */}
 
           {/* #16 — документы компании: подтянутые из реестра (Заменить) + к загрузке (Выбрать файл) */}
           <Section>
@@ -794,8 +911,8 @@ export const CompanyConfirm = () => {
           </ConsentRow>
 
           <ButtonRow>
-            <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/signatories-br')} />
-            <Button view="accent" size="l" text={t.cta} disabled={!respGate || uboDocMissing || (editingCompany && missingRegProofKeys.length > 0)} onClick={handleConfirm} />
+            <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/bnq')} />
+            <Button view="accent" size="l" text={t.cta} disabled={!respGate || uboDocMissing || dirDocMissing || (editingCompany && missingRegProofKeys.length > 0)} onClick={handleConfirm} />
           </ButtonRow>
         </CardBody>
       </Card>

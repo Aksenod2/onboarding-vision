@@ -10,17 +10,18 @@ import { COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible } from 
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
-  getSignatories, getBoardResolution, getCompany, confirmBoardResolution,
-  setBoardResolutionSource, setBrSignerConfig, setBrSignerContacts,
-  setAsFromDirector, setAsNewPerson,
+  getDirectors, getSignatories, getBoardResolution, getCompany, confirmBoardResolution,
+  setBoardResolutionSource, setBrSignerConfig, buildPhaseBSignatories,
 } from '../../../mock/v2/companyApi';
-import type { Signatory, BrSource, BrSignerMode, AsMode, GovernanceOption } from '../../../mock/v2/companyTypes';
+import type { Director, BrSource, BrSignerMode, AsMode, GovernanceOption } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './companyUi';
 
 // CO-SIGNATORIES-BR — акт назначения ОДНОГО Authorised Signatory + оформление Board Resolution.
 // Переустроен по дизайн-брифу Ульяны 19.06 (Экран А): интро-плашка → кто подписывает BR (директора/секретарь)
 // → кто AS (из директоров / новое лицо, итог ОДИН) → governance смены AS → документ BR (шаблон-дефолт + upload).
 // Самодельные radio/checkbox (issue #50) заменены на боевые SDDS Radiobox/Checkbox.
+// Идёт ПОСЛЕ финальной анкеты (confirm): состав директоров уже подтверждён/изменён там,
+// здесь AS назначается из этого состава. Поток: bnq → confirm → signatories-br → dispatch.
 // Роут: /company/signatories-br
 
 const dict: Record<Lang, {
@@ -288,7 +289,9 @@ export const CompanySignatoriesBr = () => {
   const { lang } = useLanguage();
   const t = dict[lang];
 
-  const [signatories, setSignatories] = useState<Signatory[]>([]);
+  // Директора — ЕДИНЫЙ мастер-список (state.directors), который правит финальная анкета.
+  // BR читает его для выбора подписывающих и AS (не из state.signatories).
+  const [directors, setDirectors] = useState<Director[]>([]);
   // Реквизиты компании для шапки inline-листа BR (mock из Probe-данных).
   const [companyHeader, setCompanyHeader] = useState({ legalName: '', legalType: '' });
 
@@ -316,18 +319,24 @@ export const CompanySignatoriesBr = () => {
   const [showErrors, setShowErrors] = useState(false);
 
   useEffect(() => {
-    Promise.all([getSignatories(), getBoardResolution(), getCompany()]).then(([list, br, company]) => {
-      setSignatories(list);
+    Promise.all([getDirectors(), getSignatories(), getBoardResolution(), getCompany()]).then(([dirs, sigs, br, company]) => {
+      setDirectors(dirs);
       // «Private Limited» — человеческий тип для шапки листа (entityType в mock = 'Company').
       setCompanyHeader({ legalName: company.legalName, legalType: 'Private Limited' });
-      const directors = list.filter((s) => s.roles.includes('Director'));
-      // дефолт: подписывают все директора из реестра
-      setPickedSigners(new Set(directors.map((s) => s.id)));
+      // дефолт: подписывают все директора из мастер-списка
+      setPickedSigners(new Set(dirs.map((d) => d.id)));
+      // Контакты: подтягиваем из уже существующих подписантов по PAN/имени (Probe их не отдаёт).
       setSignerContacts(
-        Object.fromEntries(directors.map((s) => [s.id, { email: s.email, phone: s.phone }])),
+        Object.fromEntries(dirs.map((d) => {
+          const s = sigs.find((x) => (d.pan && x.pan === d.pan) || x.fullName === d.fullName);
+          return [d.id, { email: s?.email ?? '', phone: s?.phone ?? '' }];
+        })),
       );
-      // AS по умолчанию — директор с ролью AuthorizedSignatory (золотая запись)
-      const asDir = directors.find((s) => s.roles.includes('AuthorizedSignatory'));
+      // AS по умолчанию — директор, чья запись-подписант уже несёт роль AuthorizedSignatory.
+      const asSig = sigs.find((s) => s.roles.includes('AuthorizedSignatory') && s.roles.includes('Director'));
+      const asDir = asSig
+        ? dirs.find((d) => (asSig.pan && d.pan === asSig.pan) || d.fullName === asSig.fullName)
+        : undefined;
       if (asDir) setAsDirectorId(asDir.id);
       // восстановить срез из стейта
       const cfg = br.signerConfig;
@@ -339,8 +348,6 @@ export const CompanySignatoriesBr = () => {
       setBrSource(br.brSource);
     });
   }, []);
-
-  const directors = signatories.filter((s) => s.roles.includes('Director'));
 
   const toggleSigner = (id: string) => {
     setPickedSigners((prev) => {
@@ -402,26 +409,27 @@ export const CompanySignatoriesBr = () => {
         secretaryEmail: secretaryContact.email,
         secretaryPhone: secretaryContact.phone,
       });
-      // 2) контакты подписывающих директоров (ветка директора)
-      if (signerMode === 'directors') {
-        const map: Record<string, Contact> = {};
-        for (const id of pickedSigners) map[id] = signerContacts[id];
-        await setBrSignerContacts(map);
-      }
-      // 3) единственный AS
-      if (asMode === 'from-directors') {
-        await setAsFromDirector(asDirectorId, asDirContact);
-      } else {
-        await setAsNewPerson({
-          fullName: newAs.fullName,
-          pan: newAs.pan.trim().toUpperCase(),
-          email: newAs.email,
-          phone: newAs.phone,
-        });
-      }
+      // 2) пересобрать участников фазы B из ВЫБОРА в BR (на основе мастер-списка директоров):
+      //    подписывающие BR + единственный AS + инициатор → state.signatories с нужными ролями/контактами.
+      const directorContacts: Record<string, Contact> = {};
+      for (const id of pickedSigners) directorContacts[id] = signerContacts[id] ?? { email: '', phone: '' };
+      await buildPhaseBSignatories({
+        signerMode,
+        signingDirectorIds: signerMode === 'directors' ? [...pickedSigners] : [],
+        directorContacts,
+        secretary: signerMode === 'secretary'
+          ? { fullName: secretaryName, email: secretaryContact.email, phone: secretaryContact.phone }
+          : undefined,
+        asMode,
+        asDirectorId: asMode === 'from-directors' ? asDirectorId : undefined,
+        asContact: asMode === 'from-directors' ? asDirContact : undefined,
+        asNewPerson: asMode === 'new-person'
+          ? { fullName: newAs.fullName, pan: newAs.pan.trim().toUpperCase(), email: newAs.email, phone: newAs.phone }
+          : undefined,
+      });
       await confirmBoardResolution();
     } catch (_) { /* демо: игнорируем */ }
-    navigate('/company/confirm');
+    navigate('/company/dispatch');
   };
 
   const govItems = [
@@ -672,7 +680,7 @@ export const CompanySignatoriesBr = () => {
           </Section>
 
           <ButtonRow>
-            <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/bnq')} />
+            <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/confirm')} />
             <Button view="accent" size="l" text={t.cta} onClick={handleContinue} disabled={showErrors && !canContinue} />
           </ButtonRow>
         </CardBody>

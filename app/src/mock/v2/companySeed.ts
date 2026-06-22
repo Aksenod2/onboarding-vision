@@ -142,6 +142,10 @@ export const mehtaTextiles: CompanyCaseV2 = {
     // Значение даты НЕ теряем: оно остаётся в CompanyDetails.incorporationDate (golden record).
     { q: 'Q3', attribute: 'Company Residency', block: 1, source: 'available', value: 'Indian resident', riskScore: 0 },
     { q: 'Q4', attribute: 'Tax Residency', block: 1, source: 'not_available', value: 'Indian National', riskScore: 1 },
+    // Q4b — FATCA/CRS налоговый статус компании (перенесён из финальной анкеты в опросник, решение Дениса).
+    // ТОЛЬКО Компания (в seed.ts Sole Proprietor этого вопроса нет). Value: «<классификация> · <страна>».
+    // По умолчанию для торговой компании-резидента Индии — Active NFFE · India.
+    { q: 'Q4b', attribute: 'FATCA / CRS classification', block: 1, source: 'not_available', value: 'Active NFFE · India', riskScore: null },
     { q: 'Q5', attribute: 'PEP', block: 1, source: 'not_available', value: 'No', riskScore: 0 },
     { q: 'Q6', attribute: 'Net Revenue', block: 2, source: 'available', value: '12 Cr (AOC-4, last year)', riskScore: null },
     // Q6b — существующая кредитная задолженность (CC/OD) в других банках (business questioner Марго,
@@ -167,6 +171,14 @@ export const mehtaTextiles: CompanyCaseV2 = {
     { docType: 'PAN card', mandatory: true, handling: 'Auto fetch (STP)', status: 'Fetched', verifiedBy: 'System' },
     { docType: 'GST registration', mandatory: true, handling: 'Auto fetch (STP)', status: 'Fetched', verifiedBy: 'System' },
     { docType: 'IEC', mandatory: false, handling: 'Upload', status: 'Pending' },
+  ],
+
+  // Директора компании (блок на финальной анкете) — подтянуты из реестра (Probe42 / MCA).
+  // ФИО + должность (designation) + PAN. Ручная правка состава/данных → документ-подтверждение → DVU.
+  directors: [
+    { id: 'dir-rajesh', fullName: 'Rajesh Mehta', designation: 'Managing Director', pan: 'ABKPM7788D', source: 'registry' },
+    { id: 'dir-priya', fullName: 'Priya Mehta', designation: 'Director', pan: 'ABKPM7790F', source: 'registry' },
+    { id: 'dir-vikram', fullName: 'Vikram Iyer', designation: 'Company Secretary', pan: 'AFZPI3344K', source: 'registry' },
   ],
 
   // #16 — корпоративные документы: COI/MOA/AOA подтянуты из Probe42, Shareholding Pattern — к загрузке.

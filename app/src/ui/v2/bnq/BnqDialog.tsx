@@ -86,6 +86,13 @@ const dict: Record<Lang, {
   q4Opt1: string;
   q4Opt2: string;
   q4Opt3: string;
+  // Q4b — FATCA/CRS налоговый статус компании (только Компания)
+  q4bLabel: string;
+  q4bHint: string;
+  q4bActive: string;
+  q4bPassive: string;
+  q4bFi: string;
+  q4bCountryLabel: string;
   // Q5
   q5Label: string;
   q5Yes: string;
@@ -98,6 +105,7 @@ const dict: Record<Lang, {
   q6bYes: string;
   q6bNo: string;
   q6bThresholdLabel: string;
+  q6bThresholdHint: string;
   q6bMore: string;
   q6bLess: string;
   // Q7
@@ -147,6 +155,12 @@ const dict: Record<Lang, {
     q4Opt1: 'Гражданин Индии / Иностранный гражданин на рабочей визе',
     q4Opt2: 'NRI / OCI / Гражданин РФ не на рабочей визе',
     q4Opt3: 'Иностранный гражданин (другой)',
+    q4bLabel: 'Подтвердите налоговый статус компании (FATCA / CRS)',
+    q4bHint: 'Налоговая классификация компании для обмена налоговой информацией. Для торговой компании-резидента Индии обычно Active NFFE.',
+    q4bActive: 'Активная нефинансовая структура (Active NFFE)',
+    q4bPassive: 'Пассивная нефинансовая структура (Passive NFFE)',
+    q4bFi: 'Финансовая организация',
+    q4bCountryLabel: 'Страна налогового резидентства',
     q5Label:
       'Занимаете ли вы или ваши близкие родственники (в течение последних 5 лет) публичные должности (госслужащий, судья, военный руководитель)?',
     q5Yes: 'Да',
@@ -157,6 +171,7 @@ const dict: Record<Lang, {
     q6bYes: 'Да',
     q6bNo: 'Нет',
     q6bThresholdLabel: 'Укажите совокупную сумму задолженности',
+    q6bThresholdHint: 'Выберите сумму, чтобы продолжить',
     q6bMore: 'Больше 10 крор',
     q6bLess: 'Меньше 10 крор',
     q7Label:
@@ -204,6 +219,12 @@ const dict: Record<Lang, {
     q4Opt1: 'Indian National / Foreign national on employment VISA',
     q4Opt2: 'NRI / OCI / Foreign national of RF not on employment VISA',
     q4Opt3: 'Foreign national (other)',
+    q4bLabel: 'Confirm the company tax status (FATCA / CRS)',
+    q4bHint: 'Company tax classification for tax-information exchange. A trading company resident in India is usually an Active NFFE.',
+    q4bActive: 'Active NFFE (non-financial)',
+    q4bPassive: 'Passive NFFE (non-financial)',
+    q4bFi: 'Financial Institution',
+    q4bCountryLabel: 'Country of tax residency',
     q5Label:
       'Do you or your close relatives hold or have held in the past 5 years any public positions (government officials, judges, military executives)?',
     q5Yes: 'Yes',
@@ -214,6 +235,7 @@ const dict: Record<Lang, {
     q6bYes: 'Yes',
     q6bNo: 'No',
     q6bThresholdLabel: 'Specify the aggregate total exposure',
+    q6bThresholdHint: 'Select an amount to continue',
     q6bMore: 'More than 10 crore',
     q6bLess: 'Less than 10 crore',
     q7Label:
@@ -356,6 +378,15 @@ const RadioGroup = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+`;
+
+// Мелкая подсказка-хелпер под полем (напр. «Выберите сумму, чтобы продолжить»).
+const FieldHint = styled.p`
+  margin: 0.5rem 0 0;
+  ${bodyM};
+  font-size: 0.8125rem;
+  color: ${textSecondary};
+  line-height: 1.4;
 `;
 
 const RadioOption = styled.label<{ $selected: boolean }>`
@@ -503,6 +534,11 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   // Доп. Q11 — намерение по IEC (сам файл грузится на «Подтверждении данных компании»)
   const [iecChoice, setIecChoice] = useState<'now' | 'later' | ''>('');
 
+  // Q4b — FATCA/CRS (только Компания). Хранится в value как «<классификация> · <страна>».
+  // Классификация — канонический FATCA-ключ ('Active NFFE' и т.п.), страна — свободный ввод (дефолт India).
+  const [fatcaClass, setFatcaClass] = useState('Active NFFE');
+  const [fatcaCountry, setFatcaCountry] = useState('India');
+
   // ─── Загрузка BNQ ───────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -534,6 +570,13 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
     if (currentQ.q === 'Q7') {
       const q8 = bnq.find((a) => a.q === 'Q8');
       setCreditAmount(q8?.value ?? '');
+    }
+    // Q4b: разбираем сохранённый value «<классификация> · <страна>» обратно в поля.
+    if (currentQ.q === 'Q4b') {
+      const v = currentQ.value ?? '';
+      const [cls, country] = v.split('·').map((s) => s.trim());
+      setFatcaClass(cls || 'Active NFFE');
+      setFatcaCountry(country || 'India');
     }
     // Q6b: восстанавливаем радио Да/Нет и под-выбор порога из сохранённого value.
     if (currentQ.q === 'Q6b') {
@@ -590,6 +633,11 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
       value = q6bYesNo === 'no' ? t.q6bNo : q6bThreshold;
     }
 
+    // Q4b: значение собираем из выбранной классификации + страны резидентства (не из localValue).
+    if (currentQ.q === 'Q4b') {
+      value = `${fatcaClass} · ${fatcaCountry.trim() || 'India'}`;
+    }
+
     // Q7: «Да» определяем СТРОГО равенством с положительным вариантом (как и показ поля суммы),
     // а не «не Нет» — чтобы пустое/любое прочее состояние не считалось «Да».
     // При «Да» сумма кредита обязательна (инлайн-поле Q8) — пустую не пропускаем.
@@ -636,7 +684,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
 
   // Заголовок (формулировка) каждого вопроса — единый источник для probe и редактирования.
   const Q_TITLE: Record<string, string> = {
-    Q1: t.q1Label, Q2: t.q2Label, Q3: t.q3Label, Q4: t.q4Label,
+    Q1: t.q1Label, Q2: t.q2Label, Q3: t.q3Label, Q4: t.q4Label, Q4b: t.q4bLabel,
     Q5: t.q5Label, Q6: t.q6Label, Q6b: t.q6bLabel, Q7: t.q7Label, Q8: t.q8Label,
     Q9: t.q9Label, Q10: t.q10Label, Q11: t.q11Label,
   };
@@ -769,6 +817,41 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
       );
     }
 
+    // ── Q4b: FATCA/CRS налоговый статус компании (только Компания) ───────────
+    // Выбор из 3 классификаций + страна резидентства (дефолт India). Хранится в value
+    // как «<классификация> · <страна>». Перенесён из финальной анкеты (CompanyConfirm).
+    if (q === 'Q4b') {
+      const fatcaOpts: Array<[string, string]> = [
+        ['Active NFFE', t.q4bActive],
+        ['Passive NFFE', t.q4bPassive],
+        ['Financial Institution', t.q4bFi],
+      ];
+      return (
+        <QBlock>
+          <QLabel>{t.q4bLabel}</QLabel>
+          <ProbeLine>{t.q4bHint}</ProbeLine>
+          <RadioGroup>
+            {fatcaOpts.map(([key, label]) => (
+              <RadioOption
+                key={key}
+                $selected={fatcaClass === key}
+                onClick={() => setFatcaClass(key)}
+              >
+                <RadioDot $selected={fatcaClass === key} />
+                {label}
+              </RadioOption>
+            ))}
+          </RadioGroup>
+          <TextField
+            value={fatcaCountry}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFatcaCountry(e.target.value)}
+            label={t.q4bCountryLabel}
+            type="text"
+          />
+        </QBlock>
+      );
+    }
+
     // ── Q5: PEP ──────────────────────────────────────────────────────────────
     if (q === 'Q5') {
       return (
@@ -846,6 +929,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
                   </RadioOption>
                 ))}
               </RadioGroup>
+              {!q6bThreshold && <FieldHint>{t.q6bThresholdHint}</FieldHint>}
             </div>
           )}
         </QBlock>
@@ -1008,6 +1092,25 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
 
   const isLastStep = stepIdx === totalSteps - 1;
 
+  // ─── Когда кнопка «Далее»/«Завершить» неактивна ──────────────────────────
+  // Зеркалит «молчаливые return» в handleNext: кнопка должна быть disabled там,
+  // где клик ничего не делает — иначе пользователь не понимает, почему не работает.
+  // Составные вопросы:
+  //   Q6b — ответ полон только если «Нет» ИЛИ («Да» И выбран порог >10/<10 крор).
+  //   Q7  — при «Да» обязательна введённая сумма кредита (инлайн-поле Q8).
+  const nextDisabled = (() => {
+    if (onLead || !currentQ || isProbeAvailable) return false;
+    if (currentQ.q === 'Q6b') {
+      if (q6bYesNo === '') return true;            // ничего не выбрано
+      if (q6bYesNo === 'yes' && !q6bThreshold) return true; // «Да» без порога
+      return false;
+    }
+    if (currentQ.q === 'Q7' && localValue === t.q7Yes && !creditAmount.trim()) {
+      return true;                                 // «Да» без суммы
+    }
+    return false;
+  })();
+
   // ─── Прогресс (отображаем «видимый» номер — с учётом пропуска) ───────────
 
   const visibleStepNum = stepIdx + 1;
@@ -1088,6 +1191,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
                     view="accent"
                     size="m"
                     text={isLastStep ? t.finish : t.next}
+                    disabled={nextDisabled}
                     onClick={handleNext}
                   />
                 )}

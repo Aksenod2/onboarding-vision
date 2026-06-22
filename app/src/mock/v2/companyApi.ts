@@ -5,7 +5,7 @@ import { mehtaTextiles } from './companySeed';
 import type {
   CompanyCaseV2, CompanyDetails, Signatory, SignatoryStep, BoardResolution, BrSource,
   Ubo, FatcaClassification, CompanyDocument, AadhaarResult, BrSignerConfig,
-  ApplicationBlock,
+  ApplicationBlock, Director,
 } from './companyTypes';
 import { goesThroughPhaseB } from './companyTypes';
 import type { ConsentType, BnqAnswer } from './types';
@@ -200,6 +200,8 @@ export const setBrSignerConfig = (patch: Partial<BrSignerConfig>): Promise<Board
   return delay(state.br);
 };
 
+// DEPRECATED: заменено на buildPhaseBSignatories (единый источник директоров = state.directors).
+// Оставлено для обратной совместимости контракта; в BR больше не вызывается.
 // Назначить РОВНО ОДНОГО Authorised Signatory из директоров (ветка 'from-directors').
 // Снимает роль AuthorizedSignatory со всех директоров, ставит её выбранному.
 // «Чистые» AS (новое лицо) при этом удаляются — единственный AS теперь директор.
@@ -222,6 +224,7 @@ export const setAsFromDirector = (
   return delay(state.signatories);
 };
 
+// DEPRECATED: заменено на buildPhaseBSignatories. Оставлено для совместимости контракта.
 // Назначить единственного AS как НОВОЕ ЛИЦО (ветка 'new-person').
 // Снимает роль AuthorizedSignatory со всех директоров, держит ровно одну «чистую» AS-запись.
 let asNewSeq = 0;
@@ -273,6 +276,7 @@ export const setAsNewPerson = (
   return delay(state.signatories);
 };
 
+// DEPRECATED: заменено на buildPhaseBSignatories. Оставлено для совместимости контракта.
 // Обновить контакты подписывающих BR директоров (email/phone — ручной ввод, в Probe их нет).
 export const setBrSignerContacts = (
   contacts: Record<string, { email: string; phone: string }>,
@@ -280,6 +284,143 @@ export const setBrSignerContacts = (
   state.signatories = state.signatories.map((s) =>
     contacts[s.id] ? { ...s, email: contacts[s.id].email, phone: contacts[s.id].phone } : s,
   );
+  return delay(state.signatories);
+};
+
+// --- Сборка участников фазы B из ВЫБОРА в Board Resolution (единый источник директоров) ---
+// Директора живут в state.directors (мастер-список, правит финальная анкета). BR ЧИТАЕТ его,
+// выбирает подписывающих + одного AS, и здесь мы пересобираем state.signatories для фазы B:
+//   подписывающие BR (директора/секретарь) + единственный AS + инициатор (CustomerRepresentative).
+// Одно лицо = одна запись с объединёнными ролями (мэтчим директора с инициатором по PAN/имени).
+// Сохраняем уже существующие записи (контакты, прогресс, aadhaarResult) — не теряем фазу B,
+// если BR пересобирается повторно. id записи директора = `sig-<directorId>` (стабильно, идемпотентно).
+export interface BrSelection {
+  signerMode: import('./companyTypes').BrSignerMode;
+  // ветка 'directors': выбранные директора-подписанты (id из state.directors) + их контакты (ручной ввод)
+  signingDirectorIds: string[];
+  directorContacts: Record<string, { email: string; phone: string }>;
+  // ветка 'secretary': один Company Secretary подписывает (в Probe контактов нет → ручной ввод)
+  secretary?: { fullName: string; email: string; phone: string };
+  // единственный AS
+  asMode: import('./companyTypes').AsMode;
+  asDirectorId?: string; // ветка 'from-directors' — id из state.directors
+  asContact?: { email: string; phone: string };
+  asNewPerson?: { fullName: string; pan: string; email: string; phone: string }; // ветка 'new-person'
+}
+
+// Базовый каркас подписанта (личная сессия фазы B ещё не начата).
+const freshSignatory = (
+  input: { id: string; fullName: string; roles: Signatory['roles']; pan: string; panSource: Signatory['panSource']; email: string; phone: string; designation?: string },
+): Signatory => ({
+  id: input.id,
+  fullName: input.fullName,
+  roles: input.roles,
+  pan: input.pan,
+  panSource: input.panSource,
+  email: input.email,
+  phone: input.phone,
+  designation: input.designation,
+  inviteSent: false,
+  currentStep: 'waiting',
+  status: 'waiting',
+  consents: [
+    { type: 'Privacy Notice', mandatory: true, status: 'pending', screen: 'CO-B1' },
+    { type: 'Data Principals', mandatory: true, status: 'pending', screen: 'CO-B1' },
+    { type: 'Aadhaar', mandatory: true, status: 'pending', screen: 'CO-B2' },
+    { type: 'VKYC', mandatory: true, status: 'pending', screen: 'CO-B3' },
+  ],
+  vcip: { personName: input.fullName, method: 'selfVKYC', status: 'Pending' },
+  signature: { signed: false, method: 'DSC' },
+});
+
+export const buildPhaseBSignatories = (sel: BrSelection): Promise<Signatory[]> => {
+  const prev = state.signatories;
+  // Инициатор (CustomerRepresentative) обязан сохраниться: за ним вход/дашборд/сессия.
+  const initiator = prev.find((s) => s.roles.includes('CustomerRepresentative'));
+
+  // Мэтч «директор ↔ уже существующая запись подписанта» по PAN, иначе по имени —
+  // чтобы переиспользовать контакты/прогресс/aadhaarResult и объединить роли.
+  const findExisting = (d: { pan: string; fullName: string }): Signatory | undefined =>
+    prev.find((s) => (d.pan && s.pan && s.pan === d.pan) || s.fullName === d.fullName);
+
+  // Накопитель: один человек = одна запись (ключ — итоговый id), роли объединяем.
+  const acc = new Map<string, Signatory>();
+  const put = (sig: Signatory, addRoles: Signatory['roles']) => {
+    const cur = acc.get(sig.id);
+    if (cur) {
+      const roles = Array.from(new Set([...cur.roles, ...addRoles])) as Signatory['roles'];
+      acc.set(sig.id, { ...cur, roles });
+    } else {
+      const roles = Array.from(new Set([...sig.roles, ...addRoles])) as Signatory['roles'];
+      acc.set(sig.id, { ...sig, roles });
+    }
+  };
+
+  // Готовим запись из директора (мастер-список) с контактами из BR (роль доклеивается через put).
+  const fromDirector = (
+    directorId: string,
+    contact?: { email: string; phone: string },
+  ): Signatory | undefined => {
+    const d = state.directors.find((x) => x.id === directorId);
+    if (!d) return undefined;
+    const existing = findExisting(d);
+    const id = existing?.id ?? `sig-${d.id}`;
+    const email = contact?.email?.trim() || existing?.email || '';
+    const phone = contact?.phone?.trim() || existing?.phone || '';
+    // roles обнуляем: итоговые роли набираются ТОЛЬКО из выбора в BR (через put),
+    // чтобы устаревшие роли прежнего состава не «протекали» в новую фазу B.
+    const base = existing
+      ? { ...existing, roles: [] as Signatory['roles'], fullName: d.fullName, pan: d.pan, designation: d.designation, email, phone }
+      : freshSignatory({ id, fullName: d.fullName, roles: [], pan: d.pan, panSource: d.source === 'registry' ? 'registry' : 'manual', email, phone, designation: d.designation });
+    return base;
+  };
+
+  // 1) Подписывающие Board Resolution.
+  if (sel.signerMode === 'directors') {
+    for (const dirId of sel.signingDirectorIds) {
+      const sig = fromDirector(dirId, sel.directorContacts[dirId]);
+      if (sig) put(sig, ['Director']);
+    }
+  } else if (sel.signerMode === 'secretary' && sel.secretary) {
+    // Секретарь не из реестра директоров — отдельная запись (роль Director для прохождения фазы B).
+    const sec = sel.secretary;
+    const existing = prev.find((s) => s.fullName === sec.fullName);
+    const id = existing?.id ?? 'sig-secretary';
+    const base = existing
+      ? { ...existing, roles: [] as Signatory['roles'], fullName: sec.fullName, email: sec.email, phone: sec.phone }
+      : freshSignatory({ id, fullName: sec.fullName, roles: [], pan: '', panSource: 'manual', email: sec.email, phone: sec.phone, designation: 'Company Secretary' });
+    put(base, ['Director']);
+  }
+
+  // 2) Единственный Authorised Signatory.
+  if (sel.asMode === 'from-directors' && sel.asDirectorId) {
+    const sig = fromDirector(sel.asDirectorId, sel.asContact);
+    if (sig) put(sig, ['AuthorizedSignatory']);
+  } else if (sel.asMode === 'new-person' && sel.asNewPerson) {
+    const p = sel.asNewPerson;
+    const existing = prev.find((s) => (p.pan && s.pan === p.pan) || s.fullName === p.fullName);
+    const id = existing?.id ?? `sig-as-new-${Date.now()}-${asNewSeq++}`;
+    const base = existing
+      ? { ...existing, roles: [] as Signatory['roles'], fullName: p.fullName, pan: p.pan, panSource: 'manual' as const, email: p.email, phone: p.phone }
+      : freshSignatory({ id, fullName: p.fullName, roles: [], pan: p.pan, panSource: 'manual', email: p.email, phone: p.phone });
+    put(base, ['AuthorizedSignatory']);
+  }
+
+  // 3) Инициатор (CustomerRepresentative) обязан остаться в составе фазы A/B.
+  // Если он уже попал в acc как директор/AS — просто доклеиваем роль; иначе добавляем как есть.
+  if (initiator) {
+    const already = acc.get(initiator.id);
+    if (already) {
+      put(already, ['CustomerRepresentative']);
+    } else {
+      // Инициатор не выбран ни подписантом, ни AS: оставляем его только с ролью
+      // CustomerRepresentative (стираем возможные устаревшие Director/AS из прежнего состава),
+      // чтобы он не «протёк» в фазу B (goesThroughPhaseB) без явного выбора.
+      put({ ...initiator, roles: [] }, ['CustomerRepresentative']);
+    }
+  }
+
+  state.signatories = Array.from(acc.values());
   return delay(state.signatories);
 };
 
@@ -293,6 +434,16 @@ export const confirmBoardResolution = (): Promise<BoardResolution> => {
 // Правка ответа бизнес-анкеты (агентность: представитель может скорректировать предзаполненное).
 export const updateBnqAnswer = (q: string, value: string): Promise<BnqAnswer[]> => {
   state.bnq = state.bnq.map((a) => (a.q === q ? { ...a, value } : a));
+  // Q4b — FATCA/CRS перенесён в опросник: синхронизируем golden record (classification + страна),
+  // чтобы fatcaClassification/taxResidency приходили из опросника, а не из финальной анкеты.
+  // Формат value: «<классификация> · <страна>».
+  if (q === 'Q4b' && value) {
+    const [cls, country] = value.split('·').map((s) => s.trim());
+    if (cls === 'Active NFFE' || cls === 'Passive NFFE' || cls === 'Financial Institution') {
+      state.fatcaClassification = cls;
+    }
+    if (country) state.taxResidency = country;
+  }
   return delay(state.bnq);
 };
 
@@ -339,6 +490,45 @@ export const setUboModified = (modified: boolean): Promise<void> => {
 // Загрузить Shareholding Pattern (заверен CA, действующий UDIN) — один на весь раздел UBO.
 export const uploadUboShareholdingDoc = (fileName: string): Promise<void> => {
   state.uboShareholdingDoc = { fileName };
+  return delay(undefined);
+};
+
+// --- Директора (блок на финальной анкете, BRD) ---
+// Предзаполнены из реестра; ручная правка состава/данных → документ-подтверждение → DVU.
+export const getDirectors = (): Promise<Director[]> => delay(state.directors);
+
+let dirSeq = 0;
+export const addDirector = (input: { fullName: string; designation: string; pan: string }): Promise<Director[]> => {
+  const next: Director = {
+    id: `dir-${Date.now()}-${dirSeq++}`,
+    fullName: input.fullName,
+    designation: input.designation,
+    pan: input.pan,
+    source: 'manual',
+  };
+  state.directors = [...state.directors, next];
+  return delay(state.directors);
+};
+
+export const updateDirector = (id: string, patch: Partial<Omit<Director, 'id'>>): Promise<Director[]> => {
+  state.directors = state.directors.map((d) => (d.id === id ? { ...d, ...patch } : d));
+  return delay(state.directors);
+};
+
+export const removeDirector = (id: string): Promise<Director[]> => {
+  state.directors = state.directors.filter((d) => d.id !== id);
+  return delay(state.directors);
+};
+
+// Раздел директоров правился вручную (добавлен/изменён/удалён директор) → modified → в DVU.
+export const setDirectorsModified = (modified: boolean): Promise<void> => {
+  state.directorsModified = modified;
+  return delay(undefined);
+};
+
+// Загрузить документ-подтверждение при ручной правке директоров — один на весь раздел.
+export const uploadDirectorsProofDoc = (fileName: string): Promise<void> => {
+  state.directorsProofDoc = { fileName };
   return delay(undefined);
 };
 

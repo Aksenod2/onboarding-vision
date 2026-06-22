@@ -114,6 +114,19 @@ export interface Ubo {
   source: FieldSource; // registry — подтянут (напр. из подписантов); manual — добавлен вручную
 }
 
+// --- Директор компании (для блока «Директора» на финальной анкете) ---
+// Отдельный список (не signatories): редактирование состава директоров на «Подтверждении данных»
+// не должно затрагивать фазу B (рассылка/мониторинг подписантов). Предзаполняется из реестра (Probe42).
+// Любая ручная правка состава/данных → требует документ-подтверждение → DVU (как reg-поля/UBO).
+// designation: Managing Director / Director / Company Secretary.
+export interface Director {
+  id: string;
+  fullName: string;
+  designation: string;
+  pan: PAN;
+  source: FieldSource; // registry — подтянут из Probe42; manual — добавлен вручную
+}
+
 // --- Документы компании (fallback-загрузка, решение Дениса 2026-06-16) ---
 // По BRD документы тянутся из Probe42/CKYC; загрузка нужна, если не подтянулось
 // или при правке поля. source: registry — подтянут из реестра (Probe42), uploaded — загружен
@@ -158,6 +171,10 @@ export interface CompanyCaseV2 {
   consents: Consent[]; // согласия уровня компании (реестры и т.п.)
   documents: DocumentRecord[];
   companyDocuments: CompanyDocument[]; // #16 — fallback-загрузка корпоративных документов
+  // Директора компании (блок на финальной анкете): предзаполнены из реестра, редактируемы.
+  directors: Director[];
+  directorsModified?: boolean; // в состав/данные директоров внесены ручные правки → DVU
+  directorsProofDoc?: { fileName: string }; // документ-подтверждение при ручной правке директоров
   screening: ScreeningResult[];
   risk: RiskAssessment;
   dataConfirmed: boolean; // подтверждение данных компании (фаза A)

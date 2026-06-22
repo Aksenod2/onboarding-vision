@@ -21,7 +21,7 @@ import type { CompanyDetails } from '../../../mock/v2/companyTypes';
 // Тонкая обёртка над общим движком BnqDialog (решение Кости 2026-06-18):
 //   • PAN — нулевой шаг (leadStep) В ТОЙ ЖЕ карточке: поле PAN + согласие на реестры + verifying-спиннер;
 //   • затем Q1–Q11 общим движком;
-//   • onFinish → /company/signatories-br (директора/AS/BR — отдельный экран).
+//   • onFinish → /company/confirm (финальная анкета идёт ДО Board Resolution).
 // Роут: /company/bnq
 
 // Порт данных Компании: getBnq + updateBnqAnswer (как answerBnq).
@@ -246,7 +246,7 @@ export const CompanyBnqDialog = () => {
         port={port}
         topProgress={topProgress}
         leadStep={{ render: ({ onDone }) => <PanLead onDone={onDone} /> }}
-        onFinish={() => navigate('/company/signatories-br')}
+        onFinish={() => navigate('/company/confirm')}
         onBackFromFirst={() => navigate(COMPANY_DASHBOARD_ROUTE)}
       />
       {toast && <Toast>{toast}</Toast>}

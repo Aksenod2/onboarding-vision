@@ -8,13 +8,14 @@ import type { StepDef } from './steps';
 export const COMPANY_DASHBOARD_ROUTE = '/company/dashboard';
 
 // Фаза A — заполнитель (Customer Representative).
-// Порядок (решение Кости 2026-06-18): Диалог (TUMAB, PAN — нулевой шаг внутри) →
-// Подписанты и BR → Подтверждение → Приглашение. PAN влит в диалог-шаг (co-bnq),
-// отдельного co-pan больше нет.
+// Порядок (решение Дениса 2026-06-22, подтверждено транскриптом Марго): Диалог (TUMAB, PAN —
+// нулевой шаг внутри) → Подтверждение данных (анкета, состав директоров) → Подписанты и BR
+// (AS назначается из подтверждённого состава директоров) → Приглашение.
+// PAN влит в диалог-шаг (co-bnq), отдельного co-pan больше нет.
 export const COMPANY_STEPS_A: StepDef[] = [
   { id: 'co-bnq', route: '/company/bnq', order: 1, titleRu: 'Анкета', titleEn: 'Questionnaire' },
-  { id: 'co-signatories-br', route: '/company/signatories-br', order: 2, titleRu: 'Подписанты и BR', titleEn: 'Signatories & BR' },
-  { id: 'co-confirm', route: '/company/confirm', order: 3, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
+  { id: 'co-confirm', route: '/company/confirm', order: 2, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
+  { id: 'co-signatories-br', route: '/company/signatories-br', order: 3, titleRu: 'Подписанты и BR', titleEn: 'Signatories & BR' },
   { id: 'co-dispatch', route: '/company/dispatch', order: 4, titleRu: 'Приглашение подписантов', titleEn: 'Invite signatories' },
 ];
 
