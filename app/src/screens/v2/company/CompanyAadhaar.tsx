@@ -213,9 +213,6 @@ export const CompanyAadhaar = () => {
             </>
           )}
 
-          {/* Инструкция-шаги кружками — общий компонент (#46). Показываем вместе с QR. */}
-          {(phase === 'qr' || phase === 'error') && scanConsentsGiven && <AadhaarHowTo variant="entry" />}
-
           {phase === 'error' && (
             <Note view="negative" size="s" title={t.errorTitle} text={t.errorText} />
           )}
@@ -234,6 +231,9 @@ export const CompanyAadhaar = () => {
               <QrCaption>{t.qrCaption}</QrCaption>
             </QrBlock>
           )}
+
+          {/* Инструкция-шаги кружками — общий компонент (#46). ПОД QR (Денис: «так логичнее»). */}
+          {(phase === 'qr' || phase === 'error') && scanConsentsGiven && <AadhaarHowTo variant="entry" />}
 
           {phase === 'qr' && scanConsentsGiven && (
             <>
