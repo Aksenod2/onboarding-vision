@@ -93,6 +93,13 @@ const dict: Record<Lang, {
   // Q6
   q6Label: string;
   q6Hint: string;
+  // Q6b — существующая кредитная задолженность (CC/OD)
+  q6bLabel: string;
+  q6bYes: string;
+  q6bNo: string;
+  q6bThresholdLabel: string;
+  q6bMore: string;
+  q6bLess: string;
   // Q7
   q7Label: string;
   q7Yes: string;
@@ -146,6 +153,12 @@ const dict: Record<Lang, {
     q5No: 'Нет',
     q6Label: 'Укажите чистую выручку за последний год',
     q6Hint: 'Введите сумму в крорах (Cr)',
+    q6bLabel: 'Есть ли у компании уже кредиты или овердрафты в других банках?',
+    q6bYes: 'Да',
+    q6bNo: 'Нет',
+    q6bThresholdLabel: 'Укажите совокупную сумму задолженности',
+    q6bMore: 'Больше 10 крор',
+    q6bLess: 'Меньше 10 крор',
     q7Label:
       'Планируете ли вы в течение 6 месяцев воспользоваться кредитными продуктами нашего банка (срочные кредиты, аккредитивы, банковские гарантии)?',
     q7Yes: 'Да, планирую',
@@ -197,6 +210,12 @@ const dict: Record<Lang, {
     q5No: 'No',
     q6Label: 'What is your Net Revenue for the last year?',
     q6Hint: 'Enter amount in crore (Cr)',
+    q6bLabel: 'Does the company already have credit or overdraft facilities with other banks?',
+    q6bYes: 'Yes',
+    q6bNo: 'No',
+    q6bThresholdLabel: 'Specify the aggregate total exposure',
+    q6bMore: 'More than 10 crore',
+    q6bLess: 'Less than 10 crore',
     q7Label:
       'Do you plan to avail any credit facilities (term loans, letters of credit, bank guarantees) from our bank in the next 6 months?',
     q7Yes: 'Yes, planning',
@@ -476,6 +495,11 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   // Q7 — инлайн-сумма кредита (бывший отдельный шаг Q8). Значение пишется в ответ Q8 при «Далее».
   const [creditAmount, setCreditAmount] = useState('');
 
+  // Q6b — существующая кредитная задолженность (CC/OD). Радио Да/Нет + инлайн под-выбор порога.
+  // В value пишем: «Нет» → ответ-нет; «Да» → выбранный порог (>10/<10 крор).
+  const [q6bYesNo, setQ6bYesNo] = useState<'yes' | 'no' | ''>('');
+  const [q6bThreshold, setQ6bThreshold] = useState('');
+
   // Доп. Q11 — намерение по IEC (сам файл грузится на «Подтверждении данных компании»)
   const [iecChoice, setIecChoice] = useState<'now' | 'later' | ''>('');
 
@@ -511,6 +535,20 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
       const q8 = bnq.find((a) => a.q === 'Q8');
       setCreditAmount(q8?.value ?? '');
     }
+    // Q6b: восстанавливаем радио Да/Нет и под-выбор порога из сохранённого value.
+    if (currentQ.q === 'Q6b') {
+      const v = currentQ.value ?? '';
+      if (!v) {
+        setQ6bYesNo('');
+        setQ6bThreshold('');
+      } else if (isNoAnswer(v)) {
+        setQ6bYesNo('no');
+        setQ6bThreshold('');
+      } else {
+        setQ6bYesNo('yes');
+        setQ6bThreshold(v);
+      }
+    }
   }, [stepIdx, loading]); // eslint-disable-line react-hooks/exhaustive-deps
   // loading в зависимостях: данные приходят асинхронно, без этого первый вопрос оставался пустым
 
@@ -538,13 +576,24 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
     if (!currentQ) return;
 
     // Если source=available и подтверждено probe — просто идём дальше
-    const value =
+    let value =
       currentQ.source === 'available' && !editingProbe
         ? currentQ.value
         : localValue;
 
-    // Q7: «Да» требует суммы кредита (инлайн-поле Q8). Пустую сумму не пропускаем.
-    const q7Yes = currentQ.q === 'Q7' && !!value && !isNoAnswer(value);
+    // Q6b: значение собираем из радио Да/Нет + под-выбора порога (не из localValue).
+    // «Нет» → пишем ответ-нет; «Да» → пишем выбранный порог (>10/<10 крор).
+    // Валидация: «Да» без выбранного порога — не пускаем дальше.
+    if (currentQ.q === 'Q6b') {
+      if (q6bYesNo === '') return;
+      if (q6bYesNo === 'yes' && !q6bThreshold) return;
+      value = q6bYesNo === 'no' ? t.q6bNo : q6bThreshold;
+    }
+
+    // Q7: «Да» определяем СТРОГО равенством с положительным вариантом (как и показ поля суммы),
+    // а не «не Нет» — чтобы пустое/любое прочее состояние не считалось «Да».
+    // При «Да» сумма кредита обязательна (инлайн-поле Q8) — пустую не пропускаем.
+    const q7Yes = currentQ.q === 'Q7' && value === t.q7Yes;
     if (q7Yes && !creditAmount.trim()) return;
 
     // Режим свободной проверки: сохраняем ответ только если он есть, не блокируем переход
@@ -588,7 +637,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   // Заголовок (формулировка) каждого вопроса — единый источник для probe и редактирования.
   const Q_TITLE: Record<string, string> = {
     Q1: t.q1Label, Q2: t.q2Label, Q3: t.q3Label, Q4: t.q4Label,
-    Q5: t.q5Label, Q6: t.q6Label, Q7: t.q7Label, Q8: t.q8Label,
+    Q5: t.q5Label, Q6: t.q6Label, Q6b: t.q6bLabel, Q7: t.q7Label, Q8: t.q8Label,
     Q9: t.q9Label, Q10: t.q10Label, Q11: t.q11Label,
   };
 
@@ -760,11 +809,56 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
       );
     }
 
+    // ── Q6b: Существующие кредиты/овердрафты в других банках (CC/OD) ─────────
+    // Радио Да/Нет; при «Да» инлайн раскрывается под-выбор порога (>10 / <10 крор).
+    // Это ВЫБОР, не ввод суммы. Влияет на доступный тип счёта (фоновая логика банка).
+    if (q === 'Q6b') {
+      return (
+        <QBlock>
+          <QLabel>{t.q6bLabel}</QLabel>
+          <RadioGroup>
+            {([['yes', t.q6bYes], ['no', t.q6bNo]] as const).map(([key, label]) => (
+              <RadioOption
+                key={key}
+                $selected={q6bYesNo === key}
+                onClick={() => {
+                  setQ6bYesNo(key);
+                  if (key === 'no') setQ6bThreshold('');
+                }}
+              >
+                <RadioDot $selected={q6bYesNo === key} />
+                {label}
+              </RadioOption>
+            ))}
+          </RadioGroup>
+          {q6bYesNo === 'yes' && (
+            <div>
+              <QLabel style={{ marginBottom: '0.75rem' }}>{t.q6bThresholdLabel}</QLabel>
+              <RadioGroup>
+                {[t.q6bMore, t.q6bLess].map((opt) => (
+                  <RadioOption
+                    key={opt}
+                    $selected={q6bThreshold === opt}
+                    onClick={() => setQ6bThreshold(opt)}
+                  >
+                    <RadioDot $selected={q6bThreshold === opt} />
+                    {opt}
+                  </RadioOption>
+                ))}
+              </RadioGroup>
+            </div>
+          )}
+        </QBlock>
+      );
+    }
+
     // ── Q7: Кредитные продукты (+ инлайн-сумма Q8 при «Да») ──────────────────
     // Объединённый шаг: радио «нужен кредит да/нет». При «Да» прогрессивно раскрывается
     // поле суммы (Cr) — пишется в ответ Q8 при «Далее». При «Нет» поля нет, сумма очищается.
     if (q === 'Q7') {
-      const q7YesSelected = !!localValue && !isNoAnswer(localValue);
+      // Поле суммы раскрываем СТРОГО при выбранном «Да» (равенство с положительным вариантом),
+      // а не по «не Нет» — иначе пустое/любое не-No состояние ошибочно показывало поле суммы.
+      const q7YesSelected = localValue === t.q7Yes;
       return (
         <QBlock>
           <QLabel>{t.q7Label}</QLabel>
@@ -773,7 +867,11 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
               <RadioOption
                 key={opt}
                 $selected={localValue === opt}
-                onClick={() => setLocalValue(opt)}
+                onClick={() => {
+                  setLocalValue(opt);
+                  // Переключили на «Нет» — введённую сумму очищаем (не учитываем).
+                  if (opt !== t.q7Yes) setCreditAmount('');
+                }}
               >
                 <RadioDot $selected={localValue === opt} />
                 {opt}

@@ -144,6 +144,10 @@ export const mehtaTextiles: CompanyCaseV2 = {
     { q: 'Q4', attribute: 'Tax Residency', block: 1, source: 'not_available', value: 'Indian National', riskScore: 1 },
     { q: 'Q5', attribute: 'PEP', block: 1, source: 'not_available', value: 'No', riskScore: 0 },
     { q: 'Q6', attribute: 'Net Revenue', block: 2, source: 'available', value: '12 Cr (AOC-4, last year)', riskScore: null },
+    // Q6b — существующая кредитная задолженность (CC/OD) в других банках (business questioner Марго,
+    // «Вопрос A»). Влияет на доступный тип счёта (фоновая логика банка, порог 10 крор). Перед Q7 (планы).
+    // Радио Да/Нет; при «Да» — под-выбор порога (>10 cr / <10 cr), хранится в value.
+    { q: 'Q6b', attribute: 'Existing CC/OD exposure', block: 2, source: 'not_available', value: '', riskScore: null },
     { q: 'Q7', attribute: 'Product Interest (credit)', block: 2, source: 'not_available', value: 'Yes — planning credit facilities', riskScore: null, triggered: 'CRM' },
     { q: 'Q8', attribute: 'Product Interest (amount)', block: 2, source: 'not_available', value: '~ 3 Cr', riskScore: null },
     { q: 'Q9', attribute: 'Import / Export Activity', block: 2, source: 'available', value: 'Yes — export activities only', riskScore: null },
