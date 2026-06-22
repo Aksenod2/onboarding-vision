@@ -41,14 +41,15 @@ const ScrollToTop = () => {
   return null;
 };
 
-// Поток: клиент — v2 (Sole Proprietor, корень `/` ведёт на него); менеджер — RM/DVU.
+// Поток: корень `/` ведёт на сценарий Компания (`/company`); Sole Proprietor — по `/v2`; менеджер — RM/DVU.
 // Клиентская v1 (CL-01…CL-09) заархивирована 2026-06-10 (решение Дениса; история — в git).
 export const App = () => {
   return (
     <BrowserRouter>
       <ScrollToTop />
       <Routes>
-        <Route path="/" element={<Navigate to="/v2" replace />} />
+        {/* По умолчанию открываем сценарий Компания (решение Дениса). Sole Proprietor — по своему адресу /v2. */}
+        <Route path="/" element={<Navigate to="/company" replace />} />
         <Route path="/rm/queue" element={<RM01Queue />} />
         <Route path="/rm/task" element={<RM02Task />} />
         <Route path="/rm/kyc" element={<RM03KycTask />} />

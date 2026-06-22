@@ -59,9 +59,10 @@ const SentTo = styled.span`font-size:0.74rem; color:${textSecondary}; &::before{
 const Actions = styled.div`display:flex; align-items:center; gap:0.6rem; margin-left:auto;`;
 // Тёмный тост — паттерн из CompanyBnqBr.
 const Toast = styled.div`
-  position:fixed; left:50%; bottom:2rem; transform:translateX(-50%); z-index:10020;
+  position:fixed; left:50%; top:2rem; transform:translateX(-50%); z-index:10020;
   padding:0.6rem 1rem; border-radius:8px; background:${textPrimary}; color:#fff; font-size:0.82rem;
-  box-shadow:0 8px 24px rgba(0,0,0,0.25);
+  box-shadow:0 8px 24px rgba(0,0,0,0.25); animation:toastIn 0.22s ease-out;
+  @keyframes toastIn { from { opacity:0; transform:translate(-50%,-0.5rem); } to { opacity:1; transform:translate(-50%,0); } }
 `;
 // #37 — модалка не-подписанту (паттерн лайтбокса из CompanySignatory/SPSign).
 const ModalBackdrop = styled.div`
@@ -113,7 +114,7 @@ export const CompanyDispatch = () => {
     const link = `${window.location.origin}/company/signatory?invite=${s.id}`;
     try { await navigator.clipboard?.writeText(link); } catch (_) { /* демо — игнорируем */ }
     setToast(t.copied);
-    setTimeout(() => setToast(null), 2200);
+    setTimeout(() => setToast(null), 3500);
   };
 
   const progress = <StepProgress currentStepId="co-dispatch" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;

@@ -3,7 +3,7 @@
 import styled from 'styled-components';
 import { textPrimary, textSecondary } from '@salutejs/sdds-themes/tokens';
 import { accentPanel, radii, elevation, enter } from '../../../ui/designSystem';
-import type { AadhaarResult } from '../../../mock/v2/companyTypes';
+import type { AadhaarResult, CompanyDetails } from '../../../mock/v2/companyTypes';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 
 export const Card = styled.div`
@@ -147,6 +147,47 @@ export const AadhaarResultBox = ({ data, lang }: { data: AadhaarResult; lang: La
       <AadhaarRow><span className="label">{t.phone}</span><span className="value">{data.phone}</span></AadhaarRow>
       <AadhaarRow><span className="label">{t.email}</span><span className="value">{data.email}</span></AadhaarRow>
       <AadhaarRow><span className="label">{t.address}</span><span className="value">{data.address}</span></AadhaarRow>
+    </AadhaarBox>
+  );
+};
+
+// --- Данные компании из PAN (золотая запись) ---
+// Тот же визуальный паттерн «лейбл↔значение», что у AadhaarResultBox: серый блок-карточка,
+// заголовок-капс, ряды. Показывается ПОСЛЕ verifying-спиннера PAN — тон подтверждения факта,
+// не ввода. Дата регистрации здесь подтверждается → отдельным вопросом в опроснике не дублируется.
+const companyPanDict: Record<Lang, {
+  title: string;
+  legalName: string; entityType: string; cin: string; pan: string; incorporation: string; address: string;
+  entityValue: string;
+}> = {
+  ru: {
+    title: 'Данные компании из PAN',
+    legalName: 'Юр. название', entityType: 'Тип компании', cin: 'CIN',
+    pan: 'PAN компании', incorporation: 'Дата регистрации', address: 'Зарегистрированный адрес',
+    entityValue: 'Частная компания с ограниченной ответственностью (Private Limited)',
+  },
+  en: {
+    title: 'Company data from PAN',
+    legalName: 'Legal name', entityType: 'Company type', cin: 'CIN',
+    pan: 'Company PAN', incorporation: 'Date of incorporation', address: 'Registered address',
+    entityValue: 'Private Limited Company',
+  },
+};
+
+// Блок «Данные компании из PAN»: подтянутые поля золотой записи. Значения — из CompanyDetails (companySeed).
+export const CompanyPanResultBox = ({ data, lang }: { data: CompanyDetails; lang: Lang }) => {
+  const t = companyPanDict[lang];
+  const addr = data.registeredAddress;
+  const addressLine = `${addr.line}, ${addr.city}, ${addr.state} — ${addr.pin}`;
+  return (
+    <AadhaarBox>
+      <AadhaarBoxTitle>{t.title}</AadhaarBoxTitle>
+      <AadhaarRow><span className="label">{t.legalName}</span><span className="value">{data.legalName}</span></AadhaarRow>
+      <AadhaarRow><span className="label">{t.entityType}</span><span className="value">{t.entityValue}</span></AadhaarRow>
+      <AadhaarRow><span className="label">{t.cin}</span><span className="value">{data.cin}</span></AadhaarRow>
+      <AadhaarRow><span className="label">{t.pan}</span><span className="value">{data.pan}</span></AadhaarRow>
+      <AadhaarRow><span className="label">{t.incorporation}</span><span className="value">{data.incorporationDate}</span></AadhaarRow>
+      <AadhaarRow><span className="label">{t.address}</span><span className="value">{addressLine}</span></AadhaarRow>
     </AadhaarBox>
   );
 };

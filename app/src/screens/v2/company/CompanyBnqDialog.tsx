@@ -14,6 +14,8 @@ import type { Lang } from '../../../ui/v2/LanguageContext';
 import { getCompany, giveCompanyConsent, getBnq, updateBnqAnswer } from '../../../mock/v2/companyApi';
 import { BnqDialog } from '../../../ui/v2/bnq/BnqDialog';
 import type { BnqDataPort } from '../../../ui/v2/bnq/BnqDialog';
+import { CompanyPanResultBox } from './companyUi';
+import type { CompanyDetails } from '../../../mock/v2/companyTypes';
 
 // CO-BNQ — пошаговый диалог «Tell us more about your business» (Компания).
 // Тонкая обёртка над общим движком BnqDialog (решение Кости 2026-06-18):
@@ -34,6 +36,7 @@ const dict: Record<Lang, {
   fieldLabel: string; fieldHint: string;
   badgeLabel: string; cta: string;
   verifyEyebrow: string; verifyTitle: string; verifySubtitle: string;
+  resultTitle: string; resultSubtitle: string; resultCta: string;
 }> = {
   ru: {
     panTitle: 'Сначала укажите PAN компании — мы автоматически подтянем её данные',
@@ -46,6 +49,9 @@ const dict: Record<Lang, {
     verifyEyebrow: 'ПРОВЕРКА',
     verifyTitle: 'Проверяем данные компании…',
     verifySubtitle: 'Это займёт несколько секунд. Пожалуйста, не закрывайте страницу.',
+    resultTitle: 'Мы подтянули данные компании из PAN',
+    resultSubtitle: 'Проверьте — если всё верно, продолжим. Эти данные подтверждены реестром и менять их не нужно.',
+    resultCta: 'Всё верно, продолжить',
   },
   en: {
     panTitle: 'First, provide the company PAN — we will pre-fill its details automatically',
@@ -58,6 +64,9 @@ const dict: Record<Lang, {
     verifyEyebrow: 'VERIFICATION',
     verifyTitle: 'Verifying company details…',
     verifySubtitle: 'This will take a few seconds. Please do not close this page.',
+    resultTitle: 'We have pre-filled the company details from PAN',
+    resultSubtitle: 'Please review — if everything is correct, we will continue. These details are confirmed by the registry and do not need editing.',
+    resultCta: 'Confirm and continue',
   },
 };
 
@@ -98,13 +107,19 @@ const Spinner = styled.span`
   animation:${spin} 0.9s linear infinite;
 `;
 
+// Экран подтверждения подтянутых из PAN данных (после verifying, перед Q1).
+const ResultBlock = styled.div`display:flex; flex-direction:column; gap:1.25rem; ${enter(0)};`;
+const ResultTitleEl = styled.h2`margin:0; font-size:1.1rem; font-weight:700; color:${textPrimary}; line-height:1.3;`;
+const ResultSub = styled.p`margin:-0.5rem 0 0; font-size:0.85rem; line-height:1.5; color:${textSecondary};`;
+
 // Тёмный тост — «личный кабинет создан» (из предыдущего экрана passcode).
 const Toast = styled.div`
-  position:fixed; left:50%; bottom:2rem; transform:translateX(-50%); z-index:10020;
+  position:fixed; left:50%; top:2rem; transform:translateX(-50%); z-index:10020;
   display:flex; align-items:center; gap:0.5rem;
   padding:0.6rem 1rem; border-radius:8px; background:${textPrimary}; color:#fff; font-size:0.82rem;
-  box-shadow:0 8px 24px rgba(0,0,0,0.25);
+  box-shadow:0 8px 24px rgba(0,0,0,0.25); animation:toastIn 0.22s ease-out;
   &::before { content:'✓'; color:#7ee2a0; font-weight:700; }
+  @keyframes toastIn { from { opacity:0; transform:translate(-50%,-0.5rem); } to { opacity:1; transform:translate(-50%,0); } }
 `;
 
 // Содержимое нулевого шага (PAN) — рендерится В карточке BnqDialog.
@@ -116,6 +131,7 @@ const PanLead = ({ onDone }: { onDone: () => void }) => {
   const [pan, setPan] = useState('AABCM4521C');
   const [panError, setPanError] = useState('');
   const [verifying, setVerifying] = useState(false);
+  const [company, setCompany] = useState<CompanyDetails | null>(null); // подтянутые данные → экран подтверждения
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
@@ -131,10 +147,13 @@ const PanLead = ({ onDone }: { onDone: () => void }) => {
       // режим свободной проверки — не блокируем
     }
     try { await giveCompanyConsent('Registry Access'); } catch (_) { /* игнорируем */ }
-    await getCompany();
+    const data = await getCompany();
     setVerifying(true);
-    // verifying в той же карточке → затем переход к Q1
-    const tt = setTimeout(() => onDone(), 2400);
+    // verifying в той же карточке → затем экран подтверждения подтянутых из PAN данных (не сразу Q1)
+    const tt = setTimeout(() => {
+      setCompany(data);
+      setVerifying(false);
+    }, 2400);
     timers.current.push(tt);
   };
 
@@ -150,6 +169,20 @@ const PanLead = ({ onDone }: { onDone: () => void }) => {
         <VerifyTitleEl>{t.verifyTitle}</VerifyTitleEl>
         <VerifySub>{t.verifySubtitle}</VerifySub>
       </VerifyBlock>
+    );
+  }
+
+  // Экран подтверждения подтянутых из PAN данных компании (между verifying и Q1).
+  if (company) {
+    return (
+      <ResultBlock>
+        <ResultTitleEl>{t.resultTitle}</ResultTitleEl>
+        <ResultSub>{t.resultSubtitle}</ResultSub>
+        <CompanyPanResultBox data={company} lang={lang} />
+        <CtaRow style={{ justifyContent: 'flex-end' }}>
+          <Button view="accent" size="m" text={t.resultCta} onClick={onDone} />
+        </CtaRow>
+      </ResultBlock>
     );
   }
 
@@ -187,15 +220,17 @@ export const CompanyBnqDialog = () => {
   const { pendingToast, setPendingToast } = useCompany();
 
   // Одноразовый тост из предыдущего экрана (passcode → «Личный кабинет создан»).
+  // Снимаем pendingToast и стартуем авто-скрытие один раз при монтировании,
+  // иначе перерисовка из-за смены pendingToast→null отменяла бы таймер раньше времени.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
-    if (pendingToast) {
-      setToast(pendingToast);
-      setPendingToast(null);
-      const tt = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(tt);
-    }
-  }, [pendingToast, setPendingToast]);
+    if (!pendingToast) return undefined;
+    setToast(pendingToast);
+    setPendingToast(null);
+    const tt = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(tt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const topProgress = (
     <StepProgress

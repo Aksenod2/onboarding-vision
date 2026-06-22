@@ -137,7 +137,9 @@ export const mehtaTextiles: CompanyCaseV2 = {
   // BNQ — как у SP (риск-категоризация); демо-значения для Trading-компании.
   bnq: [
     { q: 'Q1', attribute: 'Business Industry / Segment', block: 1, source: 'available', value: 'Trading', riskScore: 2 },
-    { q: 'Q2', attribute: 'Company Vintage', block: 1, source: 'available', value: '2018-03-12', riskScore: 1 },
+    // Q2 (Company Vintage / дата регистрации) убран из опросника: дата подтянута из PAN и
+    // подтверждается на экране «Данные компании из PAN» (company.incorporationDate) — как вопрос дублирует.
+    // Значение даты НЕ теряем: оно остаётся в CompanyDetails.incorporationDate (golden record).
     { q: 'Q3', attribute: 'Company Residency', block: 1, source: 'available', value: 'Indian resident', riskScore: 0 },
     { q: 'Q4', attribute: 'Tax Residency', block: 1, source: 'not_available', value: 'Indian National', riskScore: 1 },
     { q: 'Q5', attribute: 'PEP', block: 1, source: 'not_available', value: 'No', riskScore: 0 },

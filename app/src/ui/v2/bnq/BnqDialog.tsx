@@ -413,13 +413,34 @@ const ConfirmRow = styled.div`
 export const isNoAnswer = (value: string) => /^\s*(no|нет)/i.test(value);
 
 /**
- * Из массива BnqAnswer[11] строим «плоский» порядок шагов.
+ * Skip-флаги выводим НАПРЯМУЮ из ответов (single source of truth = массив bnq),
+ * а не из отдельного React-state. Раньше держали скип в useState (skipQ8/skipTrade),
+ * и он рассинхронивался с порядком рендера (баг: Q7=«No», но Q8 всё равно показывался,
+ * счётчик «из N» не сокращался). Теперь порядок и счётчик считаются из одних и тех же данных.
+ *
+ * Опора — ИМЯ вопроса (Q7/Q9), не числовой индекс: после удаления Q2 из анкеты Компании
+ * индексы сместились, но привязка к Q7/Q8/Q9/Q10/Q11 это не задевает.
+ */
+export function isSkipQ8(bnq: BnqAnswer[]): boolean {
+  const q7 = bnq.find((a) => a.q === 'Q7');
+  return !!q7?.value && isNoAnswer(q7.value);
+}
+
+export function isSkipTrade(bnq: BnqAnswer[]): boolean {
+  const q9 = bnq.find((a) => a.q === 'Q9');
+  return !!q9?.value && isNoAnswer(q9.value);
+}
+
+/**
+ * Из массива BnqAnswer[] строим «плоский» порядок шагов.
  * Решение Дениса 2026-06-09: вопросы с данными из реестра (source='available') НЕ скрываем,
  * а показываем предзаполненными для подтверждения («Мы определили: X. Верно?» — режим в renderQuestion).
  * Ветвления: Q8 убираем при Q7=«No» (кредит не нужен); Q10/Q11 убираем при Q9=«No» (нет ВЭД).
  * Возвращаем массив индексов (0-based) исходного массива.
  */
-export function buildStepOrder(bnq: BnqAnswer[], skipQ8: boolean, skipTrade: boolean): QIndex[] {
+export function buildStepOrder(bnq: BnqAnswer[]): QIndex[] {
+  const skipQ8 = isSkipQ8(bnq);
+  const skipTrade = isSkipTrade(bnq);
   const order: QIndex[] = [];
   for (let i = 0; i < bnq.length; i++) {
     const q = bnq[i].q;
@@ -443,8 +464,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   // Навигация по шагам. С leadStep ведём от -1 (нулевой шаг = PAN) до n-1.
   // Без leadStep стартуем с 0 (первый вопрос).
   const [stepIdx, setStepIdx] = useState(leadStep ? -1 : 0); // -1 = leadStep; иначе индекс в stepOrder[]
-  const [skipQ8, setSkipQ8] = useState(false); // Q7=«No» → сумму кредита не спрашиваем
-  const [skipTrade, setSkipTrade] = useState(false); // Q9=«No» → Q10/Q11 не спрашиваем
+  // Skip (Q8 / Q10-Q11) больше НЕ держим в отдельном state — выводим из bnq (buildStepOrder).
 
   // Локальные ответы (до answerBnq)
   const [localValue, setLocalValue] = useState('');
@@ -469,7 +489,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   // ─── Порядок шагов ──────────────────────────────────────────────────────────
 
   const onLead = leadStep && stepIdx === -1;
-  const stepOrder = buildStepOrder(bnq, skipQ8, skipTrade);
+  const stepOrder = buildStepOrder(bnq);
   const totalSteps = stepOrder.length;
   const currentBnqIdx = stepOrder[stepIdx] ?? 0;
   const currentQ = bnq[currentBnqIdx];
@@ -491,21 +511,18 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   // Без блокировки повторов: вернулся «Назад» и поменял ответ — пересохраняем
   // (answerBnq идемпотентен), ветвления пересчитываются.
 
+  // Применяет ответ к массиву bnq и возвращает НОВЫЙ массив — чтобы вызывающий код
+  // (handleNext) мог сразу посчитать порядок/«последний ли шаг» по свежим данным,
+  // не дожидаясь асинхронного setState. bnq — единственный источник правды для скипа.
+  const applyAnswer = (prev: BnqAnswer[], q: string, value: string): BnqAnswer[] =>
+    prev.map((a) => (a.q === q ? { ...a, value, source: 'not_available' } : a));
+
   const handleAnswer = async (value: string) => {
     if (!currentQ) return;
     await port.answerBnq(currentQ.q, value);
-
-    // Ветвление Q7: «No» — сумму кредита (Q8) не спрашиваем
-    if (currentQ.q === 'Q7') setSkipQ8(isNoAnswer(value));
-    // Ветвление Q9: «No» — пропускаем Q10/Q11
-    if (currentQ.q === 'Q9') setSkipTrade(isNoAnswer(value));
-    // Q5 PEP=Yes: алерт DVU-Compliance уходит ФОНОМ, клиенту не показываем (Задача 10, п.5)
-
-    setBnq((prev) =>
-      prev.map((a) =>
-        a.q === currentQ.q ? { ...a, value, source: 'not_available' } : a,
-      ),
-    );
+    // Ветвления Q7→Q8 и Q9→Q10/Q11 теперь выводятся из bnq в buildStepOrder.
+    // Q5 PEP=Yes: алерт DVU-Compliance уходит ФОНОМ, клиенту не показываем (Задача 10, п.5).
+    setBnq((prev) => applyAnswer(prev, currentQ.q, value));
   };
 
   // ─── Переход «Далее» ────────────────────────────────────────────────────────
@@ -524,11 +541,11 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
       try { await handleAnswer(value); } catch (_) { /* игнорируем */ }
     }
 
-    // Порядок пересчитываем ЛОКАЛЬНО с учётом только что данного ответа:
-    // setState асинхронный, а решение «последний ли шаг» нужно сейчас (фикс «вопрос 10 из 9»).
-    const nextSkipQ8 = currentQ.q === 'Q7' && value ? isNoAnswer(value) : skipQ8;
-    const nextSkipTrade = currentQ.q === 'Q9' && value ? isNoAnswer(value) : skipTrade;
-    const nextOrder = buildStepOrder(bnq, nextSkipQ8, nextSkipTrade);
+    // Порядок пересчитываем ЛОКАЛЬНО по СВЕЖЕМУ массиву (с только что данным ответом):
+    // setBnq асинхронный, а решение «последний ли шаг» / какой вопрос следующий нужно сейчас.
+    // Это же убирает рассинхрон рендера: и порядок, и счётчик считаются из одного bnq.
+    const nextBnq = value ? applyAnswer(bnq, currentQ.q, value) : bnq;
+    const nextOrder = buildStepOrder(nextBnq);
 
     const isLast = stepIdx >= nextOrder.length - 1;
     if (isLast) {

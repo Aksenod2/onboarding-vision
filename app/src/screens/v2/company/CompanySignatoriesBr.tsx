@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { Button, TextField, Notification, Radiobox, Checkbox, Select, Attach, Spinner } from '@salutejs/sdds-serv'; // имена сверены по @salutejs/sdds-serv/types
+import { Button, TextField, Radiobox, Checkbox, Select, Attach, Spinner } from '@salutejs/sdds-serv'; // имена сверены по @salutejs/sdds-serv/types
 import { textPrimary, textSecondary, textAccent, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
@@ -239,6 +239,18 @@ const UploadBox = styled.div`
 `;
 const RecognizeLine = styled.div`display:flex; align-items:center; gap:0.6rem; font-size:0.82rem; color:${textSecondary};`;
 const RecognizedLine = styled.div`display:flex; align-items:center; gap:0.4rem; font-size:0.85rem; font-weight:600; color:#1a7a28;`;
+// Интро-плашка «one single AS» — постоянная info на ВСЮ ширину карточки.
+// Делаем своим styled-блоком: SDDS Notification — тост-компонент (узкая ширина + крестик
+// закрытия по умолчанию), для inline-плашки на всю ширину он не подходит.
+const IntroBox = styled.div`
+  ${enter(0)}; display:flex; flex-direction:column; gap:0.35rem;
+  box-sizing:border-box; /* padding не должен добавляться к ширине и вылезать за карточку */
+  padding:0.95rem 1.1rem; border-radius:${radii.panel};
+  background:rgba(33,102,160,0.05); border:1px solid rgba(33,102,160,0.18);
+`;
+const IntroTitle = styled.span`${bodySBold}; color:${textPrimary}; font-size:0.9rem;`;
+const IntroText = styled.span`font-size:0.84rem; color:${textSecondary}; line-height:1.55;`;
+
 // DVU человеческими словами — нейтральная info-плашка (НЕ warning).
 const InfoNote = styled.div`
   ${enter(0)}; padding:0.85rem 1rem; border-radius:${radii.panel};
@@ -436,8 +448,11 @@ export const CompanySignatoriesBr = () => {
           <Subtitle>{t.subtitle}</Subtitle>
         </CardHeader>
         <CardBody>
-          {/* СЕКЦИЯ 0 — интро «one single AS» + полномочия (нейтральный Notification) */}
-          <Notification view="info" layout="vertical" title={t.introTitle}>{t.introText}</Notification>
+          {/* СЕКЦИЯ 0 — интро «one single AS» + полномочия (постоянная info-плашка на всю ширину) */}
+          <IntroBox>
+            <IntroTitle>{t.introTitle}</IntroTitle>
+            <IntroText>{t.introText}</IntroText>
+          </IntroBox>
 
           {/* СЕКЦИЯ 1 — кто подписывает Board Resolution */}
           <Section>

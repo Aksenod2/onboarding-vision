@@ -198,9 +198,10 @@ const CardActions = styled.div`display:flex; align-items:center; gap:0.5rem; fle
 const ReminderTag = styled.span`font-size:0.72rem; color:${textSecondary}; &::before{content:'✓ '; color:#1a7a28;}`;
 // Тёмный тост.
 const Toast = styled.div`
-  position:fixed; left:50%; bottom:2rem; transform:translateX(-50%); z-index:10020;
+  position:fixed; left:50%; top:2rem; transform:translateX(-50%); z-index:10020;
   padding:0.6rem 1rem; border-radius:8px; background:${textPrimary}; color:#fff; font-size:0.82rem;
-  box-shadow:0 8px 24px rgba(0,0,0,0.25);
+  box-shadow:0 8px 24px rgba(0,0,0,0.25); animation:toastIn 0.22s ease-out;
+  @keyframes toastIn { from { opacity:0; transform:translate(-50%,-0.5rem); } to { opacity:1; transform:translate(-50%,0); } }
 `;
 // Шапка секции обзора: заголовок слева, «Обновить» справа.
 const SectionHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;`;
@@ -254,7 +255,7 @@ export const CompanyDashboard = () => {
 
   const flashToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 2200);
+    setTimeout(() => setToast(null), 3500);
   };
 
   const remind = async (s: Signatory) => {
