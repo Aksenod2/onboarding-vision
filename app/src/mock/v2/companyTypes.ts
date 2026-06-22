@@ -226,7 +226,9 @@ export interface CompanyEntry {
 // 'verify' — банк ещё не подтвердил блок (VKYC, company details): сине-серый, действий не требуется
 //   (Verifying≠warning — НЕ оранжевый). 'in-progress' — синий. 'done' — зелёный.
 //   'action-required' — оранжевый, ТОЛЬКО если реально нужно действие клиента.
-export type ApplicationBlockStatus = 'verify' | 'in-progress' | 'done' | 'action-required';
+//   'in-request' — банк запросил документ по блоку (обратный запрос DVU): акцентный
+//   оранжевый, внутри блока — кнопка догрузки запрошенного (вместо отдельной панели).
+export type ApplicationBlockStatus = 'verify' | 'in-progress' | 'done' | 'action-required' | 'in-request';
 
 // Блок «Personal Identification & Signing» — drill-down: список участников с под-статусами.
 // kind помечает блок, в который можно «провалиться» (раскрытие Accordion на дашборде).

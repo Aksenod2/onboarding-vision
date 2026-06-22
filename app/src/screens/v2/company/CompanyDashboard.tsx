@@ -36,8 +36,10 @@ const dict: Record<Lang, {
   // финал — счёт открыт, но ожидает активации (НЕ «активирован»)
   accountTitle: string; accountSub: string; accountNumber: string; debitFreeze: string; toBank: string;
   stepLabel: Record<SignatoryStep, string>;
-  // #34 — DVU-догрузка по обратному запросу банка
-  dvuTitle: string; dvuHint: string; dvuUpload: string; dvuUploading: string; dvuUploaded: string; dvuToast: string;
+  // #34/#25 — DVU-догрузка по обратному запросу банка (теперь внутри блока, не отдельной панелью)
+  dvuHint: string; dvuUpload: string; dvuUploading: string; dvuUploaded: string; dvuToast: string;
+  // #26 — секции дашборда: моя заявка / участники
+  myApplicationTitle: string; signatoriesTitle: string; signatoriesHint: string;
 }> = {
   ru: {
     pageTitle: 'Заявка компании',
@@ -45,7 +47,7 @@ const dict: Record<Lang, {
     statusInProgress: 'В обработке',
     statusCompleted: 'Завершено',
     overviewTitle: 'Что с моей заявкой',
-    blockStatus: { verify: 'На проверке', 'in-progress': 'В процессе', done: 'Готово', 'action-required': 'Нужно действие' },
+    blockStatus: { verify: 'На проверке', 'in-progress': 'В процессе', done: 'Готово', 'action-required': 'Нужно действие', 'in-request': 'Запрошено' },
     verifyNoAction: 'Действий не требуется',
     hint: 'Счёт откроется, когда все участники пройдут идентификацию и подпишут документы.',
     loginAs: 'Войти как',
@@ -65,12 +67,14 @@ const dict: Record<Lang, {
       waiting: 'Ожидает', consents: 'Согласия', aadhaar: 'Aadhaar eKYC',
       vkyc: 'Видеоидентификация', 'dsc-sign': 'Подписание', done: 'Готово',
     },
-    dvuTitle: 'Запрос банка',
-    dvuHint: 'Банк запросил дополнительный документ по заявке. Приложите его, чтобы продолжить проверку.',
-    dvuUpload: 'Догрузить документ для проверки',
+    dvuHint: 'Банк запросил документ по этому блоку. Приложите его, чтобы продолжить проверку.',
+    dvuUpload: 'Догрузить документ',
     dvuUploading: 'Загрузка…',
     dvuUploaded: 'Документ загружен',
     dvuToast: 'Документ отправлен в банк',
+    myApplicationTitle: 'Моя заявка',
+    signatoriesTitle: 'Участники',
+    signatoriesHint: 'Коллеги-подписанты: идентификация и подписание документов.',
   },
   en: {
     pageTitle: 'Company application',
@@ -78,7 +82,7 @@ const dict: Record<Lang, {
     statusInProgress: 'In Progress',
     statusCompleted: 'Completed',
     overviewTitle: 'What’s happening with my application',
-    blockStatus: { verify: 'In verification', 'in-progress': 'In progress', done: 'Done', 'action-required': 'Action required' },
+    blockStatus: { verify: 'In verification', 'in-progress': 'In progress', done: 'Done', 'action-required': 'Action required', 'in-request': 'In request' },
     verifyNoAction: 'No action required',
     hint: 'The account will open once all participants complete identification and sign the documents.',
     loginAs: 'Log in as',
@@ -98,12 +102,14 @@ const dict: Record<Lang, {
       waiting: 'Waiting', consents: 'Consents', aadhaar: 'Aadhaar eKYC',
       vkyc: 'Video identification', 'dsc-sign': 'Signing', done: 'Done',
     },
-    dvuTitle: 'Bank request',
-    dvuHint: 'The bank has requested an additional document for the application. Upload it to continue the review.',
-    dvuUpload: 'Upload document for review',
+    dvuHint: 'The bank has requested a document for this block. Upload it to continue the review.',
+    dvuUpload: 'Upload document',
     dvuUploading: 'Uploading…',
     dvuUploaded: 'Document uploaded',
     dvuToast: 'Document sent to the bank',
+    myApplicationTitle: 'My application',
+    signatoriesTitle: 'Signatories',
+    signatoriesHint: 'Co-signatories: identification and document signing.',
   },
 };
 
@@ -156,6 +162,7 @@ const blockStatusStyle: Record<ApplicationBlockStatus, ReturnType<typeof css>> =
   'in-progress': css`background:rgba(52,120,246,0.12); color:#1e5ec9;`, // синий
   done: css`background:rgba(33,160,56,0.14); color:#1a7a28;`, // зелёный
   'action-required': css`background:rgba(245,140,32,0.16); color:#b56412;`, // оранжевый — реально нужно действие
+  'in-request': css`background:rgba(245,140,32,0.18); color:#b56412;`, // акцентный оранжевый — банк запросил документ
 };
 const BlockBadge = styled.span<{ $status: ApplicationBlockStatus }>`
   ${bodySBold}; font-size:0.74rem; letter-spacing:0.03em; padding:0.22rem 0.65rem; border-radius:14px;
@@ -206,19 +213,30 @@ const Toast = styled.div`
 // Шапка секции обзора: заголовок слева, «Обновить» справа.
 const SectionHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;`;
 
-// #34 — панель обратного запроса банка (DVU). Нейтральная рамка (загрузка ≠ ошибка), не warning/оранж.
-const DvuPanel = styled.div`
-  display:flex; flex-direction:column; gap:0.6rem; margin-bottom:1.5rem; ${enter(0.04)};
-  padding:1rem 1.125rem; border-radius:${radii.card}; box-shadow:${elevation.soft};
-  background:#fff; border:1px solid rgba(0,0,0,0.1);
+// #25/#34 — обратный запрос банка теперь внутри блока «Бизнес-профиль и UBO» (не отдельной панелью).
+// Под строкой блока со статусом «In request» раскрывается текст запроса + кнопка догрузки.
+const RequestPanel = styled.div`
+  display:flex; flex-direction:column; gap:0.5rem;
+  margin:-0.2rem 0 0; padding:0.75rem 1.125rem 0.95rem;
+  border-radius:0 0 ${radii.card} ${radii.card};
+  background:rgba(245,140,32,0.06); border:1px solid rgba(245,140,32,0.22); border-top:none;
 `;
-const DvuHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;`;
-const DvuTitle = styled.span`${bodySBold}; font-size:0.92rem; color:${textPrimary};`;
-const DvuDoc = styled.span`font-size:0.82rem; color:${textSecondary};`;
+const RequestRow = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;`;
+const DvuDoc = styled.span`${bodySBold}; font-size:0.84rem; color:${textPrimary};`;
 const DvuHintText = styled.p`margin:0; ${bodyM}; font-size:0.84rem; color:${textSecondary};`;
 const DvuUploaded = styled.span`
   display:inline-flex; align-items:center; gap:0.3rem; font-size:0.82rem; font-weight:600; color:${textPositive};
   &::before { content:'✓'; }
+`;
+
+// #26 — две явные секции дашборда: «Моя заявка» и «Участники». Карточка-контейнер + заголовок.
+const Section = styled.section`
+  margin-bottom:1.75rem; padding:1.25rem 1.375rem 1.4rem;
+  border-radius:${radii.card}; box-shadow:${elevation.soft};
+  background:#fff; border:1px solid rgba(0,0,0,0.06); ${enter(0.08)};
+`;
+const SectionLabel = styled.h2`
+  margin:0 0 0.25rem; font-size:1.05rem; font-weight:700; color:${textPrimary};
 `;
 
 const initials = (name: string) => name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -329,75 +347,88 @@ export const CompanyDashboard = () => {
       </PageMeta>
       <AppId>{t.appNo} {data.id} · {data.company.legalName}</AppId>
 
-      {/* ФИНАЛ (Б.4) — счёт открыт, но «waiting for activation» + IFSC + Debit freeze (НЕ «активирован»). */}
-      {done && (
-        <AccountBlock>
-          <AccountTitle>{t.accountTitle}</AccountTitle>
-          <AccountSub>{t.accountSub}</AccountSub>
-          <AccountReq>
-            <ReqLabel>{t.accountNumber}</ReqLabel><ReqValue>5021 4477 9012 3456</ReqValue>
-            <ReqLabel>IFSC</ReqLabel><ReqValue>SBIN0099001</ReqValue>
-            <ReqLabel /><FreezeBadge>{t.debitFreeze}</FreezeBadge>
-          </AccountReq>
-          {/* #43 — растворение онбординга: переход в интернет-банк снимает debit freeze. */}
-          <AccountActions>
-            <Button view="accent" size="m" text={t.toBank} onClick={() => navigate('/company/bank')} />
-          </AccountActions>
-        </AccountBlock>
-      )}
+      {/* ═══ СЕКЦИЯ 1 (#26): «Моя заявка» — обзор блоков заявки + финал счёта. ═══ */}
+      <Section>
+        <SectionLabel>{t.myApplicationTitle}</SectionLabel>
 
-      {/* #34 — обратный запрос банка (DVU): догрузить документ уровня заявки.
-          Скрываем при Completed: счёт открыт, догрузка по обратному запросу уже не нужна. */}
-      {!done && data.dvuRequest && (
-        <DvuPanel>
-          <DvuHead>
-            <DvuTitle>{t.dvuTitle}</DvuTitle>
-            {data.dvuRequest.status === 'uploaded'
-              ? <DvuUploaded>{t.dvuUploaded}{data.dvuRequest.fileName ? ` · ${data.dvuRequest.fileName}` : ''}</DvuUploaded>
-              : (
-                <Button
-                  view="secondary" size="s"
-                  text={dvuUploading ? t.dvuUploading : t.dvuUpload}
-                  disabled={dvuUploading}
-                  onClick={handleDvuUpload}
-                />
-              )}
-          </DvuHead>
-          <DvuDoc>{data.dvuRequest.docName}</DvuDoc>
-          {data.dvuRequest.status === 'requested' && <DvuHintText>{t.dvuHint}</DvuHintText>}
-        </DvuPanel>
-      )}
+        {/* ФИНАЛ (Б.4) — счёт открыт, но «waiting for activation» + IFSC + Debit freeze (НЕ «активирован»). */}
+        {done && (
+          <AccountBlock>
+            <AccountTitle>{t.accountTitle}</AccountTitle>
+            <AccountSub>{t.accountSub}</AccountSub>
+            <AccountReq>
+              <ReqLabel>{t.accountNumber}</ReqLabel><ReqValue>5021 4477 9012 3456</ReqValue>
+              <ReqLabel>IFSC</ReqLabel><ReqValue>SBIN0099001</ReqValue>
+              <ReqLabel /><FreezeBadge>{t.debitFreeze}</FreezeBadge>
+            </AccountReq>
+            {/* #43 — растворение онбординга: переход в интернет-банк снимает debit freeze. */}
+            <AccountActions>
+              <Button view="accent" size="m" text={t.toBank} onClick={() => navigate('/company/bank')} />
+            </AccountActions>
+          </AccountBlock>
+        )}
 
-      {/* ВЕРХНИЙ УРОВЕНЬ (Б.1/Б.3) — обзор блоков заявки «что с моей заявкой». */}
-      <SectionHead>
-        <SectionTitle>{t.overviewTitle}</SectionTitle>
-        <Button view="clear" size="s" text={t.refresh} onClick={refresh} />
-      </SectionHead>
-      {!done && <Hint>{t.hint}</Hint>}
-      <BlocksList>
-        {blocks.filter((b) => b.kind !== 'identification-signing').map((b) => (
-          <BlockRow key={b.id}>
-            <BlockName>{lang === 'ru' ? b.titleRu : b.titleEn}</BlockName>
-            <BlockRight>
-              {b.status === 'verify' && <VerifyNote>{t.verifyNoAction}</VerifyNote>}
-              <BlockBadge $status={b.status}>{t.blockStatus[b.status]}</BlockBadge>
-            </BlockRight>
-          </BlockRow>
-        ))}
-      </BlocksList>
+        {/* ВЕРХНИЙ УРОВЕНЬ (Б.1/Б.3) — обзор блоков заявки «что с моей заявкой». */}
+        <SectionHead>
+          <SectionTitle>{t.overviewTitle}</SectionTitle>
+          <Button view="clear" size="s" text={t.refresh} onClick={refresh} />
+        </SectionHead>
+        {!done && <Hint>{t.hint}</Hint>}
+        <BlocksList>
+          {blocks.filter((b) => b.kind !== 'identification-signing').map((b) => {
+            // #25 — обратный запрос банка живёт в статусе блока 'in-request': под строкой
+            // блока раскрываем текст запроса + кнопку догрузки (вместо отдельной панели).
+            const isRequest = b.status === 'in-request' && !!data.dvuRequest;
+            return (
+              <div key={b.id}>
+                <BlockRow>
+                  <BlockName>{lang === 'ru' ? b.titleRu : b.titleEn}</BlockName>
+                  <BlockRight>
+                    {b.status === 'verify' && <VerifyNote>{t.verifyNoAction}</VerifyNote>}
+                    <BlockBadge $status={b.status}>{t.blockStatus[b.status]}</BlockBadge>
+                  </BlockRight>
+                </BlockRow>
+                {isRequest && data.dvuRequest && (
+                  <RequestPanel>
+                    <RequestRow>
+                      <DvuDoc>{data.dvuRequest.docName}</DvuDoc>
+                      {data.dvuRequest.status === 'uploaded'
+                        ? <DvuUploaded>{t.dvuUploaded}{data.dvuRequest.fileName ? ` · ${data.dvuRequest.fileName}` : ''}</DvuUploaded>
+                        : (
+                          <Button
+                            view="secondary" size="s"
+                            text={dvuUploading ? t.dvuUploading : t.dvuUpload}
+                            disabled={dvuUploading}
+                            onClick={handleDvuUpload}
+                          />
+                        )}
+                    </RequestRow>
+                    {data.dvuRequest.status === 'requested' && <DvuHintText>{t.dvuHint}</DvuHintText>}
+                  </RequestPanel>
+                )}
+              </div>
+            );
+          })}
+        </BlocksList>
+      </Section>
 
-      {/* DRILL-DOWN (Б.2) — блок «Personal Identification & Signing» раскрывается на месте (Accordion),
+      {/* ═══ СЕКЦИЯ 2 (#26): «Участники» — коллеги-подписанты, drill-down (Б.2). ═══
+          Блок «Personal Identification & Signing» раскрывается на месте (Accordion),
           содержимое = список участников с двумя под-статусами (подписание + VKYC). */}
       {identBlock && (
-        <Accordion stretching="filled" defaultActiveEventKey={done ? [] : [0]}>
-          <AccordionItem
-            eventKey={0}
-            title={lang === 'ru' ? identBlock.titleRu : identBlock.titleEn}
-            contentRight={<BlockBadge $status={identBlock.status}>{t.blockStatus[identBlock.status]}</BlockBadge>}
-          >
-            {participantsBody}
-          </AccordionItem>
-        </Accordion>
+        <Section>
+          <SectionLabel>{t.signatoriesTitle}</SectionLabel>
+          <Hint>{t.signatoriesHint}</Hint>
+          <Accordion stretching="filled" defaultActiveEventKey={done ? [] : [0]}>
+            <AccordionItem
+              eventKey={0}
+              title={lang === 'ru' ? identBlock.titleRu : identBlock.titleEn}
+              contentRight={<BlockBadge $status={identBlock.status}>{t.blockStatus[identBlock.status]}</BlockBadge>}
+            >
+              {participantsBody}
+            </AccordionItem>
+          </Accordion>
+        </Section>
       )}
 
       {toast && <Toast>{toast}</Toast>}

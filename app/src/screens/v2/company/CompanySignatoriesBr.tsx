@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { Button, TextField, Radiobox, Checkbox, Select, Attach, Spinner } from '@salutejs/sdds-serv'; // имена сверены по @salutejs/sdds-serv/types
+import { Button, TextField, Checkbox, Select, Attach, Spinner } from '@salutejs/sdds-serv'; // имена сверены по @salutejs/sdds-serv/types
 import { textPrimary, textSecondary, textAccent, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
@@ -13,7 +13,7 @@ import {
   getDirectors, getSignatories, getBoardResolution, getCompany, confirmBoardResolution,
   setBoardResolutionSource, setBrSignerConfig, buildPhaseBSignatories,
 } from '../../../mock/v2/companyApi';
-import type { Director, BrSource, BrSignerMode, AsMode, GovernanceOption } from '../../../mock/v2/companyTypes';
+import type { Director, BrSource, AsMode, GovernanceOption } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './companyUi';
 
 // CO-SIGNATORIES-BR — акт назначения ОДНОГО Authorised Signatory + оформление Board Resolution.
@@ -28,16 +28,16 @@ const dict: Record<Lang, {
   title: string; subtitle: string;
   introTitle: string; introText: string;
   secSignerTitle: string;
-  signerDirectors: string; signerDirectorsDesc: string;
-  signerSecretary: string; signerSecretaryDesc: string;
-  directorsHint: string; minTwoError: string;
-  secNameLabel: string; emailLabel: string; phoneLabel: string;
+  signersHint: string; noSignerError: string;
+  emailLabel: string; phoneLabel: string;
   emailError: string; phoneError: string;
   fromRegistry: string;
   secAsTitle: string; asHint: string;
-  asFromDirectors: string; asNewPerson: string;
-  asPickDirector: string; asPickError: string;
+  asSelectLabel: string; asSelectPlaceholder: string;
+  asNominate: string; asNewPerson: string;
+  asPickError: string;
   asNameLabel: string; asPanLabel: string; asPanError: string;
+  asContactHint: string;
   secGovTitle: string; govLabel: string; govPlaceholder: string; govHelper: string;
   govNominated: string; govDecision: string; govResolutionText: string;
   govNominatedDesc: string; govDecisionDesc: string;
@@ -54,28 +54,25 @@ const dict: Record<Lang, {
     introTitle: 'Один уполномоченный подписант (Authorised Signatory)',
     introText: 'Вы назначаете одного Authorised Signatory, уполномоченного действовать от имени компании по всем банковским продуктам и сервисам: интернет-банк, услуги FEMA, депозиты, кредиты, аккредитивы и гарантии.',
     secSignerTitle: 'Кто подписывает Board Resolution',
-    signerDirectors: 'Минимум два директора',
-    signerDirectorsDesc: 'Решение подписывают как минимум двое директоров.',
-    signerSecretary: 'Один Company Secretary (singly)',
-    signerSecretaryDesc: 'Решение подписывает один секретарь компании.',
-    directorsHint: 'Заполнено автоматически из официальных данных компании. Отметьте минимум двоих — на каждого укажите email и телефон.',
-    minTwoError: 'Выберите минимум двух директоров.',
-    secNameLabel: 'ФИО секретаря',
+    signersHint: 'Список сформирован автоматически из официальных данных компании. Отметьте, кто подписывает решение — на каждого укажите email и телефон.',
+    noSignerError: 'Отметьте, кто подписывает Board Resolution.',
     emailLabel: 'Email',
     phoneLabel: 'Телефон',
     emailError: 'Укажите email',
     phoneError: 'Укажите телефон',
     fromRegistry: 'автоматически',
-    secAsTitle: 'Authorised Signatory (распоряжается)',
+    secAsTitle: 'Назначение уполномоченного подписанта',
     asHint: 'Authorised Signatory распоряжается продуктами банка от имени компании. Он один.',
-    asFromDirectors: 'Назначить из директоров',
-    asNewPerson: 'Добавить новое лицо',
-    asPickDirector: 'Выберите директора как Authorised Signatory',
+    asSelectLabel: 'Authorised Signatory',
+    asSelectPlaceholder: 'Выберите подписанта',
+    asNominate: 'Назначить уполномоченного',
+    asNewPerson: 'Назначить уполномоченного',
     asPickError: 'Выберите Authorised Signatory.',
     asNameLabel: 'ФИО подписанта',
     asPanLabel: 'PAN',
     asPanError: 'Укажите корректный PAN (формат ABCDE1234F)',
-    secGovTitle: 'Смена Authorised Signatory в будущем',
+    asContactHint: 'Контакты уполномоченного подписанта — нужны для видеоидентификации и подписания.',
+    secGovTitle: 'Governance: смена уполномоченного подписанта',
     govLabel: 'Как будет проходить смена Authorised Signatory',
     govPlaceholder: 'Выберите вариант',
     govHelper: 'Определяет порядок будущей замены уполномоченного подписанта.',
@@ -88,7 +85,7 @@ const dict: Record<Lang, {
     brTemplateTitle: 'Документ формируется по шаблону банка',
     brTemplateNote: 'Форма Board Resolution будет сгенерирована и подписана участниками по DSC в их персональных сессиях.',
     brDocHeader: 'Board Resolution',
-    brGovHeading: 'Governance for Authorised Signatory changes',
+    brGovHeading: 'Governance: смена уполномоченного подписанта',
     brGovPending: '(вариант смены подписанта будет подставлен после выбора выше)',
     brViewResolution: 'Посмотреть Board Resolution',
     brExpand: 'Развернуть на весь экран',
@@ -114,28 +111,25 @@ const dict: Record<Lang, {
     introTitle: 'One single Authorised Signatory',
     introText: 'You appoint one Authorised Signatory, authorised to act on behalf of the company across all banking products and services: Internet Banking, FEMA-related services, deposits, loans, letters of credit and bank guarantees.',
     secSignerTitle: 'Who signs the Board Resolution',
-    signerDirectors: 'At least two directors',
-    signerDirectorsDesc: 'The resolution is signed by at least two directors.',
-    signerSecretary: 'One Company Secretary (singly)',
-    signerSecretaryDesc: 'The resolution is signed by a single company secretary.',
-    directorsHint: 'Auto-filled from the company’s official data. Tick at least two — provide email and phone for each.',
-    minTwoError: 'Select at least two directors.',
-    secNameLabel: 'Secretary full name',
+    signersHint: 'The list is auto-filled from the company’s official data. Tick who signs the resolution — provide email and phone for each.',
+    noSignerError: 'Tick who signs the Board Resolution.',
     emailLabel: 'Email',
     phoneLabel: 'Phone',
     emailError: 'Enter an email',
     phoneError: 'Enter a phone',
     fromRegistry: 'auto-filled',
-    secAsTitle: 'Authorised Signatory (operates products)',
+    secAsTitle: 'Nominate the Authorised Signatory',
     asHint: 'The Authorised Signatory operates the bank’s products on behalf of the company. There is exactly one.',
-    asFromDirectors: 'Appoint from directors',
-    asNewPerson: 'Add a new person',
-    asPickDirector: 'Choose a director as the Authorised Signatory',
+    asSelectLabel: 'Authorised Signatory',
+    asSelectPlaceholder: 'Choose a signatory',
+    asNominate: 'Nominate the Authorised Signatory',
+    asNewPerson: 'Nominate the Authorised Signatory',
     asPickError: 'Choose the Authorised Signatory.',
     asNameLabel: 'Signatory full name',
     asPanLabel: 'PAN',
     asPanError: 'Enter a valid PAN (format ABCDE1234F)',
-    secGovTitle: 'Future change of the Authorised Signatory',
+    asContactHint: 'Contacts of the Authorised Signatory — required for video identification and signing.',
+    secGovTitle: 'Governance for Authorised Signatory changes',
     govLabel: 'How the Authorised Signatory will be changed',
     govPlaceholder: 'Choose an option',
     govHelper: 'Defines the procedure for replacing the Authorised Signatory in the future.',
@@ -210,12 +204,11 @@ const TemplateTitle = styled.span`${bodySBold}; color:${textPrimary}; font-size:
 const TemplateNote = styled.span`font-size:0.82rem; color:${textSecondary}; line-height:1.5;`;
 
 // Inline-«лист» Board Resolution — сам документ всегда виден на экране (замысел Марго «вести по борде»).
-// Белый лист с прокруткой внутри, чтобы не растягивать экран на весь объём текста.
+// Без внутреннего скролла: блок растягивается по содержимому, весь текст резолюции виден сразу (просьба Дениса).
 const InlineDoc = styled.div`
   ${enter(0)}; display:flex; flex-direction:column; gap:0.9rem;
   padding:1.5rem 1.75rem; border-radius:${radii.panel};
   background:#fff; border:1px solid rgba(0,0,0,0.12);
-  max-height:360px; overflow-y:auto;
   &:focus-visible { outline:2px solid ${textAccent}; outline-offset:2px; }
 `;
 const InlineDocHeader = styled.div`font-size:0.78rem; color:${textSecondary}; letter-spacing:0.02em;`;
@@ -223,9 +216,12 @@ const InlineDocBody = styled.p`
   margin:0; font-size:0.85rem; line-height:1.65; color:${textPrimary};
   white-space:pre-line; /* verbatim-текст резолюции с абзацами */
 `;
-const InlineDocGov = styled.div`
-  display:flex; flex-direction:column; gap:0.4rem;
-  padding-top:0.9rem; border-top:1px solid rgba(0,0,0,0.08);
+// Блок governance под дропдауном секции 2: полный юр-текст + выбранная опция (правка #19).
+// Лист-вставка в стиле документа, чтобы текст читался как фрагмент резолюции.
+const InlineDocGovBlock = styled.div`
+  ${enter(0)}; display:flex; flex-direction:column; gap:0.4rem;
+  padding:1.1rem 1.25rem; border-radius:${radii.panel};
+  background:#fff; border:1px solid rgba(0,0,0,0.12);
 `;
 const InlineDocGovHeading = styled.span`${bodySBold}; color:${textPrimary}; font-size:0.82rem;`;
 // «Посмотреть шаблон» / «upload your own» — нейтральные ссылки (не конкурируют с зелёным CTA).
@@ -295,12 +291,10 @@ export const CompanySignatoriesBr = () => {
   // Реквизиты компании для шапки inline-листа BR (mock из Probe-данных).
   const [companyHeader, setCompanyHeader] = useState({ legalName: '', legalType: '' });
 
-  // СЕКЦИЯ 1 — кто подписывает BR
-  const [signerMode, setSignerMode] = useState<BrSignerMode>('directors');
+  // БЛОК «кто подписывает BR» (теперь внизу) — единый список людей из реестра (state.directors),
+  // включает директоров И Company Secretary по designation. Мультивыбор чекбоксами.
   const [pickedSigners, setPickedSigners] = useState<Set<string>>(new Set());
   const [signerContacts, setSignerContacts] = useState<Record<string, Contact>>({});
-  const [secretaryName, setSecretaryName] = useState('');
-  const [secretaryContact, setSecretaryContact] = useState<Contact>({ email: '', phone: '' });
 
   // СЕКЦИЯ 2 — Authorised Signatory (ровно один)
   const [asMode, setAsMode] = useState<AsMode>('from-directors');
@@ -340,11 +334,8 @@ export const CompanySignatoriesBr = () => {
       if (asDir) setAsDirectorId(asDir.id);
       // восстановить срез из стейта
       const cfg = br.signerConfig;
-      setSignerMode(cfg.signerMode);
       setAsMode(cfg.asMode);
       setGovernance(cfg.governance ?? '');
-      setSecretaryName(cfg.secretaryName);
-      setSecretaryContact({ email: cfg.secretaryEmail, phone: cfg.secretaryPhone });
       setBrSource(br.brSource);
     });
   }, []);
@@ -360,26 +351,29 @@ export const CompanySignatoriesBr = () => {
     setSignerContacts((prev) => ({ ...prev, [id]: { ...(prev[id] ?? { email: '', phone: '' }), ...patch } }));
 
   // --- Валидация ---
-  const signersValid = signerMode === 'directors'
-    ? pickedSigners.size >= 2 &&
-      [...pickedSigners].every((id) => {
-        const c = signerContacts[id];
-        return c && c.email.trim() && c.phone.trim();
-      })
-    : secretaryName.trim() && secretaryContact.email.trim() && secretaryContact.phone.trim();
+  // Мягкое правило: отметить хотя бы одного подписанта (иначе непонятно, кто подписывает).
+  // Кворум («минимум два») банк проверяет на бэке — клиенту не показываем.
+  const signersValid = pickedSigners.size >= 1 &&
+    [...pickedSigners].every((id) => {
+      const c = signerContacts[id];
+      return c && c.email.trim() && c.phone.trim();
+    });
 
+  // Контакты директора, выбранного как AS. ЕДИНЫЙ источник на человека — та же запись
+  // signerContacts[asDirectorId], что и в блоке «кто подписывает». Правка email/phone в любом
+  // из мест пишет одну запись → AS-поля и поля подписанта для одного человека всегда синхронны.
+  const asDirContact: Contact = asDirectorId
+    ? signerContacts[asDirectorId] ?? { email: '', phone: '' }
+    : { email: '', phone: '' };
+
+  // AS обязан иметь контакты (email+phone) — он всегда проходит VKYC/подписание.
   const asValid = asMode === 'from-directors'
-    ? !!asDirectorId
+    ? !!asDirectorId && !!asDirContact.email.trim() && !!asDirContact.phone.trim()
     : newAs.fullName.trim() && PAN_RE.test(newAs.pan.trim().toUpperCase()) && newAs.email.trim() && newAs.phone.trim();
 
   const govValid = governance !== '';
 
   const canContinue = !!signersValid && !!asValid && govValid;
-
-  // Контакты директора, выбранного как AS (переиспользуем из секции 1, если он там отмечен).
-  const asDirContact: Contact = asDirectorId
-    ? signerContacts[asDirectorId] ?? { email: '', phone: '' }
-    : { email: '', phone: '' };
 
   const pickTemplate = async () => {
     setBrSource('template');
@@ -400,26 +394,25 @@ export const CompanySignatoriesBr = () => {
   const handleContinue = async () => {
     if (!canContinue) { setShowErrors(true); return; }
     try {
-      // 1) срез акта назначения
+      // 1) срез акта назначения. Секретарь теперь — часть единого списка людей из реестра
+      //    (по designation Company Secretary), отдельная форма ввода секретаря убрана →
+      //    всегда signerMode 'directors', поля secretary пустые (контракт сохраняем).
       await setBrSignerConfig({
-        signerMode,
+        signerMode: 'directors',
         asMode,
         governance: (governance || null) as GovernanceOption | null,
-        secretaryName,
-        secretaryEmail: secretaryContact.email,
-        secretaryPhone: secretaryContact.phone,
+        secretaryName: '',
+        secretaryEmail: '',
+        secretaryPhone: '',
       });
-      // 2) пересобрать участников фазы B из ВЫБОРА в BR (на основе мастер-списка директоров):
-      //    подписывающие BR + единственный AS + инициатор → state.signatories с нужными ролями/контактами.
+      // 2) пересобрать участников фазы B из ВЫБОРА в BR (на основе мастер-списка людей из реестра):
+      //    отмеченные подписанты BR + единственный AS + инициатор → state.signatories.
       const directorContacts: Record<string, Contact> = {};
       for (const id of pickedSigners) directorContacts[id] = signerContacts[id] ?? { email: '', phone: '' };
       await buildPhaseBSignatories({
-        signerMode,
-        signingDirectorIds: signerMode === 'directors' ? [...pickedSigners] : [],
+        signerMode: 'directors',
+        signingDirectorIds: [...pickedSigners],
         directorContacts,
-        secretary: signerMode === 'secretary'
-          ? { fullName: secretaryName, email: secretaryContact.email, phone: secretaryContact.phone }
-          : undefined,
         asMode,
         asDirectorId: asMode === 'from-directors' ? asDirectorId : undefined,
         asContact: asMode === 'from-directors' ? asDirContact : undefined,
@@ -436,6 +429,23 @@ export const CompanySignatoriesBr = () => {
     { value: 'nominated-official', label: t.govNominated },
     { value: 'decision-pursuant-br', label: t.govDecision },
   ];
+
+  // Дропдаун выбора AS (правка #17): директора из реестра + опция «назначить уполномоченного».
+  const AS_NOMINATE = '__nominate__';
+  const asItems = [
+    ...directors.map((d) => ({ value: d.id, label: `${d.fullName} · ${d.designation}` })),
+    { value: AS_NOMINATE, label: t.asNominate },
+  ];
+  // Текущее значение дропдауна: id выбранного директора либо сентинел «назначить уполномоченного».
+  const asSelectValue = asMode === 'new-person' ? AS_NOMINATE : asDirectorId;
+  const onAsSelect = (value: string) => {
+    if (value === AS_NOMINATE) {
+      setAsMode('new-person');
+    } else {
+      setAsMode('from-directors');
+      setAsDirectorId(value);
+    }
+  };
 
   // Короткое пояснение ИМЕННО выбранной governance-опции (под дропдауном, Р2).
   const govDesc =
@@ -462,127 +472,42 @@ export const CompanySignatoriesBr = () => {
             <IntroText>{t.introText}</IntroText>
           </IntroBox>
 
-          {/* СЕКЦИЯ 1 — кто подписывает Board Resolution */}
+          {/* СЕКЦИЯ 1 — Authorised Signatory (ровно один) — выбор дропдауном (правка #17/#18):
+              опции = директора из реестра + «Назначить уполномоченного» (новое лицо). */}
           <Section>
-            <SectionTitle>{t.secSignerTitle}</SectionTitle>
-            <PickCard $checked={signerMode === 'directors'} onClick={() => setSignerMode('directors')}>
-              <Radiobox
-                size="m" view="accent" name="br-signer-mode" value="directors"
-                checked={signerMode === 'directors'} onChange={() => setSignerMode('directors')}
-                label={t.signerDirectors} description={t.signerDirectorsDesc}
-              />
-            </PickCard>
-            <PickCard $checked={signerMode === 'secretary'} onClick={() => setSignerMode('secretary')}>
-              <Radiobox
-                size="m" view="accent" name="br-signer-mode" value="secretary"
-                checked={signerMode === 'secretary'} onChange={() => setSignerMode('secretary')}
-                label={t.signerSecretary} description={t.signerSecretaryDesc}
-              />
-            </PickCard>
+            <SectionTitle>{t.secAsTitle}</SectionTitle>
+            <Hint>{t.asHint}</Hint>
+            <Select
+              label={t.asSelectLabel}
+              placeholder={t.asSelectPlaceholder}
+              target="textfield-like"
+              items={asItems}
+              value={asSelectValue}
+              onChange={onAsSelect}
+            />
+            {showErrors && !asValid && asMode === 'from-directors' && !asDirectorId && <ErrorHint>{t.asPickError}</ErrorHint>}
 
-            {signerMode === 'directors' && (
-              <>
-                <Hint>{t.directorsHint}</Hint>
-                {directors.map((d) => {
-                  const checked = pickedSigners.has(d.id);
-                  const c = signerContacts[d.id] ?? { email: '', phone: '' };
-                  const emailErr = showErrors && checked && !c.email.trim();
-                  const phoneErr = showErrors && checked && !c.phone.trim();
-                  return (
-                    <PickCard key={d.id} $checked={checked}>
-                      <Checkbox
-                        size="m" view="accent" checked={checked} onChange={() => toggleSigner(d.id)}
-                        label={<>{d.fullName}<RegBadge>{t.fromRegistry}</RegBadge></>}
-                        description={<PickMeta>{d.designation} · {d.pan}</PickMeta>}
-                      />
-                      {checked && (
-                        <ContactFields>
-                          <TextField
-                            label={t.emailLabel} value={c.email} size="m"
-                            view={emailErr ? 'negative' : 'default'}
-                            leftHelper={emailErr ? t.emailError : undefined}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSignerContact(d.id, { email: e.target.value })}
-                          />
-                          <TextField
-                            label={t.phoneLabel} value={c.phone} size="m"
-                            view={phoneErr ? 'negative' : 'default'}
-                            leftHelper={phoneErr ? t.phoneError : undefined}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSignerContact(d.id, { phone: e.target.value })}
-                          />
-                        </ContactFields>
-                      )}
-                    </PickCard>
-                  );
-                })}
-                {showErrors && pickedSigners.size < 2 && <ErrorHint>{t.minTwoError}</ErrorHint>}
-              </>
-            )}
-
-            {signerMode === 'secretary' && (
+            {/* AS = директор: контакты нужны ВСЕГДА (VKYC/подписание). Единый источник по id директора —
+                та же запись signerContacts[asDirectorId], что и в блоке «кто подписывает» (синхронно). */}
+            {asMode === 'from-directors' && asDirectorId && (
               <FormBox>
-                <Field>
-                  <TextField
-                    label={t.secNameLabel} value={secretaryName} size="m"
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSecretaryName(e.target.value)}
-                  />
-                </Field>
+                <Hint>{t.asContactHint}</Hint>
                 <Row>
                   <TextField
-                    label={t.emailLabel} value={secretaryContact.email} size="m"
-                    view={showErrors && !secretaryContact.email.trim() ? 'negative' : 'default'}
-                    leftHelper={showErrors && !secretaryContact.email.trim() ? t.emailError : undefined}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSecretaryContact((p) => ({ ...p, email: e.target.value }))}
+                    label={t.emailLabel} value={asDirContact.email} size="m"
+                    view={showErrors && !asDirContact.email.trim() ? 'negative' : 'default'}
+                    leftHelper={showErrors && !asDirContact.email.trim() ? t.emailError : undefined}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSignerContact(asDirectorId, { email: e.target.value })}
                   />
                   <TextField
-                    label={t.phoneLabel} value={secretaryContact.phone} size="m"
-                    view={showErrors && !secretaryContact.phone.trim() ? 'negative' : 'default'}
-                    leftHelper={showErrors && !secretaryContact.phone.trim() ? t.phoneError : undefined}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSecretaryContact((p) => ({ ...p, phone: e.target.value }))}
+                    label={t.phoneLabel} value={asDirContact.phone} size="m"
+                    view={showErrors && !asDirContact.phone.trim() ? 'negative' : 'default'}
+                    leftHelper={showErrors && !asDirContact.phone.trim() ? t.phoneError : undefined}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSignerContact(asDirectorId, { phone: e.target.value })}
                   />
                 </Row>
               </FormBox>
             )}
-          </Section>
-
-          {/* СЕКЦИЯ 2 — Authorised Signatory (ровно один) */}
-          <Section>
-            <SectionTitle>{t.secAsTitle}</SectionTitle>
-            <Hint>{t.asHint}</Hint>
-            <PickCard $checked={asMode === 'from-directors'} onClick={() => setAsMode('from-directors')}>
-              <Radiobox
-                size="m" view="accent" name="as-mode" value="from-directors"
-                checked={asMode === 'from-directors'} onChange={() => setAsMode('from-directors')}
-                label={t.asFromDirectors}
-              />
-            </PickCard>
-
-            {asMode === 'from-directors' && (
-              <FormBox>
-                <Hint>{t.asPickDirector}</Hint>
-                {directors.map((d) => {
-                  const sel = asDirectorId === d.id;
-                  return (
-                    <PickCard key={d.id} $checked={sel} onClick={() => setAsDirectorId(d.id)}>
-                      <Radiobox
-                        size="m" view="accent" name="as-director" value={d.id}
-                        checked={sel} onChange={() => setAsDirectorId(d.id)}
-                        label={<>{d.fullName}<RegBadge>{t.fromRegistry}</RegBadge></>}
-                        description={<PickMeta>{d.designation} · {d.pan}</PickMeta>}
-                      />
-                    </PickCard>
-                  );
-                })}
-                {showErrors && asMode === 'from-directors' && !asDirectorId && <ErrorHint>{t.asPickError}</ErrorHint>}
-              </FormBox>
-            )}
-
-            <PickCard $checked={asMode === 'new-person'} onClick={() => setAsMode('new-person')}>
-              <Radiobox
-                size="m" view="accent" name="as-mode" value="new-person"
-                checked={asMode === 'new-person'} onChange={() => setAsMode('new-person')}
-                label={t.asNewPerson}
-              />
-            </PickCard>
 
             {asMode === 'new-person' && (
               <FormBox>
@@ -618,7 +543,8 @@ export const CompanySignatoriesBr = () => {
             )}
           </Section>
 
-          {/* СЕКЦИЯ 3 — governance смены AS */}
+          {/* СЕКЦИЯ 2 — governance смены AS (правка #19/#20): полный юр-текст governance живёт
+              здесь, под дропдауном выбора процедуры, а НЕ в теле резолюции BR. */}
           <Section>
             <SectionTitle>{t.secGovTitle}</SectionTitle>
             <Select
@@ -631,9 +557,15 @@ export const CompanySignatoriesBr = () => {
               onChange={(value: string) => setGovernance(value as GovernanceOption)}
             />
             {govDesc && <Hint>{govDesc}</Hint>}
+            {/* Полный текст governance + выбранная опция — перенесён сюда из тела резолюции. */}
+            <InlineDocGovBlock>
+              <InlineDocGovHeading>{t.brGovHeading}</InlineDocGovHeading>
+              <InlineDocBody>{t.govResolutionText}</InlineDocBody>
+              <InlineDocBody>{govPickedLabel ? govPickedLabel : t.brGovPending}</InlineDocBody>
+            </InlineDocGovBlock>
           </Section>
 
-          {/* СЕКЦИЯ 4 — документ BR: шаблон-дефолт + upload мелко */}
+          {/* СЕКЦИЯ 3 — документ BR: шаблон-дефолт + upload мелко */}
           <Section>
             <SectionTitle>{t.secBrTitle}</SectionTitle>
             {brSource === 'template' && (
@@ -646,11 +578,6 @@ export const CompanySignatoriesBr = () => {
                 <InlineDoc tabIndex={0} role="document" aria-label={t.brResolutionTitle}>
                   <InlineDocHeader>{t.brDocHeader} · {companyHeader.legalType} · {companyHeader.legalName}</InlineDocHeader>
                   <InlineDocBody>{t.brResolutionBody}</InlineDocBody>
-                  <InlineDocGov>
-                    <InlineDocGovHeading>{t.brGovHeading}</InlineDocGovHeading>
-                    <InlineDocBody>{t.govResolutionText}</InlineDocBody>
-                    <InlineDocBody>{govPickedLabel ? govPickedLabel : t.brGovPending}</InlineDocBody>
-                  </InlineDocGov>
                 </InlineDoc>
                 <LinkBtn type="button" onClick={() => setShowResolution(true)}>{t.brExpand}</LinkBtn>
                 <LinkBtn type="button" onClick={onShowUpload}>{t.brUploadLink}</LinkBtn>
@@ -677,6 +604,46 @@ export const CompanySignatoriesBr = () => {
                 <LinkBtn type="button" onClick={pickTemplate}>{t.brTemplateTitle}</LinkBtn>
               </>
             )}
+          </Section>
+
+          {/* СЕКЦИЯ 4 (внизу, после текста BR) — кто подписывает Board Resolution.
+              Единый список людей из реестра (state.directors: директора + Company Secretary
+              по designation). Мультивыбор чекбоксами; на отмеченного — контакты (email+phone). */}
+          <Section>
+            <SectionTitle>{t.secSignerTitle}</SectionTitle>
+            <Hint>{t.signersHint}</Hint>
+            {directors.map((d) => {
+              const checked = pickedSigners.has(d.id);
+              const c = signerContacts[d.id] ?? { email: '', phone: '' };
+              const emailErr = showErrors && checked && !c.email.trim();
+              const phoneErr = showErrors && checked && !c.phone.trim();
+              return (
+                <PickCard key={d.id} $checked={checked}>
+                  <Checkbox
+                    size="m" view="accent" checked={checked} onChange={() => toggleSigner(d.id)}
+                    label={<>{d.fullName}<RegBadge>{t.fromRegistry}</RegBadge></>}
+                    description={<PickMeta>{d.designation} · {d.pan}</PickMeta>}
+                  />
+                  {checked && (
+                    <ContactFields>
+                      <TextField
+                        label={t.emailLabel} value={c.email} size="m"
+                        view={emailErr ? 'negative' : 'default'}
+                        leftHelper={emailErr ? t.emailError : undefined}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSignerContact(d.id, { email: e.target.value })}
+                      />
+                      <TextField
+                        label={t.phoneLabel} value={c.phone} size="m"
+                        view={phoneErr ? 'negative' : 'default'}
+                        leftHelper={phoneErr ? t.phoneError : undefined}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSignerContact(d.id, { phone: e.target.value })}
+                      />
+                    </ContactFields>
+                  )}
+                </PickCard>
+              );
+            })}
+            {showErrors && pickedSigners.size < 1 && <ErrorHint>{t.noSignerError}</ErrorHint>}
           </Section>
 
           <ButtonRow>

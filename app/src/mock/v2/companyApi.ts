@@ -40,11 +40,16 @@ export const getApplicationBlocks = (): Promise<ApplicationBlock[]> => {
   const allDone = required.length > 0 && required.every((s) => s.status === 'done');
   const anyStarted = required.some((s) => s.status !== 'waiting');
   const identStatus: ApplicationBlock['status'] = allDone ? 'done' : anyStarted ? 'in-progress' : 'verify';
+  // #25/#23 — обратный запрос банка (DVU) больше не отдельная панель: переносим его в статус блока.
+  // Запрос «Source of funds» относится к бизнес-профилю → блок «Business profile / UBO»
+  // получает статус 'in-request', пока документ не догружен. Загрузка — внутри блока на дашборде.
+  const bankRequestOpen = state.dvuRequest?.status === 'requested';
+  const businessProfileStatus: ApplicationBlock['status'] = bankRequestOpen ? 'in-request' : 'verify';
   const blocks: ApplicationBlock[] = [
     { id: 'company-details', titleRu: 'Данные компании', titleEn: 'Company details', status: 'verify', kind: 'static' },
     { id: 'board-resolution', titleRu: 'Board Resolution', titleEn: 'Board Resolution', status: state.br.confirmed ? 'done' : 'verify', kind: 'static' },
     { id: 'identification-signing', titleRu: 'Идентификация и подписание участников', titleEn: 'Personal Identification & Signing', status: identStatus, kind: 'identification-signing' },
-    { id: 'business-profile', titleRu: 'Бизнес-профиль и UBO', titleEn: 'Business profile / UBO', status: 'verify', kind: 'static' },
+    { id: 'business-profile', titleRu: 'Бизнес-профиль и UBO', titleEn: 'Business profile / UBO', status: businessProfileStatus, kind: 'static' },
     { id: 'vkyc', titleRu: 'Видеоидентификация (VKYC)', titleEn: 'VKYC', status: allDone ? 'done' : 'verify', kind: 'static' },
     // TODO: полный перечень блоков от Марго (например, FATCA/CRS, Source of funds) — добавить сюда.
   ];
