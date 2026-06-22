@@ -5,8 +5,6 @@ import { Button, TextField, Note, Checkbox } from '@salutejs/sdds-serv'; // TODO
 import { textPrimary, textSecondary, textAccent, textPositive, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
-import { StepProgress } from '../../../ui/v2/StepProgress';
-import { COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
@@ -608,10 +606,8 @@ export const CompanyConfirm = () => {
     </FieldGroup>
   );
 
-  const progress = <StepProgress currentStepId="co-confirm" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;
-
   return (
-    <ScreenV2 progress={progress}>
+    <ScreenV2 navHub>
       <Card>
         <CardHeader>
           <Title>{t.title}</Title>

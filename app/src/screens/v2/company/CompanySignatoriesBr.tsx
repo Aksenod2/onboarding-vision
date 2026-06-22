@@ -5,8 +5,6 @@ import { Button, TextField, Checkbox, Select, Attach, Spinner } from '@salutejs/
 import { textPrimary, textSecondary, textAccent, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
-import { StepProgress } from '../../../ui/v2/StepProgress';
-import { COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
@@ -456,10 +454,8 @@ export const CompanySignatoriesBr = () => {
     governance === 'nominated-official' ? t.govNominated :
     governance === 'decision-pursuant-br' ? t.govDecision : '';
 
-  const progress = <StepProgress currentStepId="co-signatories-br" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;
-
   return (
-    <ScreenV2 progress={progress}>
+    <ScreenV2 navHub>
       <Card>
         <CardHeader>
           <Title>{t.title}</Title>

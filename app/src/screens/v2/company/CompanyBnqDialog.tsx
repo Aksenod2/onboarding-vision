@@ -5,10 +5,7 @@ import { Button, TextField, Note, Checkbox } from '@salutejs/sdds-serv'; // TODO
 import { textPrimary, textSecondary, textAccent, bodyM } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { useCompany } from '../../../ui/v2/CompanyContext';
-import { StepProgress } from '../../../ui/v2/StepProgress';
-import {
-  COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible,
-} from '../../../ui/v2/companySteps';
+import { COMPANY_DASHBOARD_ROUTE } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import { getCompany, giveCompanyConsent, getBnq, updateBnqAnswer } from '../../../mock/v2/companyApi';
@@ -231,20 +228,11 @@ export const CompanyBnqDialog = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const topProgress = (
-    <StepProgress
-      currentStepId="co-bnq"
-      steps={COMPANY_STEPS_A}
-      backRoute={COMPANY_DASHBOARD_ROUTE}
-      isIrreversible={isCompanyIrreversible}
-    />
-  );
-
   return (
     <>
       <BnqDialog
         port={port}
-        topProgress={topProgress}
+        navHub
         leadStep={{ render: ({ onDone }) => <PanLead onDone={onDone} /> }}
         onFinish={() => navigate('/company/confirm')}
         onBackFromFirst={() => navigate(COMPANY_DASHBOARD_ROUTE)}

@@ -45,7 +45,10 @@ interface BnqDialogProps {
   onFinish: () => void;            // последний вопрос пройден
   onBackFromFirst: () => void;     // «Назад» с первого вопроса (или с leadStep)
   leadStep?: BnqLeadStep;          // опциональный нулевой шаг (PAN)
-  topProgress?: ReactNode;         // верхний StepProgress (для Компании); SP — без него
+  topProgress?: ReactNode;         // верхний StepProgress (для Sole Proprietor сейчас не передаётся)
+  // navHub — двухколоночный режим с левой навигацией-хабом заявки (заполнитель Компании).
+  // Замещает topProgress: для Компании передаём navHub, topProgress не передаём.
+  navHub?: boolean;
 }
 
 // ─── Типы ────────────────────────────────────────────────────────────────────
@@ -502,7 +505,7 @@ export function buildStepOrder(bnq: BnqAnswer[]): QIndex[] {
 
 // ─── Компонент ────────────────────────────────────────────────────────────────
 
-export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgress }: BnqDialogProps) => {
+export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgress, navHub }: BnqDialogProps) => {
   const { lang } = useLanguage();
   const t = dict[lang];
 
@@ -1075,7 +1078,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
 
   if (!onLead && (loading || !currentQ)) {
     return (
-      <ScreenV2 progress={topProgress}>
+      <ScreenV2 progress={topProgress} navHub={navHub}>
         <Wrap>
           <Card>
             <CardTitle>{lang === 'ru' ? 'Загружаем анкету...' : 'Loading questionnaire...'}</CardTitle>
@@ -1116,7 +1119,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   const visibleStepNum = stepIdx + 1;
 
   return (
-    <ScreenV2 progress={topProgress}>
+    <ScreenV2 progress={topProgress} navHub={navHub}>
       <Wrap>
         {/* Прогресс по вопросам анкеты — подчинён верхнему StepProgress.
             На leadStep (PAN) счётчик вопросов не показываем — он начинается с Q1. */}

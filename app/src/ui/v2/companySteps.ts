@@ -22,6 +22,46 @@ export const COMPANY_STEPS_A: StepDef[] = [
 // Фаза B шаги фазы A необратимыми не считаем — заполнитель может ходить назад.
 export const isCompanyIrreversible = (): boolean => false;
 
+// --- Конфиг-массив левой навигации-хаба заявки (заполнитель Компании) ---
+// Один источник истины для панели-хаба: пункты фазы A (кликабельны, со своим роутом) +
+// блоки-мониторинга фазы B (read-only, ведут на дашборд-drill-down).
+// Названия разделов — ПЛЕЙСХОЛДЕРЫ из текущих COMPANY_STEPS_A + getApplicationBlocks
+// (открытый вопрос к Марго: company details vs business profile, раскрытие «BR»). НЕ финальные.
+//
+// Дашборд — это раздел мониторинга «дом заявки»: после рассылки заполнитель живёт здесь.
+// Поэтому у каждого пункта есть роут; пункты фазы B ведут на дашборд (drill-down деталей там).
+
+export type HubItemPhase = 'A' | 'B';
+
+export interface HubItem {
+  id: string;
+  route: string; // куда вести по клику
+  titleRu: string;
+  titleEn: string;
+  phase: HubItemPhase;
+  // order рисуем только для фазы A (шаги клиента); у блоков-мониторинга номер опускаем.
+  order?: number;
+  // locked — необратимый/недоступный для правки (VKYC, подписание): дизейбл, не кликабелен.
+  locked?: boolean;
+}
+
+// Фаза A — кликабельны свободно (решение Дениса 2026-06-22: свободная навигация).
+// Фаза B — блоки-мониторинга (read): клик ведёт на дашборд (drill-down там).
+// VKYC — необратимый этап → locked.
+export const COMPANY_HUB_ITEMS: HubItem[] = [
+  // [PLACEHOLDER-МАРГО]: «Анкета» vs «Бизнес-анкета» vs «Company details»
+  { id: 'co-bnq', route: '/company/bnq', phase: 'A', order: 1, titleRu: 'Анкета', titleEn: 'Questionnaire' },
+  { id: 'co-confirm', route: '/company/confirm', phase: 'A', order: 2, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
+  // [PLACEHOLDER-МАРГО]: раскрывать ли «BR» = Board Resolution в UI
+  { id: 'co-signatories-br', route: '/company/signatories-br', phase: 'A', order: 3, titleRu: 'Подписанты и BR', titleEn: 'Signatories & BR' },
+  { id: 'co-dispatch', route: '/company/dispatch', phase: 'A', order: 4, titleRu: 'Приглашение подписантов', titleEn: 'Invite signatories' },
+  // --- разделитель A ↔ мониторинг рисуется в панели по смене phase ---
+  { id: 'hub-ident', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', titleRu: 'Идентификация и подписание участников', titleEn: 'Personal Identification & Signing' },
+  // [PLACEHOLDER-МАРГО]: company details vs business profile — открытый вопрос
+  { id: 'hub-business', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', titleRu: 'Бизнес-профиль и UBO', titleEn: 'Business profile / UBO' },
+  { id: 'hub-vkyc', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', locked: true, titleRu: 'Видеоидентификация (VKYC)', titleEn: 'VKYC' },
+];
+
 // Мини-сессия подписанта (фаза B). Для прогресса внутри персональной сессии.
 export interface SignatorySessionStep {
   id: 'co-b-consents' | 'co-b-aadhaar' | 'co-b-vkyc' | 'co-b-sign';

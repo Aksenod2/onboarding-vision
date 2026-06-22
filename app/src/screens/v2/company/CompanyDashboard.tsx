@@ -291,7 +291,7 @@ export const CompanyDashboard = () => {
     flashToast(t.dvuToast);
   };
 
-  if (!data) return <ScreenV2><AppId>{lang === 'ru' ? 'Загрузка…' : 'Loading…'}</AppId></ScreenV2>;
+  if (!data) return <ScreenV2 navHub><AppId>{lang === 'ru' ? 'Загрузка…' : 'Loading…'}</AppId></ScreenV2>;
 
   const done = data.status === 'Completed';
   const recipients = data.signatories.filter(goesThroughPhaseB);
@@ -340,7 +340,7 @@ export const CompanyDashboard = () => {
   );
 
   return (
-    <ScreenV2>
+    <ScreenV2 navHub>
       <PageMeta>
         <AppTitle>{t.pageTitle}</AppTitle>
         <StatusBadge $done={done}>{done ? t.statusCompleted : t.statusInProgress}</StatusBadge>

@@ -5,8 +5,7 @@ import { Button } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
-import { StepProgress } from '../../../ui/v2/StepProgress';
-import { COMPANY_STEPS_A, COMPANY_DASHBOARD_ROUTE, isCompanyIrreversible } from '../../../ui/v2/companySteps';
+import { COMPANY_DASHBOARD_ROUTE } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import { useCompany } from '../../../ui/v2/CompanyContext';
@@ -117,10 +116,8 @@ export const CompanyDispatch = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const progress = <StepProgress currentStepId="co-dispatch" steps={COMPANY_STEPS_A} backRoute={COMPANY_DASHBOARD_ROUTE} isIrreversible={isCompanyIrreversible} />;
-
   return (
-    <ScreenV2 progress={progress}>
+    <ScreenV2 navHub>
       <Card>
         <CardHeader>
           <Title>{t.title}</Title>
