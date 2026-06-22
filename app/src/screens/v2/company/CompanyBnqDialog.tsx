@@ -50,7 +50,7 @@ const dict: Record<Lang, {
     verifyTitle: 'Проверяем данные компании…',
     verifySubtitle: 'Это займёт несколько секунд. Пожалуйста, не закрывайте страницу.',
     resultTitle: 'Мы подтянули данные компании из PAN',
-    resultSubtitle: 'Проверьте — если всё верно, продолжим. Эти данные подтверждены реестром и менять их не нужно.',
+    resultSubtitle: 'Сейчас вы подтвердите данные компании и ответите на несколько вопросов — всё проверит банк. Изменить данные и подписать можно будет в конце, перед отправкой.',
     resultCta: 'Всё верно, продолжить',
   },
   en: {
@@ -65,7 +65,7 @@ const dict: Record<Lang, {
     verifyTitle: 'Verifying company details…',
     verifySubtitle: 'This will take a few seconds. Please do not close this page.',
     resultTitle: 'We have pre-filled the company details from PAN',
-    resultSubtitle: 'Please review — if everything is correct, we will continue. These details are confirmed by the registry and do not need editing.',
+    resultSubtitle: "Now you'll confirm the company details and answer a few questions — all reviewed by the bank. You'll be able to edit the data and sign at the end, before submitting.",
     resultCta: 'Confirm and continue',
   },
 };
@@ -109,8 +109,6 @@ const Spinner = styled.span`
 
 // Экран подтверждения подтянутых из PAN данных (после verifying, перед Q1).
 const ResultBlock = styled.div`display:flex; flex-direction:column; gap:1.25rem; ${enter(0)};`;
-const ResultTitleEl = styled.h2`margin:0; font-size:1.1rem; font-weight:700; color:${textPrimary}; line-height:1.3;`;
-const ResultSub = styled.p`margin:-0.5rem 0 0; font-size:0.85rem; line-height:1.5; color:${textSecondary};`;
 
 // Тёмный тост — «личный кабинет создан» (из предыдущего экрана passcode).
 const Toast = styled.div`
@@ -176,8 +174,9 @@ const PanLead = ({ onDone }: { onDone: () => void }) => {
   if (company) {
     return (
       <ResultBlock>
-        <ResultTitleEl>{t.resultTitle}</ResultTitleEl>
-        <ResultSub>{t.resultSubtitle}</ResultSub>
+        {/* Единый info-инфобокс (синяя плашка, тот же view="info", что и в опроснике):
+            заголовок = title (выделенный), пояснение = text. Заменил отдельные h2+p. */}
+        <Note key={lang} view="info" size="m" title={t.resultTitle} text={t.resultSubtitle} />
         <CompanyPanResultBox data={company} lang={lang} />
         <CtaRow style={{ justifyContent: 'flex-end' }}>
           <Button view="accent" size="m" text={t.resultCta} onClick={onDone} />
