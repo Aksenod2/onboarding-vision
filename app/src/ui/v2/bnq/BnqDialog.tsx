@@ -420,12 +420,11 @@ export const isNoAnswer = (value: string) => /^\s*(no|нет)/i.test(value);
  *
  * Опора — ИМЯ вопроса (Q7/Q9), не числовой индекс: после удаления Q2 из анкеты Компании
  * индексы сместились, но привязка к Q7/Q8/Q9/Q10/Q11 это не задевает.
+ *
+ * Q8 (сумма кредита) БОЛЬШЕ НЕ отдельный шаг (решение Дениса/Бори по BRD: «Product Interest» —
+ * один атрибут, сумма — под-параметр). Сумма вводится инлайн под радио Q7 (прогрессивное раскрытие).
+ * В модели bnq значение Q8 сохраняется (golden record не теряем) — Q8 просто всегда исключён из stepOrder.
  */
-export function isSkipQ8(bnq: BnqAnswer[]): boolean {
-  const q7 = bnq.find((a) => a.q === 'Q7');
-  return !!q7?.value && isNoAnswer(q7.value);
-}
-
 export function isSkipTrade(bnq: BnqAnswer[]): boolean {
   const q9 = bnq.find((a) => a.q === 'Q9');
   return !!q9?.value && isNoAnswer(q9.value);
@@ -435,16 +434,16 @@ export function isSkipTrade(bnq: BnqAnswer[]): boolean {
  * Из массива BnqAnswer[] строим «плоский» порядок шагов.
  * Решение Дениса 2026-06-09: вопросы с данными из реестра (source='available') НЕ скрываем,
  * а показываем предзаполненными для подтверждения («Мы определили: X. Верно?» — режим в renderQuestion).
- * Ветвления: Q8 убираем при Q7=«No» (кредит не нужен); Q10/Q11 убираем при Q9=«No» (нет ВЭД).
+ * Ветвления: Q10/Q11 убираем при Q9=«No» (нет ВЭД).
+ * Q8 (сумма кредита) ВСЕГДА исключён из шагов — он раскрывается инлайн под Q7 (см. renderQuestion).
  * Возвращаем массив индексов (0-based) исходного массива.
  */
 export function buildStepOrder(bnq: BnqAnswer[]): QIndex[] {
-  const skipQ8 = isSkipQ8(bnq);
   const skipTrade = isSkipTrade(bnq);
   const order: QIndex[] = [];
   for (let i = 0; i < bnq.length; i++) {
     const q = bnq[i].q;
-    if (skipQ8 && q === 'Q8') continue;
+    if (q === 'Q8') continue; // сумма кредита — инлайн в Q7, не отдельный шаг
     if (skipTrade && (q === 'Q10' || q === 'Q11')) continue;
     order.push(i);
   }
@@ -473,6 +472,9 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   // Доп. поля Q1
   const [industryVal, setIndustryVal] = useState('');
   const [segmentVal, setSegmentVal] = useState('');
+
+  // Q7 — инлайн-сумма кредита (бывший отдельный шаг Q8). Значение пишется в ответ Q8 при «Далее».
+  const [creditAmount, setCreditAmount] = useState('');
 
   // Доп. Q11 — намерение по IEC (сам файл грузится на «Подтверждении данных компании»)
   const [iecChoice, setIecChoice] = useState<'now' | 'later' | ''>('');
@@ -503,6 +505,11 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
     if (currentQ.q === 'Q1') {
       setIndustryVal(currentQ.value ?? '');
       setSegmentVal(currentQ.value ?? ''); // сегмент тоже из Probe42
+    }
+    // Q7: подтягиваем сохранённую сумму кредита (ответ Q8) в инлайн-поле.
+    if (currentQ.q === 'Q7') {
+      const q8 = bnq.find((a) => a.q === 'Q8');
+      setCreditAmount(q8?.value ?? '');
     }
   }, [stepIdx, loading]); // eslint-disable-line react-hooks/exhaustive-deps
   // loading в зависимостях: данные приходят асинхронно, без этого первый вопрос оставался пустым
@@ -536,15 +543,28 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
         ? currentQ.value
         : localValue;
 
+    // Q7: «Да» требует суммы кредита (инлайн-поле Q8). Пустую сумму не пропускаем.
+    const q7Yes = currentQ.q === 'Q7' && !!value && !isNoAnswer(value);
+    if (q7Yes && !creditAmount.trim()) return;
+
     // Режим свободной проверки: сохраняем ответ только если он есть, не блокируем переход
     if (value) {
       try { await handleAnswer(value); } catch (_) { /* игнорируем */ }
     }
 
+    // Q7: сохраняем/очищаем сумму кредита в ответ Q8 (golden record не теряем).
+    // «Да» → пишем введённую сумму; «Нет» → очищаем сумму (кредит не нужен).
+    let nextBnq = value ? applyAnswer(bnq, currentQ.q, value) : bnq;
+    if (currentQ.q === 'Q7' && value) {
+      const amount = q7Yes ? creditAmount.trim() : '';
+      try { await port.answerBnq('Q8', amount); } catch (_) { /* игнорируем */ }
+      nextBnq = applyAnswer(nextBnq, 'Q8', amount);
+      setBnq((prev) => applyAnswer(prev, 'Q8', amount));
+    }
+
     // Порядок пересчитываем ЛОКАЛЬНО по СВЕЖЕМУ массиву (с только что данным ответом):
     // setBnq асинхронный, а решение «последний ли шаг» / какой вопрос следующий нужно сейчас.
     // Это же убирает рассинхрон рендера: и порядок, и счётчик считаются из одного bnq.
-    const nextBnq = value ? applyAnswer(bnq, currentQ.q, value) : bnq;
     const nextOrder = buildStepOrder(nextBnq);
 
     const isLast = stepIdx >= nextOrder.length - 1;
@@ -740,8 +760,11 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
       );
     }
 
-    // ── Q7: Кредитные продукты ───────────────────────────────────────────────
+    // ── Q7: Кредитные продукты (+ инлайн-сумма Q8 при «Да») ──────────────────
+    // Объединённый шаг: радио «нужен кредит да/нет». При «Да» прогрессивно раскрывается
+    // поле суммы (Cr) — пишется в ответ Q8 при «Далее». При «Нет» поля нет, сумма очищается.
     if (q === 'Q7') {
+      const q7YesSelected = !!localValue && !isNoAnswer(localValue);
       return (
         <QBlock>
           <QLabel>{t.q7Label}</QLabel>
@@ -757,24 +780,20 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
               </RadioOption>
             ))}
           </RadioGroup>
-        </QBlock>
-      );
-    }
-
-    // ── Q8: Сумма кредита ────────────────────────────────────────────────────
-    if (q === 'Q8') {
-      return (
-        <QBlock>
-          <QLabel>{t.q8Label}</QLabel>
-          <TextField
-            value={localValue}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setLocalValue(e.target.value)
-            }
-            label={t.q8Hint}
-            type="text"
-            inputMode="decimal"
-          />
+          {q7YesSelected && (
+            <div>
+              <QLabel style={{ marginBottom: '0.75rem' }}>{t.q8Label}</QLabel>
+              <TextField
+                value={creditAmount}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setCreditAmount(e.target.value)
+                }
+                label={t.q8Hint}
+                type="text"
+                inputMode="decimal"
+              />
+            </div>
+          )}
         </QBlock>
       );
     }
