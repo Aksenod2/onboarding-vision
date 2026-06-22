@@ -92,7 +92,7 @@ export const CompanyLogin = () => {
             <Button view="accent" size="l" text={t.cta} onClick={handleLogin} />
           </ButtonRowEnd>
           <BridgeRow>
-            <BridgeLink type="button" onClick={() => navigate('/company/consents')}>{t.firstTime}</BridgeLink>
+            <BridgeLink type="button" onClick={() => navigate('/company/aadhaar')}>{t.firstTime}</BridgeLink>
           </BridgeRow>
         </CardBody>
       </Card>

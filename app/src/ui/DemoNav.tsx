@@ -35,15 +35,14 @@ const V2: Node[] = [
 // Сценарий Компания (мульти-логин). Фаза A заполнителя → дашборд-монитор → сессия подписанта.
 const COMPANY: Node[] = [
   { l: '1 Старт', p: '/v2?flow=company' },
-  { l: '2 Согласия', p: '/company/consents' },
-  { l: '3 Вход через Aadhaar', p: '/company/aadhaar' },
-  { l: '4 Пин-код', p: '/company/passcode' },
-  { l: '5 Анкета (PAN + вопросы)', p: '/company/bnq' },
-  { l: '6 Подписанты и BR', p: '/company/signatories-br' },
-  { l: '7 Данные компании', p: '/company/confirm' },
-  { l: '8 Приглашения', p: '/company/dispatch' },
-  { l: '9 Дашборд (монитор)', p: '/company/dashboard' },
-  { l: '10 Сессия подписанта', p: '/company/signatory' },
+  { l: '2 Вход через Aadhaar', p: '/company/aadhaar' },
+  { l: '3 Пин-код', p: '/company/passcode' },
+  { l: '4 Анкета (PAN + вопросы)', p: '/company/bnq' },
+  { l: '5 Подписанты и BR', p: '/company/signatories-br' },
+  { l: '6 Данные компании', p: '/company/confirm' },
+  { l: '7 Приглашения', p: '/company/dispatch' },
+  { l: '8 Дашборд (монитор)', p: '/company/dashboard' },
+  { l: '9 Сессия подписанта', p: '/company/signatory' },
   { l: '• Повторный вход', p: '/company/login' },
 ];
 

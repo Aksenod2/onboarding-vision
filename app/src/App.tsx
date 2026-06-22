@@ -83,8 +83,10 @@ export const App = () => {
           <LanguageProvider>
             <CompanyProvider>
               <Routes>
-                {/* Новая точка входа компании (целевка Марго): согласия → Aadhaar → пин-код → PAN. */}
-                <Route index element={<Navigate to="/company/consents" replace />} />
+                {/* Точка входа компании = объединённый Aadhaar-экран (согласия eKYC/Privacy
+                    встроены ДО QR, согласие на реестры — после данных). Затем пин-код → PAN.
+                    Старый отдельный экран согласий выведен из потока (компонент оставлен на откат). */}
+                <Route index element={<Navigate to="/company/aadhaar" replace />} />
                 <Route path="consents" element={<CompanyEntryConsents />} />
                 <Route path="aadhaar" element={<CompanyAadhaar />} />
                 <Route path="passcode" element={<CompanyPasscode />} />
