@@ -190,7 +190,12 @@ export const CompanyAadhaar = () => {
           <Subtitle>{t.subtitle}</Subtitle>
         </CardHeader>
         <CardBody>
-          {/* 1. Согласия на Aadhaar eKYC + Privacy — ДО QR. Текст переиспользован из CompanyEntryConsents. */}
+          {/* 0. Инструкция «Как это работает» — В САМОМ НАЧАЛЕ, до согласий, видна сразу
+             (Марго 22.06: «сначала пойми, что тебя ждёт, потом дай согласие, потом QR. How it works в самое начало»).
+             Не завязана на согласия — показываем на этапах qr/error (пока идёт скан/данных ещё нет). */}
+          {(phase === 'qr' || phase === 'error') && <AadhaarHowTo variant="entry" />}
+
+          {/* 1. Согласия на Aadhaar eKYC + Privacy — ПОСЛЕ инструкции, ДО QR. Текст переиспользован из CompanyEntryConsents. */}
           {(phase === 'qr' || phase === 'error') && (
             <>
               <ConsentLead>{t.consentLead}</ConsentLead>
@@ -231,9 +236,6 @@ export const CompanyAadhaar = () => {
               <QrCaption>{t.qrCaption}</QrCaption>
             </QrBlock>
           )}
-
-          {/* Инструкция-шаги кружками — общий компонент (#46). ПОД QR (Денис: «так логичнее»). */}
-          {(phase === 'qr' || phase === 'error') && scanConsentsGiven && <AadhaarHowTo variant="entry" />}
 
           {phase === 'qr' && scanConsentsGiven && (
             <>

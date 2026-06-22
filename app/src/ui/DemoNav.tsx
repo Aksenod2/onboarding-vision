@@ -18,7 +18,7 @@ const MANAGER: Node[] = [
 ];
 
 const V2: Node[] = [
-  { l: '1 Лендинг', p: '/v2' },
+  { l: '1 Лендинг', p: '/v2/sole' },
   { l: '2 Письмо', p: '/v2/email' },
   { l: '3 Регистрация', p: '/v2/login' },
   { l: '4 Дашборд', p: '/v2/dashboard' },
@@ -34,7 +34,7 @@ const V2: Node[] = [
 
 // Сценарий Компания (мульти-логин). Фаза A заполнителя → дашборд-монитор → сессия подписанта.
 const COMPANY: Node[] = [
-  { l: '1 Старт', p: '/v2?flow=company' },
+  { l: '1 Старт', p: '/company' },
   { l: '2 Вход через Aadhaar', p: '/company/aadhaar' },
   { l: '3 Пин-код', p: '/company/passcode' },
   { l: '4 Анкета (PAN + вопросы)', p: '/company/bnq' },
@@ -222,7 +222,7 @@ export const DemoNav = () => {
   };
   const doReset = () => {
     reset();
-    navigate('/v2'); // корень — лендинг v2 (клиентская v1 заархивирована)
+    navigate('/v2'); // /v2 ведёт на старт Компании (флоу по умолчанию)
     setOpen(false);
   };
 

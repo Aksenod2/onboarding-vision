@@ -41,14 +41,14 @@ const ScrollToTop = () => {
   return null;
 };
 
-// Поток: корень `/` ведёт на сценарий Компания (`/company`); Sole Proprietor — по `/v2`; менеджер — RM/DVU.
+// Поток: корень `/` и `/v2` ведут на сценарий Компания (`/company`); лендинг Sole Proprietor — по `/v2/sole`; менеджер — RM/DVU.
 // Клиентская v1 (CL-01…CL-09) заархивирована 2026-06-10 (решение Дениса; история — в git).
 export const App = () => {
   return (
     <BrowserRouter>
       <ScrollToTop />
       <Routes>
-        {/* По умолчанию открываем сценарий Компания (решение Дениса). Sole Proprietor — по своему адресу /v2. */}
+        {/* По умолчанию открываем сценарий Компания (решение Дениса). Лендинг Sole Proprietor — по адресу /v2/sole. */}
         <Route path="/" element={<Navigate to="/company" replace />} />
         <Route path="/rm/queue" element={<RM01Queue />} />
         <Route path="/rm/task" element={<RM02Task />} />
@@ -59,7 +59,10 @@ export const App = () => {
         <Route path="/v2/*" element={
           <LanguageProvider>
             <Routes>
-              <Route index element={<SP01Landing />} />
+              {/* /v2 по умолчанию ведёт на сценарий Компания (решение Дениса). */}
+              <Route index element={<Navigate to="/company" replace />} />
+              {/* Лендинг Sole Proprietor — на отдельном пути, флоу ИП остаётся доступен. */}
+              <Route path="sole" element={<SP01Landing />} />
               <Route path="email" element={<SP02Email />} />
               <Route path="login" element={<SP03Register />} />
               {/* registry объединён с pan — старый роут редиректим */}
