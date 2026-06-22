@@ -51,7 +51,7 @@ const dict: Record<Lang, {
     verifySubtitle: 'Это займёт несколько секунд. Пожалуйста, не закрывайте страницу.',
     resultTitle: 'Мы подтянули данные компании из PAN',
     resultSubtitle: 'Сейчас вы подтвердите данные компании и ответите на несколько вопросов — всё проверит банк. Изменить данные и подписать можно будет в конце, перед отправкой.',
-    resultCta: 'Всё верно, продолжить',
+    resultCta: 'Продолжить',
   },
   en: {
     panTitle: 'First, provide the company PAN — we will pre-fill its details automatically',
@@ -66,7 +66,7 @@ const dict: Record<Lang, {
     verifySubtitle: 'This will take a few seconds. Please do not close this page.',
     resultTitle: 'We have pre-filled the company details from PAN',
     resultSubtitle: "Now you'll confirm the company details and answer a few questions — all reviewed by the bank. You'll be able to edit the data and sign at the end, before submitting.",
-    resultCta: 'Confirm and continue',
+    resultCta: 'Continue',
   },
 };
 
