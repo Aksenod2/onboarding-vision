@@ -162,6 +162,16 @@ export const mehtaTextiles: CompanyCaseV2 = {
       secretaryPhone: '+91 98200 55410',
       asMode: 'from-directors',
       governance: null,
+      // Выбор AS — назначается в опроснике (QAS). Дефолт демо: Rajesh Mehta (директор из Probe),
+      // контакты подтянуты; «свой» AS пуст. asAssigned=true — дефолтный сценарий уже с назначенным AS.
+      asDirectorId: 'dir-rajesh',
+      asDirectorEmail: 'rajesh.mehta@mehtatextiles.in',
+      asDirectorPhone: '+91 98201 33445',
+      asNewName: '',
+      asNewDesignation: '',
+      asNewEmail: '',
+      asNewPhone: '',
+      asAssigned: true,
     },
   },
 
@@ -177,6 +187,11 @@ export const mehtaTextiles: CompanyCaseV2 = {
     // ТОЛЬКО Компания (в seed.ts Sole Proprietor этого вопроса нет). Value: «<классификация> · <страна>».
     // По умолчанию для торговой компании-резидента Индии — Active NFFE · India.
     { q: 'Q4b', attribute: 'FATCA / CRS classification', block: 1, source: 'not_available', value: 'Active NFFE · India', riskScore: null },
+    // QAS — назначение Authorized Signatory (перенесено из Board Resolution в опросник, Марго 23.06).
+    // ТОЛЬКО Компания (в Sole Proprietor этого вопроса нет). Сам выбор (директор/«свой» + контакты)
+    // хранится в state.br.signerConfig (asMode/asDirectorId/asNew*). Значение bnq — человекочитаемый
+    // снимок для golden-record. Дефолт демо: Rajesh Mehta (директор-AS).
+    { q: 'QAS', attribute: 'Authorized Signatory nomination', block: 1, source: 'not_available', value: 'Rajesh Mehta (Managing Director)', riskScore: null },
     { q: 'Q5', attribute: 'PEP', block: 1, source: 'not_available', value: 'No', riskScore: 0 },
     { q: 'Q6', attribute: 'Net Revenue', block: 2, source: 'available', value: '12 Cr (AOC-4, last year)', riskScore: null },
     // Q6b — существующая кредитная задолженность (CC/OD) в других банках (business questioner Марго,

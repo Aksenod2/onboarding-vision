@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { Button, TextField, Note, Checkbox } from '@salutejs/sdds-serv'; // TODO свериться с MCP
+import { Button, TextField, Note, Checkbox, Select } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, textAccent, textPositive, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
@@ -14,9 +14,10 @@ import {
   setUboModified, uploadUboShareholdingDoc, uploadCompanyFieldProof,
   getDirectors, addDirector, updateDirector, removeDirector,
   setDirectorsModified, uploadDirectorsProofDoc,
+  getBoardResolution, setAsFromBnq,
 } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
-import type { CompanyDetails, Signatory, Ubo, CompanyDocument } from '../../../mock/v2/companyTypes';
+import type { CompanyDetails, Signatory, Ubo, CompanyDocument, BrSignerConfig, Director } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ConsentRow } from './companyUi';
 
 // CO-CONFIRM — шаг 2 фазы A: обзор данных компании + редактирование + бизнес-профиль (директора, UBO).
@@ -43,6 +44,11 @@ const dict: Record<Lang, {
   dirAdd: string; dirRemove: string;
   dirDocTitle: string; dirDocHint: string; dirDocUpload: string; dirDocUploading: string; dirDocUploaded: string;
   dirDvuNote: string;
+  // Уполномоченный подписант (AS) — выбран в опроснике, правится здесь (единое место правки)
+  sectionAs: string; asHint: string;
+  asName: string; asDesignation: string; asEmail: string; asPhone: string;
+  asFromDirectors: string; asNewPersonRole: string;
+  asNotAssigned: string; asPanNote: string;
   sectionUbo: string; uboHint: string;
   uboShare: string; uboName: string;
   uboAdd: string; uboRemove: string;
@@ -94,6 +100,16 @@ const dict: Record<Lang, {
     dirDocUploading: 'Загрузка…',
     dirDocUploaded: 'Загружено',
     dirDvuNote: 'Раздел директоров изменён вручную — уйдёт на проверку специалисту банка (DVU). На решение по счёту это обычно не влияет.',
+    sectionAs: 'Уполномоченный подписант (AS)',
+    asHint: 'Назначен в анкете. Один человек, распоряжается счётом от имени компании; проходит подписание и видеоидентификацию по ссылке. Здесь можно изменить выбор.',
+    asName: 'ФИО',
+    asDesignation: 'Должность / роль',
+    asEmail: 'Email',
+    asPhone: 'Телефон',
+    asFromDirectors: 'Директор компании',
+    asNewPersonRole: 'Назначенное лицо',
+    asNotAssigned: 'Уполномоченный подписант ещё не назначен — назначьте его в анкете.',
+    asPanNote: 'PAN не требуется — подписант введёт его сам при идентификации.',
     sectionUbo: 'Бенефициарные владельцы (UBO)',
     uboHint: 'Лица с долей владения 25% и более. Подтянуты из данных компании — проверьте и дополните при необходимости.',
     uboShare: 'Доля, %',
@@ -156,6 +172,16 @@ const dict: Record<Lang, {
     dirDocUploading: 'Uploading…',
     dirDocUploaded: 'Uploaded',
     dirDvuNote: 'The directors section was edited manually — it will be sent for review by a bank specialist (DVU). This usually does not affect the account decision.',
+    sectionAs: 'Authorised Signatory (AS)',
+    asHint: 'Appointed in the questionnaire. One person who operates the account on behalf of the company; completes signing and video identification via a link. You can change the choice here.',
+    asName: 'Full name',
+    asDesignation: 'Designation / role',
+    asEmail: 'Email',
+    asPhone: 'Phone',
+    asFromDirectors: 'Company director',
+    asNewPersonRole: 'Appointed person',
+    asNotAssigned: 'The Authorised Signatory has not been appointed yet — appoint one in the questionnaire.',
+    asPanNote: 'No PAN required — the signatory will enter it themselves during identification.',
     sectionUbo: 'Ultimate Beneficial Owners (UBO)',
     uboHint: 'Persons holding 25% or more. Pulled from company data — review and add if needed.',
     uboShare: 'Share, %',
@@ -246,6 +272,15 @@ const RemoveBtn = styled.button`
   &:hover { color:#c0392b; background:rgba(192,57,43,0.08); }
 `;
 const Row = styled.div`display:flex; gap:1rem; flex-wrap:wrap; & > * { flex:1 1 150px; }`;
+// Переключатель ветки AS (из директоров / свой) — карточка-кнопка с активной рамкой.
+const AsModeToggle = styled.button<{ $active: boolean }>`
+  flex:1 1 150px; cursor:pointer; ${bodySBold}; font-size:0.84rem; text-align:left;
+  padding:0.7rem 0.9rem; border-radius:${radii.panel};
+  border:1.5px solid ${({ $active }) => ($active ? textAccent : 'rgba(0,0,0,0.12)')};
+  background:${({ $active }) => ($active ? 'rgba(33,160,56,0.05)' : '#fff')};
+  color:${textPrimary}; transition:border-color .15s, background .15s;
+  &:hover { border-color:${textAccent}; }
+`;
 const AddBtn = styled.button`
   align-self:flex-start; border:1.5px dashed rgba(0,0,0,0.22); background:none; cursor:pointer;
   color:${textAccent}; ${bodySBold}; font-size:0.85rem;
@@ -321,6 +356,17 @@ export const CompanyConfirm = () => {
   const [dirDocFile, setDirDocFile] = useState<string | null>(null);
   const [dirDocPhase, setDirDocPhase] = useState<DocUploadPhase>('idle');
 
+  // Уполномоченный подписант (AS): выбран в опроснике (signerConfig), правится здесь.
+  // editing — режим правки; черновик asDraft пишем обратно через setAsFromBnq.
+  const [asConfig, setAsConfig] = useState<BrSignerConfig | null>(null);
+  const [directors, setDirectors] = useState<Director[]>([]);
+  const [asEditing, setAsEditing] = useState(false);
+  const [asDraft, setAsDraft] = useState<{
+    mode: 'from-directors' | 'new-person';
+    directorId: string; dirEmail: string; dirPhone: string;
+    newName: string; newDesignation: string; newEmail: string; newPhone: string;
+  }>({ mode: 'from-directors', directorId: '', dirEmail: '', dirPhone: '', newName: '', newDesignation: '', newEmail: '', newPhone: '' });
+
   // #17 — UBO-строки + декларация. FATCA/CRS перенесён в опросник (Q4b) — здесь нет.
   const [uboRows, setUboRows] = useState<UboRow[]>([]);
   const [declared, setDeclared] = useState(false);
@@ -347,6 +393,7 @@ export const CompanyConfirm = () => {
     });
     getSignatories().then(setSignatories);
     getDirectors().then((list) => {
+      setDirectors(list);
       const rows: DirRow[] = list.map((d) => ({
         id: d.id, fullName: d.fullName, designation: d.designation, pan: d.pan,
         prefilled: d.source === 'registry', editing: false,
@@ -356,6 +403,7 @@ export const CompanyConfirm = () => {
       rows.forEach((r) => { if (r.prefilled) base[r.id] = { fullName: r.fullName, designation: r.designation, pan: r.pan }; });
       setDirBaseline(base);
     });
+    getBoardResolution().then((br) => setAsConfig(br.signerConfig));
     getUbo().then((list) => {
       const rows: UboRow[] = list.map((u) => ({
         id: u.id, fullName: u.fullName, sharePct: String(u.sharePct),
@@ -496,6 +544,45 @@ export const CompanyConfirm = () => {
     await uploadDirectorsProofDoc(fileName);
     setDirDocFile(fileName);
     setDirDocPhase('idle');
+  };
+
+  // --- AS (выбран в опроснике, правится здесь — единое место правки) ---
+  // Read-only представление: для директора имя/должность из мастер-списка, контакты из signerConfig.
+  const asDirector = asConfig?.asMode === 'from-directors' && asConfig.asDirectorId
+    ? directors.find((d) => d.id === asConfig.asDirectorId)
+    : undefined;
+  const asView = asConfig?.asAssigned
+    ? asConfig.asMode === 'from-directors'
+      ? { name: asDirector?.fullName ?? '', designation: asDirector?.designation ?? t.asFromDirectors, email: asConfig.asDirectorEmail, phone: asConfig.asDirectorPhone }
+      : { name: asConfig.asNewName, designation: asConfig.asNewDesignation || t.asNewPersonRole, email: asConfig.asNewEmail, phone: asConfig.asNewPhone }
+    : null;
+
+  const startEditAs = () => {
+    if (!asConfig) return;
+    setAsDraft({
+      mode: asConfig.asMode,
+      directorId: asConfig.asDirectorId ?? '',
+      dirEmail: asConfig.asDirectorEmail,
+      dirPhone: asConfig.asDirectorPhone,
+      newName: asConfig.asNewName,
+      newDesignation: asConfig.asNewDesignation,
+      newEmail: asConfig.asNewEmail,
+      newPhone: asConfig.asNewPhone,
+    });
+    setAsEditing(true);
+  };
+  const cancelEditAs = () => setAsEditing(false);
+  // Валидно: из директоров — выбран директор + контакты; «свой» — ФИО + контакты (PAN не нужен).
+  const asDraftValid = asDraft.mode === 'from-directors'
+    ? !!asDraft.directorId && !!asDraft.dirEmail.trim() && !!asDraft.dirPhone.trim()
+    : !!asDraft.newName.trim() && !!asDraft.newEmail.trim() && !!asDraft.newPhone.trim();
+  const saveAs = async () => {
+    if (!asDraftValid) return;
+    const br = asDraft.mode === 'from-directors'
+      ? await setAsFromBnq({ asMode: 'from-directors', asDirectorId: asDraft.directorId, asDirectorEmail: asDraft.dirEmail.trim(), asDirectorPhone: asDraft.dirPhone.trim() })
+      : await setAsFromBnq({ asMode: 'new-person', asNewName: asDraft.newName.trim(), asNewDesignation: asDraft.newDesignation.trim(), asNewEmail: asDraft.newEmail.trim(), asNewPhone: asDraft.newPhone.trim() });
+    setAsConfig(br.signerConfig);
+    setAsEditing(false);
   };
 
   const updateUboRow = (id: string, patch: Partial<UboRow>) =>
@@ -703,6 +790,83 @@ export const CompanyConfirm = () => {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSignatoryConsentChecked(e.target.checked)}
               />
             </ConsentRow>
+          </Section>
+
+          {/* Уполномоченный подписант (AS): выбран в опроснике, правится здесь (единое место).
+              Read-only с «Изменить» → форма (режим из директоров / свой). PAN не запрашиваем. */}
+          <Section>
+            <SectionHead>
+              <SectionTitle>{t.sectionAs}</SectionTitle>
+              {asView && !asEditing && <LinkBtn type="button" onClick={startEditAs}>{t.edit}</LinkBtn>}
+              {asEditing && (
+                <EditRow>
+                  <LinkBtn type="button" onClick={cancelEditAs}>{t.cancel}</LinkBtn>
+                  <LinkBtn type="button" onClick={saveAs}>{t.save}</LinkBtn>
+                </EditRow>
+              )}
+            </SectionHead>
+            <Hint>{t.asHint}</Hint>
+            {!asEditing ? (
+              asView ? (
+                <UboCard>
+                  <Grid>
+                    <DT>{t.asName}</DT><DD>{asView.name}</DD>
+                    <DT>{t.asDesignation}</DT><DD>{asView.designation}</DD>
+                    <DT>{t.asEmail}</DT><DD>{asView.email || <Empty>—</Empty>}</DD>
+                    <DT>{t.asPhone}</DT><DD>{asView.phone || <Empty>—</Empty>}</DD>
+                  </Grid>
+                </UboCard>
+              ) : (
+                <Hint>{t.asNotAssigned}</Hint>
+              )
+            ) : (
+              <UboCard>
+                <Row>
+                  <AsModeToggle
+                    type="button" $active={asDraft.mode === 'from-directors'}
+                    onClick={() => setAsDraft((d) => ({ ...d, mode: 'from-directors' }))}
+                  >{t.asFromDirectors}</AsModeToggle>
+                  <AsModeToggle
+                    type="button" $active={asDraft.mode === 'new-person'}
+                    onClick={() => setAsDraft((d) => ({ ...d, mode: 'new-person' }))}
+                  >{t.asNewPersonRole}</AsModeToggle>
+                </Row>
+                {asDraft.mode === 'from-directors' ? (
+                  <>
+                    <Select
+                      label={t.asDesignation}
+                      placeholder={t.asName}
+                      target="textfield-like"
+                      items={directors.map((d) => ({ value: d.id, label: `${d.fullName} · ${d.designation}` }))}
+                      value={asDraft.directorId}
+                      onChange={(v: string) => setAsDraft((d) => ({ ...d, directorId: v }))}
+                    />
+                    <Row>
+                      <TextField label={t.asEmail} value={asDraft.dirEmail} size="m"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDraft((d) => ({ ...d, dirEmail: e.target.value }))} />
+                      <TextField label={t.asPhone} value={asDraft.dirPhone} size="m"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDraft((d) => ({ ...d, dirPhone: e.target.value }))} />
+                    </Row>
+                  </>
+                ) : (
+                  <>
+                    <TextField label={t.asName} value={asDraft.newName} size="m"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDraft((d) => ({ ...d, newName: e.target.value }))} />
+                    <Row>
+                      <TextField label={t.asDesignation} value={asDraft.newDesignation} size="m"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDraft((d) => ({ ...d, newDesignation: e.target.value }))} />
+                    </Row>
+                    <Row>
+                      <TextField label={t.asEmail} value={asDraft.newEmail} size="m"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDraft((d) => ({ ...d, newEmail: e.target.value }))} />
+                      <TextField label={t.asPhone} value={asDraft.newPhone} size="m"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDraft((d) => ({ ...d, newPhone: e.target.value }))} />
+                    </Row>
+                    <Hint>{t.asPanNote}</Hint>
+                  </>
+                )}
+              </UboCard>
+            )}
           </Section>
 
           {/* Директора: список из реестра + правка/добавление/удаление → документ → DVU */}

@@ -55,7 +55,7 @@ const dict: Record<Lang, {
     debitFreeze: 'Debit freeze',
     toBank: 'Перейти в интернет-банк',
     stepLabel: {
-      waiting: 'Ожидает', consents: 'Согласия', aadhaar: 'Aadhaar eKYC',
+      waiting: 'Ожидает', consents: 'Согласия', aadhaar: 'Aadhaar eKYC', pan: 'Ввод PAN',
       vkyc: 'Видеоидентификация', 'dsc-sign': 'Подписание', done: 'Готово',
     },
     bankRequestTitle: 'Банк запросил документ',
@@ -84,7 +84,7 @@ const dict: Record<Lang, {
     debitFreeze: 'Debit freeze',
     toBank: 'Go to internet banking',
     stepLabel: {
-      waiting: 'Waiting', consents: 'Consents', aadhaar: 'Aadhaar eKYC',
+      waiting: 'Waiting', consents: 'Consents', aadhaar: 'Aadhaar eKYC', pan: 'PAN entry',
       vkyc: 'Video identification', 'dsc-sign': 'Signing', done: 'Done',
     },
     bankRequestTitle: 'The bank requested a document',

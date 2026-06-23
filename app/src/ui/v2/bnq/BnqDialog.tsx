@@ -29,9 +29,33 @@ import {
 
 // ─── Порт данных и пропсы ──────────────────────────────────────────────────────
 
+// Минимальная форма директора для вопроса QAS (назначение AS) — без завязки на companyTypes.
+export interface BnqDirector {
+  id: string;
+  fullName: string;
+  designation: string;
+}
+
+// Выбор AS, который опросник сохраняет через порт (ветка из директоров / «свой»).
+export interface BnqAsAssignment {
+  asMode: 'from-directors' | 'new-person';
+  asDirectorId?: string;
+  asDirectorEmail?: string;
+  asDirectorPhone?: string;
+  asNewName?: string;
+  asNewDesignation?: string;
+  asNewEmail?: string;
+  asNewPhone?: string;
+}
+
 export interface BnqDataPort {
   getBnq(): Promise<BnqAnswer[]>;
   answerBnq(q: string, value: string): Promise<unknown>;
+  // Вопрос QAS (назначение AS) — только Компания. Опционально: SP порт их не передаёт,
+  // и в SP-анкете вопроса QAS нет (его нет в seed.ts SP).
+  getDirectorsForAs?(): Promise<BnqDirector[]>;
+  getAsAssignment?(): Promise<BnqAsAssignment | null>;
+  saveAsAssignment?(a: BnqAsAssignment): Promise<unknown>;
 }
 
 // Нулевой шаг (PAN и т.п.): рендерится в той же карточке, со стабильным заголовком.
@@ -96,6 +120,18 @@ const dict: Record<Lang, {
   q4bPassive: string;
   q4bFi: string;
   q4bCountryLabel: string;
+  // QAS — назначение Authorized Signatory (только Компания)
+  qasLabel: string;
+  qasHint: string;
+  qasFromDirectors: string;
+  qasNewPerson: string;
+  qasDirectorSelectLabel: string;
+  qasDirectorSelectPlaceholder: string;
+  qasNameLabel: string;
+  qasDesignationLabel: string;
+  qasEmailLabel: string;
+  qasPhoneLabel: string;
+  qasPanNote: string;
   // Q5
   q5Label: string;
   q5Yes: string;
@@ -164,6 +200,17 @@ const dict: Record<Lang, {
     q4bPassive: 'Пассивная нефинансовая структура (Passive NFFE)',
     q4bFi: 'Финансовая организация',
     q4bCountryLabel: 'Страна налогового резидентства',
+    qasLabel: 'Кого вы назначаете уполномоченным подписантом (Authorized Signatory)?',
+    qasHint: 'Уполномоченный подписант — один человек, который распоряжается счётом и продуктами банка от имени компании. Он пройдёт подписание и видеоидентификацию по ссылке-приглашению.',
+    qasFromDirectors: 'Из директоров компании',
+    qasNewPerson: 'Назначить другого человека',
+    qasDirectorSelectLabel: 'Директор',
+    qasDirectorSelectPlaceholder: 'Выберите директора',
+    qasNameLabel: 'ФИО подписанта',
+    qasDesignationLabel: 'Должность / роль',
+    qasEmailLabel: 'Email',
+    qasPhoneLabel: 'Телефон',
+    qasPanNote: 'PAN указывать не нужно — подписант введёт его сам при идентификации.',
     q5Label:
       'Занимаете ли вы или ваши близкие родственники (в течение последних 5 лет) публичные должности (госслужащий, судья, военный руководитель)?',
     q5Yes: 'Да',
@@ -228,6 +275,17 @@ const dict: Record<Lang, {
     q4bPassive: 'Passive NFFE (non-financial)',
     q4bFi: 'Financial Institution',
     q4bCountryLabel: 'Country of tax residency',
+    qasLabel: 'Who do you appoint as the Authorized Signatory?',
+    qasHint: 'The Authorized Signatory is one person who operates the account and the bank’s products on behalf of the company. They will complete signing and video identification via an invitation link.',
+    qasFromDirectors: 'From the company directors',
+    qasNewPerson: 'Appoint another person',
+    qasDirectorSelectLabel: 'Director',
+    qasDirectorSelectPlaceholder: 'Choose a director',
+    qasNameLabel: 'Signatory full name',
+    qasDesignationLabel: 'Designation / role',
+    qasEmailLabel: 'Email',
+    qasPhoneLabel: 'Phone',
+    qasPanNote: 'No need to enter a PAN — the signatory will enter it themselves during identification.',
     q5Label:
       'Do you or your close relatives hold or have held in the past 5 years any public positions (government officials, judges, military executives)?',
     q5Yes: 'Yes',
@@ -542,12 +600,39 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   const [fatcaClass, setFatcaClass] = useState('Active NFFE');
   const [fatcaCountry, setFatcaCountry] = useState('India');
 
+  // QAS — назначение Authorized Signatory (только Компания). Выбор «из директоров / свой»
+  // + поля. Хранится через порт (state.br.signerConfig), не в bnq.value (там — снимок).
+  const [directors, setDirectors] = useState<BnqDirector[]>([]);
+  const [asMode, setAsMode] = useState<'from-directors' | 'new-person'>('from-directors');
+  const [asDirectorId, setAsDirectorId] = useState('');
+  const [asDirEmail, setAsDirEmail] = useState('');
+  const [asDirPhone, setAsDirPhone] = useState('');
+  const [asNew, setAsNew] = useState({ name: '', designation: '', email: '', phone: '' });
+
   // ─── Загрузка BNQ ───────────────────────────────────────────────────────────
 
   useEffect(() => {
     port.getBnq().then((data) => {
       setBnq(data);
       setLoading(false);
+    });
+    // QAS (только Компания): подтягиваем директоров + ранее сохранённый выбор AS.
+    port.getDirectorsForAs?.().then(setDirectors);
+    port.getAsAssignment?.().then((a) => {
+      if (!a) return;
+      setAsMode(a.asMode);
+      if (a.asMode === 'from-directors') {
+        setAsDirectorId(a.asDirectorId ?? '');
+        setAsDirEmail(a.asDirectorEmail ?? '');
+        setAsDirPhone(a.asDirectorPhone ?? '');
+      } else {
+        setAsNew({
+          name: a.asNewName ?? '',
+          designation: a.asNewDesignation ?? '',
+          email: a.asNewEmail ?? '',
+          phone: a.asNewPhone ?? '',
+        });
+      }
     });
   }, [port]);
 
@@ -641,6 +726,36 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
       value = `${fatcaClass} · ${fatcaCountry.trim() || 'India'}`;
     }
 
+    // QAS: выбор AS сохраняем через порт (signerConfig). Валидация: из директоров — выбран
+    // директор + контакты; «свой» — ФИО + контакты (PAN не нужен). Снимок пишем в bnq.value.
+    if (currentQ.q === 'QAS') {
+      if (asMode === 'from-directors') {
+        if (!asDirectorId || !asDirEmail.trim() || !asDirPhone.trim()) return;
+        const d = directors.find((x) => x.id === asDirectorId);
+        value = d ? `${d.fullName} (${d.designation})` : asDirectorId;
+        try {
+          await port.saveAsAssignment?.({
+            asMode: 'from-directors',
+            asDirectorId,
+            asDirectorEmail: asDirEmail.trim(),
+            asDirectorPhone: asDirPhone.trim(),
+          });
+        } catch (_) { /* игнорируем */ }
+      } else {
+        if (!asNew.name.trim() || !asNew.email.trim() || !asNew.phone.trim()) return;
+        value = asNew.designation.trim() ? `${asNew.name} (${asNew.designation})` : asNew.name;
+        try {
+          await port.saveAsAssignment?.({
+            asMode: 'new-person',
+            asNewName: asNew.name.trim(),
+            asNewDesignation: asNew.designation.trim(),
+            asNewEmail: asNew.email.trim(),
+            asNewPhone: asNew.phone.trim(),
+          });
+        } catch (_) { /* игнорируем */ }
+      }
+    }
+
     // Q7: «Да» определяем СТРОГО равенством с положительным вариантом (как и показ поля суммы),
     // а не «не Нет» — чтобы пустое/любое прочее состояние не считалось «Да».
     // При «Да» сумма кредита обязательна (инлайн-поле Q8) — пустую не пропускаем.
@@ -688,6 +803,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   // Заголовок (формулировка) каждого вопроса — единый источник для probe и редактирования.
   const Q_TITLE: Record<string, string> = {
     Q1: t.q1Label, Q2: t.q2Label, Q3: t.q3Label, Q4: t.q4Label, Q4b: t.q4bLabel,
+    QAS: t.qasLabel,
     Q5: t.q5Label, Q6: t.q6Label, Q6b: t.q6bLabel, Q7: t.q7Label, Q8: t.q8Label,
     Q9: t.q9Label, Q10: t.q10Label, Q11: t.q11Label,
   };
@@ -851,6 +967,73 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
             label={t.q4bCountryLabel}
             type="text"
           />
+        </QBlock>
+      );
+    }
+
+    // ── QAS: назначение Authorized Signatory (только Компания) ───────────────
+    // Радио «из директоров / свой». «Из директоров» → выбор директора + контакты;
+    // «свой» → ФИО, должность/роль, email, телефон. PAN НЕ запрашиваем (вводит сам AS в сессии).
+    if (q === 'QAS') {
+      return (
+        <QBlock>
+          <QLabel>{t.qasLabel}</QLabel>
+          <ProbeLine>{t.qasHint}</ProbeLine>
+          <RadioGroup>
+            {([['from-directors', t.qasFromDirectors], ['new-person', t.qasNewPerson]] as const).map(([key, label]) => (
+              <RadioOption
+                key={key}
+                $selected={asMode === key}
+                onClick={() => setAsMode(key)}
+              >
+                <RadioDot $selected={asMode === key} />
+                {label}
+              </RadioOption>
+            ))}
+          </RadioGroup>
+
+          {asMode === 'from-directors' && (
+            <>
+              <Select
+                label={t.qasDirectorSelectLabel}
+                placeholder={t.qasDirectorSelectPlaceholder}
+                target="textfield-like"
+                items={directors.map((d) => ({ value: d.id, label: `${d.fullName} · ${d.designation}` }))}
+                value={asDirectorId}
+                onChange={(v: string) => setAsDirectorId(v)}
+              />
+              <TextField
+                label={t.qasEmailLabel} value={asDirEmail} type="text"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDirEmail(e.target.value)}
+              />
+              <TextField
+                label={t.qasPhoneLabel} value={asDirPhone} type="text"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDirPhone(e.target.value)}
+              />
+            </>
+          )}
+
+          {asMode === 'new-person' && (
+            <>
+              <TextField
+                label={t.qasNameLabel} value={asNew.name} type="text"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsNew((p) => ({ ...p, name: e.target.value }))}
+              />
+              <TextField
+                label={t.qasDesignationLabel} value={asNew.designation} type="text"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsNew((p) => ({ ...p, designation: e.target.value }))}
+              />
+              <TextField
+                label={t.qasEmailLabel} value={asNew.email} type="text"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsNew((p) => ({ ...p, email: e.target.value }))}
+              />
+              <TextField
+                label={t.qasPhoneLabel} value={asNew.phone} type="text"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsNew((p) => ({ ...p, phone: e.target.value }))}
+              />
+              <FieldHint>{t.qasPanNote}</FieldHint>
+            </>
+          )}
         </QBlock>
       );
     }
@@ -1110,6 +1293,10 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
     }
     if (currentQ.q === 'Q7' && localValue === t.q7Yes && !creditAmount.trim()) {
       return true;                                 // «Да» без суммы
+    }
+    if (currentQ.q === 'QAS') {
+      if (asMode === 'from-directors') return !asDirectorId || !asDirEmail.trim() || !asDirPhone.trim();
+      return !asNew.name.trim() || !asNew.email.trim() || !asNew.phone.trim();
     }
     return false;
   })();

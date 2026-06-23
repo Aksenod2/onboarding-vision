@@ -25,6 +25,7 @@ export type SignatoryStep =
   | 'waiting' // ссылка отправлена, подписант ещё не заходил
   | 'consents' // даёт согласия
   | 'aadhaar' // Aadhaar eKYC
+  | 'pan' // ввод PAN — ТОЛЬКО «свой» AS (panSource='manual'/PAN пуст); у директоров PAN из Probe → пропуск
   | 'vkyc' // видеоидентификация
   | 'dsc-sign' // подписание по DSC
   | 'done'; // прошёл всё
@@ -81,6 +82,22 @@ export interface BrSignerConfig {
   secretaryPhone: string;
   asMode: AsMode; // AS из директоров / новое лицо
   governance: GovernanceOption | null; // выбор governance смены AS (null — ещё не выбрано)
+  // --- Выбор AS, перенесён в ОПРОСНИК (решение Дениса/Марго 23.06) ---
+  // AS назначается заполнителем в опроснике (вопрос QAS), правится в финальной анкете,
+  // на Board Resolution показывается как данность (read-only). signerConfig — единственный
+  // источник выбора AS на протяжении всего конвейера.
+  // ветка 'from-directors': id директора из state.directors + контакты (Probe их не отдаёт → ручной ввод)
+  asDirectorId: string | null;
+  asDirectorEmail: string;
+  asDirectorPhone: string;
+  // ветка 'new-person': «свой» AS — ФИО, должность/роль, контакты. PAN НЕ здесь:
+  // его вводит сам AS в своей сессии (после Aadhaar, перед VKYC).
+  asNewName: string;
+  asNewDesignation: string;
+  asNewEmail: string;
+  asNewPhone: string;
+  // назначен ли AS (заполнитель ответил на вопрос QAS) — для подсказок на BR/анкете.
+  asAssigned: boolean;
 }
 
 export interface BoardResolution {

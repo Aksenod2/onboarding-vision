@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { Button, Checkbox, CodeField, Note } from '@salutejs/sdds-serv'; // TODO свериться с MCP
+import { Button, Checkbox, CodeField, Note, TextField } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, textAccent, bodyM, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
@@ -15,6 +15,7 @@ import type { Lang } from '../../../ui/v2/LanguageContext';
 import { useCompany } from '../../../ui/v2/CompanyContext';
 import {
   getSignatory, giveSignatoryConsent, setSignatoryStep, passSignatoryVcip, signByDsc, passSignatoryAadhaar,
+  updateSignatoryPan, needsPanStep,
 } from '../../../mock/v2/companyApi';
 import { roleLabel } from '../../../mock/v2/companyTypes';
 import type { Signatory, SignatoryStep, AadhaarResult } from '../../../mock/v2/companyTypes';
@@ -38,6 +39,8 @@ const dict: Record<Lang, {
   vkycTitle: string; vkycSub: string; vkycConsent: string; vkycConsentDesc: string;
   ctaStartVideo: string; videoRunning: string; videoDone: string;
   vkycCameraLabel: string; vkycParticipant: string;
+  // pan (только «свой» AS — PAN не из реестра)
+  panTitle: string; panSub: string; panLabel: string; panHint: string; panError: string;
   // dsc
   dscTitle: string; dscSub: string; dscDocs: { title: string; desc: string; icon: string; body: string }[]; dscBtn: string;
   dscOpenHint: string; docPreviewBtn: string; docPreviewClose: string;
@@ -72,6 +75,11 @@ const dict: Record<Lang, {
     vkycConsent: 'Согласие на видеоидентификацию (VKYC)', vkycConsentDesc: 'Даю согласие на видеозапись сессии, проверки на живость и фиксацию документа.',
     ctaStartVideo: 'Начать видеоидентификацию', videoRunning: 'Идентификация выполняется…', videoDone: 'Идентификация пройдена',
     vkycCameraLabel: 'Камера', vkycParticipant: 'Участник',
+    panTitle: 'Укажите ваш PAN',
+    panSub: 'Aadhaar не передаёт PAN — введите его вручную. Он будет подтверждён по фото на видеоидентификации.',
+    panLabel: 'PAN',
+    panHint: 'Формат: 5 букв, 4 цифры, 1 буква (например, ABCDE1234F).',
+    panError: 'Неверный формат PAN. Пример: ABCDE1234F',
     dscTitle: 'Подписание документов', dscSub: 'Откройте и прочитайте каждый документ, затем подпишите их своей электронной подписью (DSC).',
     dscDocs: [
       {
@@ -136,6 +144,11 @@ const dict: Record<Lang, {
     vkycConsent: 'Video KYC consent (VKYC)', vkycConsentDesc: 'I consent to recording the session, liveness checks and document capture.',
     ctaStartVideo: 'Start video identification', videoRunning: 'Identification in progress…', videoDone: 'Identification passed',
     vkycCameraLabel: 'Camera', vkycParticipant: 'Participant',
+    panTitle: 'Enter your PAN',
+    panSub: 'Aadhaar does not return the PAN — please enter it manually. It will be confirmed against your document photo during video identification.',
+    panLabel: 'PAN',
+    panHint: 'Format: 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F).',
+    panError: 'Invalid PAN format. Example: ABCDE1234F',
     dscTitle: 'Sign documents', dscSub: 'Open and read each document, then sign them with your digital signature (DSC).',
     dscDocs: [
       {
@@ -188,6 +201,9 @@ const dict: Record<Lang, {
     exitedBody: 'You have exited the signing session. To continue, open the invitation link again.',
   },
 };
+
+// PAN-формат: 5 букв, 4 цифры, 1 буква.
+const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 
 const Eyebrow = styled.div`font-size:0.72rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:${textAccent}; margin-bottom:0.4rem;`;
 const Chips = styled.div`display:flex; gap:0.3rem; flex-wrap:wrap; margin-top:0.5rem;`;
@@ -266,16 +282,22 @@ const QrMock = () => (
 );
 
 const STEP_TO_PROGRESS: Record<Exclude<SignatoryStep, 'done'>, string> = {
-  waiting: 'co-b-consents', consents: 'co-b-consents', aadhaar: 'co-b-aadhaar', 'dsc-sign': 'co-b-sign', vkyc: 'co-b-vkyc',
+  waiting: 'co-b-consents', consents: 'co-b-consents', aadhaar: 'co-b-aadhaar',
+  pan: 'co-b-pan', 'dsc-sign': 'co-b-sign', vkyc: 'co-b-vkyc',
 };
 // Для верхнего прогресса используем тот же StepProgress c company-mini-реестром.
-// Порядок #35: Согласия → Aadhaar → Подписание → Видео.
-const MINI_STEPS: StepDef[] = [
-  { id: 'co-b-consents', route: '', order: 1, titleRu: 'Согласия', titleEn: 'Consents' },
-  { id: 'co-b-aadhaar', route: '', order: 2, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
-  { id: 'co-b-sign', route: '', order: 3, titleRu: 'Подписание', titleEn: 'Signing' },
-  { id: 'co-b-vkyc', route: '', order: 4, titleRu: 'Видео', titleEn: 'Video' },
-];
+// Порядок #35: Согласия → Aadhaar → [PAN — только «свой» AS] → Подписание → Видео.
+// Шаг PAN скрыт в прогрессе у тех, кому не нужен (PAN из реестра у директоров).
+const miniSteps = (withPan: boolean): StepDef[] => {
+  const steps: StepDef[] = [
+    { id: 'co-b-consents', route: '', order: 1, titleRu: 'Согласия', titleEn: 'Consents' },
+    { id: 'co-b-aadhaar', route: '', order: 2, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
+  ];
+  if (withPan) steps.push({ id: 'co-b-pan', route: '', order: steps.length + 1, titleRu: 'PAN', titleEn: 'PAN' });
+  steps.push({ id: 'co-b-sign', route: '', order: steps.length + 1, titleRu: 'Подписание', titleEn: 'Signing' });
+  steps.push({ id: 'co-b-vkyc', route: '', order: steps.length + 1, titleRu: 'Видео', titleEn: 'Video' });
+  return steps;
+};
 
 // #41 — гард навигации фазы B: куда вести «выход из сессии».
 // invite/initiator — приглашённый/инициатор не должен видеть дашборд инициатора → null (навигация скрыта).
@@ -301,6 +323,8 @@ export const CompanySignatory = () => {
   const [aadhaarPhase, setAadhaarPhase] = useState<'qr' | 'waiting' | 'success'>('qr');
   const [aadhaarResult, setAadhaarResult] = useState<AadhaarResult | null>(null);
   const [aadhaarConsent, setAadhaarConsent] = useState(false);
+  const [panValue, setPanValue] = useState('');
+  const [panError, setPanError] = useState(false);
   const [vkycConsent, setVkycConsent] = useState(false);
   const [videoPhase, setVideoPhase] = useState<'idle' | 'running' | 'done'>('idle');
   const [otpPhase, setOtpPhase] = useState(false);
@@ -388,8 +412,10 @@ export const CompanySignatory = () => {
   // неверно. Единственная обратимая под-фаза — самая первая (consents), назад от неё прыгать некуда.
   // Поэтому держим сегменты некликабельными (isIrreversible→true), а реальную обратимость на
   // consents/summary обеспечивает кнопка «Назад/Выйти» в теле шага. Помечено как компромисс в отчёте.
+  // Шаг PAN показываем в прогрессе только тем, кому он нужен («свой» AS, PAN не из реестра).
+  const withPan = needsPanStep(sig);
   const progress = step !== 'done'
-    ? <StepProgress currentStepId={STEP_TO_PROGRESS[step]} steps={MINI_STEPS} backRoute={exitRoute ?? COMPANY_DASHBOARD_ROUTE} isIrreversible={() => true} hideBack={exitRoute === null} />
+    ? <StepProgress currentStepId={STEP_TO_PROGRESS[step]} steps={miniSteps(withPan)} backRoute={exitRoute ?? COMPANY_DASHBOARD_ROUTE} isIrreversible={() => true} hideBack={exitRoute === null} />
     : undefined;
 
   // ── Вводный экран сессии (#31) — первый шаг, до согласий. Показываем только в самом начале. ──
@@ -451,7 +477,8 @@ export const CompanySignatory = () => {
       }, 2000);
       timers.current.push(tt);
     };
-    const next = async () => { await setSignatoryStep(id, 'dsc-sign'); await refresh(); };
+    // «Свой» AS (PAN не из реестра) → шаг ввода PAN; директора (PAN из Probe) → сразу подписание.
+    const next = async () => { await setSignatoryStep(id, withPan ? 'pan' : 'dsc-sign'); await refresh(); };
     return (
       <ScreenV2 progress={progress}>
         <Card>
@@ -485,6 +512,42 @@ export const CompanySignatory = () => {
             {aadhaarPhase === 'success' && (
               <ButtonRowEnd><Button view="accent" size="l" text={t.cont} onClick={next} /></ButtonRowEnd>
             )}
+          </CardBody>
+        </Card>
+      </ScreenV2>
+    );
+  }
+
+  // ── Шаг: ввод PAN (ТОЛЬКО «свой» AS — PAN не из реестра) ──
+  // У директоров PAN из Probe → needsPanStep=false → этот шаг не достигается (aadhaar ведёт на dsc-sign).
+  if (step === 'pan') {
+    const submit = async () => {
+      const pan = panValue.trim().toUpperCase();
+      if (!PAN_RE.test(pan)) { setPanError(true); return; }
+      await updateSignatoryPan(id, pan);
+      await setSignatoryStep(id, 'dsc-sign');
+      await refresh();
+    };
+    return (
+      <ScreenV2 progress={progress}>
+        <Card>
+          <CardHeader>{eyebrow}<Title>{t.panTitle}</Title><Subtitle>{t.panSub}</Subtitle></CardHeader>
+          <CardBody>
+            <TextField
+              label={t.panLabel}
+              value={panValue}
+              size="l"
+              view={panError ? 'negative' : 'default'}
+              leftHelper={panError ? t.panError : t.panHint}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                setPanValue(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10));
+                if (panError) setPanError(false);
+              }}
+            />
+            <ButtonRow>
+              {exitBtn}
+              <Button view="accent" size="l" text={t.cont} disabled={!panValue.trim()} onClick={submit} />
+            </ButtonRow>
           </CardBody>
         </Card>
       </ScreenV2>

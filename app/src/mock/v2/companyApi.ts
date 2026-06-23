@@ -209,6 +209,49 @@ export const setBrSignerConfig = (patch: Partial<BrSignerConfig>): Promise<Board
   return delay(state.br);
 };
 
+// --- Назначение Authorized Signatory из ОПРОСНИКА (вопрос QAS) / правка в финальной анкете ---
+// Единый вход для сохранения выбора AS: вызывается из опросника (CompanyBnqDialog) и из правки
+// в финальной анкете (CompanyConfirm). Пишет в state.br.signerConfig (единственный источник AS),
+// синхронизирует человекочитаемый снимок в ответ bnq QAS (golden record).
+export interface AsAssignment {
+  asMode: BrSignerConfig['asMode'];
+  // ветка 'from-directors': id директора из state.directors + контакты (ручной ввод)
+  asDirectorId?: string;
+  asDirectorEmail?: string;
+  asDirectorPhone?: string;
+  // ветка 'new-person': «свой» AS — ФИО, должность/роль, контакты (БЕЗ PAN — его вводит сам AS в сессии)
+  asNewName?: string;
+  asNewDesignation?: string;
+  asNewEmail?: string;
+  asNewPhone?: string;
+}
+
+export const setAsFromBnq = (a: AsAssignment): Promise<BoardResolution> => {
+  const cfg: BrSignerConfig = {
+    ...state.br.signerConfig,
+    asMode: a.asMode,
+    asDirectorId: a.asMode === 'from-directors' ? (a.asDirectorId ?? null) : null,
+    asDirectorEmail: a.asDirectorEmail ?? state.br.signerConfig.asDirectorEmail,
+    asDirectorPhone: a.asDirectorPhone ?? state.br.signerConfig.asDirectorPhone,
+    asNewName: a.asNewName ?? state.br.signerConfig.asNewName,
+    asNewDesignation: a.asNewDesignation ?? state.br.signerConfig.asNewDesignation,
+    asNewEmail: a.asNewEmail ?? state.br.signerConfig.asNewEmail,
+    asNewPhone: a.asNewPhone ?? state.br.signerConfig.asNewPhone,
+    asAssigned: true,
+  };
+  state.br = { ...state.br, signerConfig: cfg };
+  // Человекочитаемый снимок в bnq QAS (golden record).
+  let snapshot = '';
+  if (a.asMode === 'from-directors' && cfg.asDirectorId) {
+    const d = state.directors.find((x) => x.id === cfg.asDirectorId);
+    snapshot = d ? `${d.fullName} (${d.designation})` : '';
+  } else if (a.asMode === 'new-person') {
+    snapshot = cfg.asNewDesignation ? `${cfg.asNewName} (${cfg.asNewDesignation})` : cfg.asNewName;
+  }
+  if (snapshot) state.bnq = state.bnq.map((x) => (x.q === 'QAS' ? { ...x, value: snapshot } : x));
+  return delay(state.br);
+};
+
 // DEPRECATED: заменено на buildPhaseBSignatories (единый источник директоров = state.directors).
 // Оставлено для обратной совместимости контракта; в BR больше не вызывается.
 // Назначить РОВНО ОДНОГО Authorised Signatory из директоров (ветка 'from-directors').
@@ -617,6 +660,21 @@ export const setSignatoryStep = (id: string, step: SignatoryStep): Promise<Signa
   return delay(state.signatories);
 };
 
+// Ввод PAN «своим» AS в его сессии (шаг между aadhaar и dsc-sign).
+// Aadhaar PAN не отдаёт; у «своего» AS PAN в реестре нет → вводит сам. У директоров PAN из Probe —
+// этот шаг пропускается (см. STEP_CHAIN/needsPanStep). panSource → 'manual'.
+export const updateSignatoryPan = (id: string, pan: string): Promise<Signatory[]> => {
+  state.signatories = state.signatories.map((s) =>
+    s.id === id ? { ...s, pan: pan.trim().toUpperCase(), panSource: 'manual' } : s,
+  );
+  return delay(state.signatories);
+};
+
+// Нужен ли подписанту шаг ввода PAN в сессии: только если PAN ещё не из реестра и пуст
+// («свой» AS). У директоров (panSource='registry', PAN из Probe) шаг пропускается.
+export const needsPanStep = (s: Signatory): boolean =>
+  s.panSource !== 'registry' && !s.pan.trim();
+
 // Личное согласие подписанта (фаза B).
 export const giveSignatoryConsent = (id: string, type: ConsentType, timestamp = nowIST()): Promise<void> => {
   state.signatories = state.signatories.map((s) =>
@@ -650,7 +708,11 @@ export const signByDsc = (id: string): Promise<Signatory[]> => {
 
 // --- Демо-симуляция живого мониторинга ---
 // Линейная цепочка прогресса подписанта (для авто-продвижения по Refresh).
-const STEP_CHAIN: SignatoryStep[] = ['waiting', 'consents', 'aadhaar', 'vkyc', 'dsc-sign', 'done'];
+// Шаг 'pan' — между aadhaar и dsc-sign, ТОЛЬКО для «своего» AS (needsPanStep). У директоров
+// (PAN из Probe) — выпадает: цепочку строим per-подписант через chainFor().
+const STEP_CHAIN_FULL: SignatoryStep[] = ['waiting', 'consents', 'aadhaar', 'pan', 'vkyc', 'dsc-sign', 'done'];
+const chainFor = (s: Signatory): SignatoryStep[] =>
+  needsPanStep(s) ? STEP_CHAIN_FULL : STEP_CHAIN_FULL.filter((st) => st !== 'pan');
 
 // Продвинуть всех ещё не завершённых подписантов фазы B на следующий этап.
 // Демо: каждый клик «Обновить статусы» двигает не-done подписантов вперёд.
@@ -662,19 +724,20 @@ export const advanceSignatories = (): Promise<Signatory[]> => {
   advanceTick += 1;
   state.signatories = state.signatories.map((s, idx) => {
     if (!goesThroughPhaseB(s) || s.status === 'done') return s;
-    const cur = STEP_CHAIN.indexOf(s.currentStep);
+    const chain = chainFor(s); // per-подписант: «свой» AS — с шагом pan, директора — без
+    const cur = chain.indexOf(s.currentStep);
     const base = cur < 0 ? 0 : cur;
     // Лёгкий разнобой: первый клик двигает «верхних» в списке на шаг больше.
     const boost = advanceTick === 1 && idx === 0 ? 2 : 1;
-    const nextIdx = Math.min(base + boost, STEP_CHAIN.length - 1);
-    const step = STEP_CHAIN[nextIdx];
+    const nextIdx = Math.min(base + boost, chain.length - 1);
+    const step = chain[nextIdx];
     const status: Signatory['status'] =
       step === 'done' ? 'done' : step === 'waiting' ? 'waiting' : 'in_progress';
     // Дотягиваем артефакты, чтобы карточка/детали были консистентны при done.
-    const signature = step === 'done' || base >= STEP_CHAIN.indexOf('dsc-sign')
+    const signature = step === 'done' || base >= chain.indexOf('dsc-sign')
       ? { signed: true as const, method: 'DSC' as const, timestamp: nowIST() }
       : s.signature;
-    const vcip = step === 'done' || base >= STEP_CHAIN.indexOf('vkyc')
+    const vcip = step === 'done' || base >= chain.indexOf('vkyc')
       ? { ...s.vcip, status: 'Passed' as const }
       : s.vcip;
     return { ...s, currentStep: step, status, signature, vcip };

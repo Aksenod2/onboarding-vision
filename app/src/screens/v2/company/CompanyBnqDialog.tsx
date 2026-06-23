@@ -8,9 +8,12 @@ import { useCompany } from '../../../ui/v2/CompanyContext';
 import { COMPANY_DASHBOARD_ROUTE } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
-import { getCompany, giveCompanyConsent, getBnq, updateBnqAnswer } from '../../../mock/v2/companyApi';
+import {
+  getCompany, giveCompanyConsent, getBnq, updateBnqAnswer,
+  getDirectors, getBoardResolution, setAsFromBnq,
+} from '../../../mock/v2/companyApi';
 import { BnqDialog } from '../../../ui/v2/bnq/BnqDialog';
-import type { BnqDataPort } from '../../../ui/v2/bnq/BnqDialog';
+import type { BnqDataPort, BnqAsAssignment } from '../../../ui/v2/bnq/BnqDialog';
 import { CompanyPanResultBox } from './companyUi';
 import type { CompanyDetails } from '../../../mock/v2/companyTypes';
 
@@ -21,10 +24,30 @@ import type { CompanyDetails } from '../../../mock/v2/companyTypes';
 //   • onFinish → /company/confirm (финальная анкета идёт ДО Board Resolution).
 // Роут: /company/bnq
 
-// Порт данных Компании: getBnq + updateBnqAnswer (как answerBnq).
+// Порт данных Компании: getBnq + updateBnqAnswer (как answerBnq) + QAS (назначение AS).
+// QAS-методы — только у Компании; SP их не передаёт → у SP вопроса QAS нет.
 const port: BnqDataPort = {
   getBnq,
   answerBnq: (q, value) => updateBnqAnswer(q, value),
+  getDirectorsForAs: () =>
+    getDirectors().then((dirs) => dirs.map((d) => ({ id: d.id, fullName: d.fullName, designation: d.designation }))),
+  getAsAssignment: () =>
+    getBoardResolution().then((br) => {
+      const c = br.signerConfig;
+      if (!c.asAssigned) return null;
+      const a: BnqAsAssignment = {
+        asMode: c.asMode,
+        asDirectorId: c.asDirectorId ?? undefined,
+        asDirectorEmail: c.asDirectorEmail,
+        asDirectorPhone: c.asDirectorPhone,
+        asNewName: c.asNewName,
+        asNewDesignation: c.asNewDesignation,
+        asNewEmail: c.asNewEmail,
+        asNewPhone: c.asNewPhone,
+      };
+      return a;
+    }),
+  saveAsAssignment: (a) => setAsFromBnq(a),
 };
 
 const dict: Record<Lang, {
