@@ -158,7 +158,8 @@ export const CompanyPasscode = () => {
           {subStep === 'enter' && <Subtitle>{t.subtitle}</Subtitle>}
         </CardHeader>
         <CardBody>
-          {email && subStep === 'enter' && (
+          {/* Login (email из Aadhaar) — общая строка для обоих под-шагов (enter и repeat). */}
+          {email && (
             <Box><LoginRow><span className="label">{t.loginLabel}</span>{email}</LoginRow></Box>
           )}
 
