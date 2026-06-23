@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import styled, { keyframes } from 'styled-components';
+import styled from 'styled-components';
 import { Button, Checkbox, CodeField, Note, TextField } from '@salutejs/sdds-serv'; // TODO свериться с MCP
 import { textPrimary, textSecondary, textAccent, bodyM, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
-import { AadhaarHowTo } from '../../../ui/v2/AadhaarHowTo';
+import { AadhaarScanPanel } from '../../../ui/v2/AadhaarScanPanel';
+import type { AadhaarConsent } from '../../../ui/v2/AadhaarScanPanel';
 import { StepProgress } from '../../../ui/v2/StepProgress';
 import { VideoIdentPanel } from '../../../ui/v2/VideoIdentPanel';
 import { COMPANY_DASHBOARD_ROUTE } from '../../../ui/v2/companySteps';
@@ -19,7 +20,7 @@ import {
 } from '../../../mock/v2/companyApi';
 import { roleLabel } from '../../../mock/v2/companyTypes';
 import type { Signatory, SignatoryStep, AadhaarResult } from '../../../mock/v2/companyTypes';
-import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ButtonRowEnd, ConsentRow, SuccessNote, AadhaarResultBox } from './companyUi';
+import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ButtonRowEnd, ConsentRow, SuccessNote } from './companyUi';
 
 // CO-SIGNATORY — персональная сессия подписанта (фаза B), один экран-роутер по currentStep:
 // consents → aadhaar → dsc-sign → vkyc → done (#35: подпись ДО видео, видео финальное).
@@ -35,6 +36,7 @@ const dict: Record<Lang, {
   // aadhaar
   aadhaarTitle: string; aadhaarSub: string; aadhaarConsent: string; aadhaarConsentDesc: string;
   qrCaption: string; ctaScanned: string; aadhaarWaiting: string; aadhaarSuccess: string;
+  aadhaarConsentLead: string; aadhaarQrLockedHint: string; aadhaarAppLink: string;
   // vkyc
   vkycTitle: string; vkycSub: string; vkycConsent: string; vkycConsentDesc: string;
   ctaStartVideo: string; videoRunning: string; videoDone: string;
@@ -71,6 +73,9 @@ const dict: Record<Lang, {
     aadhaarConsent: 'Согласие на Aadhaar eKYC', aadhaarConsentDesc: 'Разрешаю получить мои данные из UIDAI для идентификации.',
     qrCaption: 'Откройте приложение Aadhaar → Scan QR', ctaScanned: 'Я отсканировал код',
     aadhaarWaiting: 'Получаем данные из UIDAI…', aadhaarSuccess: 'Aadhaar-данные получены. Личность подтверждена UIDAI',
+    aadhaarConsentLead: 'Перед идентификацией через Aadhaar подтвердите согласие — это регуляторное требование.',
+    aadhaarQrLockedHint: 'Дайте согласие выше, чтобы получить QR-код.',
+    aadhaarAppLink: 'Скачать приложение Aadhaar',
     vkycTitle: 'Видеосессия', vkycSub: 'Подтвердите свою личность по видео',
     vkycConsent: 'Согласие на видеоидентификацию (VKYC)', vkycConsentDesc: 'Даю согласие на видеозапись сессии, проверки на живость и фиксацию документа.',
     ctaStartVideo: 'Начать видеоидентификацию', videoRunning: 'Идентификация выполняется…', videoDone: 'Идентификация пройдена',
@@ -140,6 +145,9 @@ const dict: Record<Lang, {
     aadhaarConsent: 'Aadhaar eKYC consent', aadhaarConsentDesc: 'I authorise retrieving my data from UIDAI for identification.',
     qrCaption: 'Open the Aadhaar App → Scan QR', ctaScanned: 'I have scanned the code',
     aadhaarWaiting: 'Fetching data from UIDAI…', aadhaarSuccess: 'Aadhaar data received. Identity verified by UIDAI',
+    aadhaarConsentLead: 'Before identifying via Aadhaar, please confirm the consent — this is a regulatory requirement.',
+    aadhaarQrLockedHint: 'Give the consent above to get the QR code.',
+    aadhaarAppLink: 'Download the Aadhaar App',
     vkycTitle: 'Video session', vkycSub: 'Verify your identity over video',
     vkycConsent: 'Video KYC consent (VKYC)', vkycConsentDesc: 'I consent to recording the session, liveness checks and document capture.',
     ctaStartVideo: 'Start video identification', videoRunning: 'Identification in progress…', videoDone: 'Identification passed',
@@ -208,11 +216,6 @@ const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const Eyebrow = styled.div`font-size:0.72rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:${textAccent}; margin-bottom:0.4rem;`;
 const Chips = styled.div`display:flex; gap:0.3rem; flex-wrap:wrap; margin-top:0.5rem;`;
 const Chip = styled.span`font-size:0.7rem; font-weight:600; color:rgb(33,160,56); background:rgba(33,160,56,0.1); border-radius:0.4rem; padding:0.1rem 0.45rem;`;
-const QrFrame = styled.div`align-self:center; width:180px; height:180px; border-radius:${radii.panel}; border:1px solid rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:center; background:#fff;`;
-const QrCaption = styled.p`margin:0; text-align:center; font-size:0.82rem; color:${textSecondary};`;
-const spin = keyframes`to { transform: rotate(360deg); }`;
-const Spinner = styled.span`width:40px; height:40px; border-radius:50%; border:3px solid rgba(33,160,56,0.18); border-top-color:rgb(33,160,56); animation:${spin} 0.9s linear infinite; align-self:center;`;
-const WaitText = styled.p`margin:0; text-align:center; font-size:0.85rem; color:${textSecondary};`;
 const DocList = styled.div`display:flex; flex-direction:column; gap:0.75rem;`;
 // Документы для подписи — паттерн из Sole Proprietor (SPSign): карточка-строка с иконкой,
 // названием и кнопкой-ссылкой «Просмотреть документ» (открывает лайтбокс). НЕ аккордеон.
@@ -270,16 +273,6 @@ const SummaryList = styled.ol`margin:0; padding-left:1.3rem; display:flex; flex-
 const SummaryTime = styled.p`margin:0; ${bodySBold}; font-size:0.9rem; color:${textSecondary};`;
 const Demo = styled.p`margin:0; font-size:0.78rem; color:${textSecondary}; opacity:0.8;`;
 const CodeWrap = styled.div`display:flex; justify-content:center;`;
-
-// Mock QR — простой паттерн.
-const QrMock = () => (
-  <svg width="150" height="150" viewBox="0 0 10 10" shapeRendering="crispEdges" aria-hidden>
-    {[[0,0],[1,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2],[7,0],[8,0],[9,0],[7,1],[9,1],[7,2],[8,2],[9,2],
-      [4,4],[5,5],[6,4],[4,6],[8,8],[0,7],[1,8],[2,9],[9,5],[5,9],[3,3],[6,7]].map(([x,y],i)=>(
-      <rect key={i} x={x} y={y} width="1" height="1" fill="#111" />
-    ))}
-  </svg>
-);
 
 const STEP_TO_PROGRESS: Record<Exclude<SignatoryStep, 'done'>, string> = {
   waiting: 'co-b-consents', consents: 'co-b-consents', aadhaar: 'co-b-aadhaar',
@@ -488,30 +481,27 @@ export const CompanySignatory = () => {
             {aadhaarPhase !== 'qr' && <IrreversibleMarker><span className="ic">✓</span>{t.irreversibleMarker}</IrreversibleMarker>}
           </CardHeader>
           <CardBody>
-            {/* Инструкция «как это работает» + успокаивающий тон — общий компонент (#46), сессия подписанта. */}
-            {aadhaarPhase === 'qr' && <AadhaarHowTo variant="session" />}
-            <QrFrame><QrMock /></QrFrame>
-            <QrCaption>{t.qrCaption}</QrCaption>
-            {aadhaarPhase === 'waiting' && <><Spinner /><WaitText>{t.aadhaarWaiting}</WaitText></>}
-            {aadhaarPhase === 'success' && (
-              <>
-                <SuccessNote><span className="ic">✓</span>{t.aadhaarSuccess}</SuccessNote>
-                {/* Те же 5 полей, что у инициатора компании (единый вид). Номер маскирован. */}
-                {aadhaarResult && <AadhaarResultBox data={aadhaarResult} lang={lang} />}
-              </>
-            )}
-            {aadhaarPhase === 'qr' && (
-              <>
-                <ConsentRow><Checkbox label={t.aadhaarConsent} description={t.aadhaarConsentDesc} checked={aadhaarConsent} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAadhaarConsent(e.target.checked)} /></ConsentRow>
-                <ButtonRow>
-                  {exitBtn}
-                  <Button view="accent" size="l" text={t.ctaScanned} disabled={!aadhaarConsent} onClick={onScan} />
-                </ButtonRow>
-              </>
-            )}
-            {aadhaarPhase === 'success' && (
-              <ButtonRowEnd><Button view="accent" size="l" text={t.cont} onClick={next} /></ButtonRowEnd>
-            )}
+            {/* Единый Aadhaar-блок (как у входа компании): howto → согласие → QR-замок → скан → данные. */}
+            <AadhaarScanPanel
+              phase={aadhaarPhase}
+              variant="session"
+              consents={[{ id: 'eKYC', label: t.aadhaarConsent, description: t.aadhaarConsentDesc, checked: aadhaarConsent, onChange: setAadhaarConsent } as AadhaarConsent]}
+              showAppLink
+              result={aadhaarResult}
+              lang={lang}
+              onScanned={onScan}
+              texts={{
+                consentLead: t.aadhaarConsentLead,
+                qrLockedHint: t.aadhaarQrLockedHint,
+                qrCaption: t.qrCaption,
+                appLink: t.aadhaarAppLink,
+                ctaScanned: t.ctaScanned,
+                waiting: t.aadhaarWaiting,
+                success: t.aadhaarSuccess,
+              }}
+              backSlot={exitBtn}
+              slotAfterData={<ButtonRowEnd><Button view="accent" size="l" text={t.cont} onClick={next} /></ButtonRowEnd>}
+            />
           </CardBody>
         </Card>
       </ScreenV2>
