@@ -9,13 +9,14 @@ import type { BankAccount } from '../../../mock/v2/companyApi';
 
 // CO-BANK (#43) — растворение онбординга: пользователь «вошёл» в интернет-банк теми же данными.
 // Лёгкий шелл BankShell без онбординг-хрома (нет StepProgress, нет навигации заявки).
-// При входе: бейдж «Заморожен» → через ~1.5с инлайн меняется на «Активен ✓» (фриз снят как опыт, L6).
+// При входе: бейдж «Заморожен» → через ~1.5с инлайн меняется на «В обработке» (фриз снят, счёт
+// ожидает активации — нейтрально-синий, НЕ зелёный «успех»; согласуется с дашбордом, L6).
 // Роут: /company/bank (внутри /company/*, CompanyProvider есть, но без онбординг-каркаса).
 
 const dict: Record<Lang, {
   welcome: (name: string) => string;
   accountTitle: string; accountNumber: string; ifsc: string;
-  frozen: string; active: string;
+  frozen: string; inProgress: string;
   tilePayments: string; tileStatement: string; tileCards: string; demoBadge: string;
   sameCreds: string;
 }> = {
@@ -25,7 +26,7 @@ const dict: Record<Lang, {
     accountNumber: 'Номер счёта',
     ifsc: 'IFSC',
     frozen: 'Заморожен',
-    active: 'Активен',
+    inProgress: 'В обработке',
     tilePayments: 'Платежи',
     tileStatement: 'Выписка',
     tileCards: 'Карты',
@@ -38,7 +39,7 @@ const dict: Record<Lang, {
     accountNumber: 'Account number',
     ifsc: 'IFSC',
     frozen: 'Frozen',
-    active: 'Active',
+    inProgress: 'In progress',
     tilePayments: 'Payments',
     tileStatement: 'Statement',
     tileCards: 'Cards',
@@ -81,11 +82,13 @@ const AccountCard = styled.div`
 `;
 const AccountHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem;`;
 const AccountTitle = styled.div`${bodySBold}; font-size:1.1rem; color:${textPrimary};`;
-const StatusBadge = styled.span<{ $active: boolean }>`
+// Заморожен → нейтрально-серый; после снятия фриза → «В обработке» нейтрально-синий
+// (НЕ зелёный «успех»: счёт ожидает активации, согласуется с дашбордом).
+const StatusBadge = styled.span<{ $unfrozen: boolean }>`
   ${bodySBold}; font-size:0.78rem; letter-spacing:0.03em; padding:0.3rem 0.75rem; border-radius:20px;
   display:inline-flex; align-items:center; gap:0.35rem; transition:background .3s, color .3s;
-  ${({ $active }) => $active
-    ? css`background:rgba(33,160,56,0.14); color:#1a7a28;`
+  ${({ $unfrozen }) => $unfrozen
+    ? css`background:rgba(52,120,246,0.12); color:#1e5ec9;`
     : css`background:rgba(100,116,139,0.14); color:#475569;`}
 `;
 const Reqs = styled.div`display:grid; grid-template-columns:auto 1fr; gap:0.4rem 1.5rem;`;
@@ -147,14 +150,16 @@ export const CompanyBank = () => {
       <Main>
         {account && (
           <>
+            {/* holderName = имя компании (решение Дениса). Подзаголовок дублировал бы его —
+                показываем его, только если оно отличается от приветствия. */}
             <Welcome>{t.welcome(account.holderName)}</Welcome>
-            <Company>{account.company}</Company>
+            {account.company !== account.holderName && <Company>{account.company}</Company>}
 
             <AccountCard>
               <AccountHead>
                 <AccountTitle>{t.accountTitle}</AccountTitle>
-                <StatusBadge $active={!frozen}>
-                  {frozen ? t.frozen : `${t.active} ✓`}
+                <StatusBadge $unfrozen={!frozen}>
+                  {frozen ? t.frozen : t.inProgress}
                 </StatusBadge>
               </AccountHead>
               <Reqs>

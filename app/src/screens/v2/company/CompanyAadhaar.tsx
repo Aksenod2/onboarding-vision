@@ -108,8 +108,8 @@ const QrLocked = styled.div`
   text-align:center;
 `;
 const QrLockedHint = styled.p`margin:0; font-size:0.82rem; line-height:1.4; color:${textSecondary}; max-width:18rem;`;
-// «Скачать приложение» — тихой строкой под QR-блоком (не зелёная подчёркнутая ссылка).
-const AppLink = styled.a`align-self:center; color:${textSecondary}; font-size:0.8rem; text-decoration:underline; text-underline-offset:2px; cursor:pointer; &:hover { opacity:0.8; }`;
+// «Скачать приложение» — тихой строкой рядом с инструкцией «Как это работает», в начале экрана.
+const AppLink = styled.a`align-self:flex-start; color:${textSecondary}; font-size:0.8rem; text-decoration:underline; text-underline-offset:2px; cursor:pointer; &:hover { opacity:0.8; }`;
 const spin = keyframes`to { transform: rotate(360deg); }`;
 const Spinner = styled.span`width:40px; height:40px; border-radius:50%; border:3px solid rgba(33,160,56,0.18); border-top-color:rgb(33,160,56); animation:${spin} 0.9s linear infinite; align-self:center;`;
 const WaitText = styled.p`margin:0; text-align:center; font-size:0.85rem; color:${textSecondary};`;
@@ -193,7 +193,16 @@ export const CompanyAadhaar = () => {
           {/* 0. Инструкция «Как это работает» — В САМОМ НАЧАЛЕ, до согласий, видна сразу
              (Марго 22.06: «сначала пойми, что тебя ждёт, потом дай согласие, потом QR. How it works в самое начало»).
              Не завязана на согласия — показываем на этапах qr/error (пока идёт скан/данных ещё нет). */}
-          {(phase === 'qr' || phase === 'error') && <AadhaarHowTo variant="entry" />}
+          {(phase === 'qr' || phase === 'error') && (
+            <>
+              <AadhaarHowTo variant="entry" />
+              {/* «Скачать приложение» — рядом с инструкцией, в самом начале, ДО согласий и QR
+                 (Денис: у пользователя может не быть приложения; ссылка под QR была спрятана за согласиями). */}
+              <AppLink href="https://uidai.gov.in/en/my-aadhaar/get-aadhaar.html" target="_blank" rel="noopener noreferrer">
+                {t.appLink}
+              </AppLink>
+            </>
+          )}
 
           {/* 1. Согласия на Aadhaar eKYC + Privacy — ПОСЛЕ инструкции, ДО QR. Текст переиспользован из CompanyEntryConsents. */}
           {(phase === 'qr' || phase === 'error') && (
@@ -239,11 +248,7 @@ export const CompanyAadhaar = () => {
 
           {phase === 'qr' && scanConsentsGiven && (
             <>
-              {/* «Скачать приложение» — тихой строкой под QR-блоком. */}
-              <AppLink href="https://uidai.gov.in/en/my-aadhaar/get-aadhaar.html" target="_blank" rel="noopener noreferrer">
-                {t.appLink}
-              </AppLink>
-              {/* Один accent на экране — кнопка «Я отсканировал». */}
+              {/* Один accent на экране — кнопка «Я отсканировал». (Ссылка «Скачать приложение» перенесена наверх, к инструкции.) */}
               <ButtonRowEnd>
                 <Button view="accent" size="l" text={t.ctaScanned} onClick={onScan} />
               </ButtonRowEnd>

@@ -7,6 +7,7 @@ import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { AadhaarHowTo } from '../../../ui/v2/AadhaarHowTo';
 import { StepProgress } from '../../../ui/v2/StepProgress';
+import { VideoIdentPanel } from '../../../ui/v2/VideoIdentPanel';
 import { COMPANY_DASHBOARD_ROUTE } from '../../../ui/v2/companySteps';
 import type { StepDef } from '../../../ui/v2/steps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
@@ -36,6 +37,7 @@ const dict: Record<Lang, {
   // vkyc
   vkycTitle: string; vkycSub: string; vkycConsent: string; vkycConsentDesc: string;
   ctaStartVideo: string; videoRunning: string; videoDone: string;
+  vkycCameraLabel: string; vkycParticipant: string;
   // dsc
   dscTitle: string; dscSub: string; dscDocs: { title: string; desc: string; icon: string; body: string }[]; dscBtn: string;
   dscOpenHint: string; docPreviewBtn: string; docPreviewClose: string;
@@ -66,9 +68,10 @@ const dict: Record<Lang, {
     aadhaarConsent: 'Согласие на Aadhaar eKYC', aadhaarConsentDesc: 'Разрешаю получить мои данные из UIDAI для идентификации.',
     qrCaption: 'Откройте приложение Aadhaar → Scan QR', ctaScanned: 'Я отсканировал код',
     aadhaarWaiting: 'Получаем данные из UIDAI…', aadhaarSuccess: 'Aadhaar-данные получены. Личность подтверждена UIDAI',
-    vkycTitle: 'Видеоидентификация', vkycSub: 'Подтвердите согласие и пройдите видеосессию.',
+    vkycTitle: 'Видеосессия', vkycSub: 'Подтвердите свою личность по видео',
     vkycConsent: 'Согласие на видеоидентификацию (VKYC)', vkycConsentDesc: 'Даю согласие на видеозапись сессии, проверки на живость и фиксацию документа.',
     ctaStartVideo: 'Начать видеоидентификацию', videoRunning: 'Идентификация выполняется…', videoDone: 'Идентификация пройдена',
+    vkycCameraLabel: 'Камера', vkycParticipant: 'Участник',
     dscTitle: 'Подписание документов', dscSub: 'Откройте и прочитайте каждый документ, затем подпишите их своей электронной подписью (DSC).',
     dscDocs: [
       {
@@ -129,9 +132,10 @@ const dict: Record<Lang, {
     aadhaarConsent: 'Aadhaar eKYC consent', aadhaarConsentDesc: 'I authorise retrieving my data from UIDAI for identification.',
     qrCaption: 'Open the Aadhaar App → Scan QR', ctaScanned: 'I have scanned the code',
     aadhaarWaiting: 'Fetching data from UIDAI…', aadhaarSuccess: 'Aadhaar data received. Identity verified by UIDAI',
-    vkycTitle: 'Video identification', vkycSub: 'Confirm consent and complete the video session.',
+    vkycTitle: 'Video session', vkycSub: 'Verify your identity over video',
     vkycConsent: 'Video KYC consent (VKYC)', vkycConsentDesc: 'I consent to recording the session, liveness checks and document capture.',
     ctaStartVideo: 'Start video identification', videoRunning: 'Identification in progress…', videoDone: 'Identification passed',
+    vkycCameraLabel: 'Camera', vkycParticipant: 'Participant',
     dscTitle: 'Sign documents', dscSub: 'Open and read each document, then sign them with your digital signature (DSC).',
     dscDocs: [
       {
@@ -505,6 +509,16 @@ export const CompanySignatory = () => {
             {videoPhase !== 'idle' && <IrreversibleMarker><span className="ic">✓</span>{t.irreversibleMarker}</IrreversibleMarker>}
           </CardHeader>
           <CardBody>
+            {/* Камера + LIVE + аватар участника + статус — общий компонент (как у Sole Proprietor). */}
+            <VideoIdentPanel
+              phase={videoPhase}
+              participantName={sig.fullName}
+              cameraLabel={t.vkycCameraLabel}
+              participantRole={t.vkycParticipant}
+              runningText={t.videoRunning}
+              doneText={t.videoDone}
+            />
+            {/* idle: согласие подписанта на видео встроено в этот экран + старт. */}
             {videoPhase === 'idle' && (
               <>
                 <ConsentRow><Checkbox label={t.vkycConsent} description={t.vkycConsentDesc} checked={vkycConsent} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVkycConsent(e.target.checked)} /></ConsentRow>
@@ -514,12 +528,8 @@ export const CompanySignatory = () => {
                 </ButtonRow>
               </>
             )}
-            {videoPhase === 'running' && <><Spinner /><WaitText>{t.videoRunning}</WaitText></>}
             {videoPhase === 'done' && (
-              <>
-                <SuccessNote><span className="ic">✓</span>{t.videoDone}</SuccessNote>
-                <ButtonRowEnd><Button view="accent" size="l" text={t.cont} onClick={next} /></ButtonRowEnd>
-              </>
+              <ButtonRowEnd><Button view="accent" size="l" text={t.cont} onClick={next} /></ButtonRowEnd>
             )}
           </CardBody>
         </Card>

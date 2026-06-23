@@ -48,17 +48,14 @@ export interface HubItem {
 // Фаза A — кликабельны свободно (решение Дениса 2026-06-22: свободная навигация).
 // Фаза B — блоки-мониторинга (read): клик ведёт на дашборд (drill-down там).
 // VKYC — необратимый этап → locked.
+// Единый нейминг (дизайн-бриф §3): одна сущность = одна строка и здесь, и в getApplicationBlocks.
 export const COMPANY_HUB_ITEMS: HubItem[] = [
-  // [PLACEHOLDER-МАРГО]: «Анкета» vs «Бизнес-анкета» vs «Company details»
   { id: 'co-bnq', route: '/company/bnq', phase: 'A', order: 1, titleRu: 'Анкета', titleEn: 'Questionnaire' },
-  { id: 'co-confirm', route: '/company/confirm', phase: 'A', order: 2, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
-  // [PLACEHOLDER-МАРГО]: раскрывать ли «BR» = Board Resolution в UI
-  { id: 'co-signatories-br', route: '/company/signatories-br', phase: 'A', order: 3, titleRu: 'Подписанты и BR', titleEn: 'Signatories & BR' },
+  { id: 'co-confirm', route: '/company/confirm', phase: 'A', order: 2, titleRu: 'Данные компании', titleEn: 'Company details' },
+  { id: 'co-signatories-br', route: '/company/signatories-br', phase: 'A', order: 3, titleRu: 'Подписанты и решение совета', titleEn: 'Signatories & Board Resolution' },
   { id: 'co-dispatch', route: '/company/dispatch', phase: 'A', order: 4, titleRu: 'Приглашение подписантов', titleEn: 'Invite signatories' },
   // --- разделитель A ↔ мониторинг рисуется в панели по смене phase ---
-  { id: 'hub-ident', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', titleRu: 'Идентификация и подписание участников', titleEn: 'Personal Identification & Signing' },
-  // [PLACEHOLDER-МАРГО]: company details vs business profile — открытый вопрос
-  { id: 'hub-business', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', titleRu: 'Бизнес-профиль и UBO', titleEn: 'Business profile / UBO' },
+  { id: 'hub-ident', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', titleRu: 'Идентификация и подписание', titleEn: 'Personal Identification & Signing' },
   { id: 'hub-vkyc', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', locked: true, titleRu: 'Видеоидентификация (VKYC)', titleEn: 'VKYC' },
 ];
 

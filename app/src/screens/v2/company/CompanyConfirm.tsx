@@ -15,7 +15,7 @@ import {
   getDirectors, addDirector, updateDirector, removeDirector,
   setDirectorsModified, uploadDirectorsProofDoc,
 } from '../../../mock/v2/companyApi';
-import { roleLabel } from '../../../mock/v2/companyTypes';
+import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { CompanyDetails, Signatory, Ubo, CompanyDocument } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ConsentRow } from './companyUi';
 
@@ -683,10 +683,11 @@ export const CompanyConfirm = () => {
             </Section>
           )}
 
-          {/* Подписанты — без изменений */}
+          {/* Подписанты — только те, кто реально проходит подписание (Director/AuthorizedSignatory).
+              Заполнитель (только CustomerRepresentative) НЕ подписант → отфильтрован. */}
           <Section>
             <SectionTitle>{t.sectionSignatories}</SectionTitle>
-            {signatories.map((s) => (
+            {signatories.filter(goesThroughPhaseB).map((s) => (
               <Person key={s.id}>
                 <PName>{s.fullName}</PName>
                 <Chips>

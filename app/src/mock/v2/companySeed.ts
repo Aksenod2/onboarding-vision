@@ -43,12 +43,16 @@ export const mehtaTextiles: CompanyCaseV2 = {
     segment: 'Trading',
   },
 
-  // 3 подписанта (мультироль). Rajesh — заполнитель И подписант; Amit — AS не из реестра (ручной ввод).
+  // Подписанты + ассистент-заполнитель. Karan — ТОЛЬКО заполнитель (CustomerRepresentative),
+  // дефолтный инициатор: заполняет заявку → рассылает → дашборд-мониторинг (сам не подписывает).
+  // Rajesh — Director + AS (подписант); Amit — AS не из реестра (ручной ввод).
+  // Karan стоит В КОНЦЕ массива — не [0], чтобы не задеть boost idx===0 в advanceSignatories
+  // и не попасть в фазу B (он не goesThroughPhaseB: нет Director/AuthorizedSignatory).
   signatories: [
     {
       id: 'sig-rajesh',
       fullName: 'Rajesh Mehta',
-      roles: ['CustomerRepresentative', 'Director', 'AuthorizedSignatory'],
+      roles: ['Director', 'AuthorizedSignatory'],
       pan: 'ABKPM7788D',
       panSource: 'registry',
       email: 'rajesh.mehta@mehtatextiles.in',
@@ -111,6 +115,33 @@ export const mehtaTextiles: CompanyCaseV2 = {
       },
       consents: signatoryConsents(),
       vcip: pendingVcip('Amit Shah'),
+      signature: { signed: false, method: 'DSC' },
+    },
+    {
+      // Ассистент-заполнитель (дефолтный инициатор). Роль ТОЛЬКО CustomerRepresentative:
+      // заполняет заявку и рассылает приглашения, но сам не подписант (нет в directors/ubo,
+      // не goesThroughPhaseB → отфильтрован из фазы B и списка получателей дашборда).
+      // PAN для заполнителя не обязателен. Входит на портал через свой Aadhaar (passCompanyAadhaar).
+      id: 'sig-karan',
+      fullName: 'Karan Verma',
+      roles: ['CustomerRepresentative'],
+      pan: '',
+      panSource: 'manual',
+      email: 'karan.verma@mehtatextiles.in',
+      phone: '+91 98200 11223',
+      designation: 'Company Representative',
+      inviteSent: false,
+      currentStep: 'waiting',
+      status: 'waiting',
+      aadhaarResult: {
+        name: 'Karan Verma',
+        aadhaarMasked: 'XXXX XXXX 9034',
+        phone: '+91 98200 11223',
+        email: 'karan.verma@mehtatextiles.in',
+        address: '21, Lokhandwala Complex, Andheri West, Mumbai, Maharashtra — 400053',
+      },
+      consents: signatoryConsents(),
+      vcip: pendingVcip('Karan Verma'),
       signature: { signed: false, method: 'DSC' },
     },
   ],

@@ -39,17 +39,19 @@ export const getApplicationBlocks = (): Promise<ApplicationBlock[]> => {
   const required = state.signatories.filter(goesThroughPhaseB);
   const allDone = required.length > 0 && required.every((s) => s.status === 'done');
   const anyStarted = required.some((s) => s.status !== 'waiting');
-  const identStatus: ApplicationBlock['status'] = allDone ? 'done' : anyStarted ? 'in-progress' : 'verify';
-  // #25/#23 — обратный запрос банка (DVU) больше не отдельная панель: переносим его в статус блока.
-  // Запрос «Source of funds» относится к бизнес-профилю → блок «Business profile / UBO»
-  // получает статус 'in-request', пока документ не догружен. Загрузка — внутри блока на дашборде.
+  // #25/#23 — обратный запрос банка (DVU) больше не отдельная панель и больше не висит на
+  // отдельной строке «Бизнес-профиль и UBO» (её убрали: дублировала «Данные компании»).
+  // Запрос «Source of funds» перепривязан к блоку «Идентификация и подписание»: пока документ
+  // не догружен — этот блок получает статус 'in-request'. Загрузка — в карточке на дашборде.
   const bankRequestOpen = state.dvuRequest?.status === 'requested';
-  const businessProfileStatus: ApplicationBlock['status'] = bankRequestOpen ? 'in-request' : 'verify';
+  const identStatus: ApplicationBlock['status'] = bankRequestOpen
+    ? 'in-request'
+    : allDone ? 'done' : anyStarted ? 'in-progress' : 'verify';
+  // Единый нейминг (дизайн-бриф §3): одна сущность = одна строка и здесь, и в COMPANY_HUB_ITEMS.
   const blocks: ApplicationBlock[] = [
     { id: 'company-details', titleRu: 'Данные компании', titleEn: 'Company details', status: 'verify', kind: 'static' },
-    { id: 'board-resolution', titleRu: 'Board Resolution', titleEn: 'Board Resolution', status: state.br.confirmed ? 'done' : 'verify', kind: 'static' },
-    { id: 'identification-signing', titleRu: 'Идентификация и подписание участников', titleEn: 'Personal Identification & Signing', status: identStatus, kind: 'identification-signing' },
-    { id: 'business-profile', titleRu: 'Бизнес-профиль и UBO', titleEn: 'Business profile / UBO', status: businessProfileStatus, kind: 'static' },
+    { id: 'board-resolution', titleRu: 'Подписанты и решение совета', titleEn: 'Signatories & Board Resolution', status: state.br.confirmed ? 'done' : 'verify', kind: 'static' },
+    { id: 'identification-signing', titleRu: 'Идентификация и подписание', titleEn: 'Personal Identification & Signing', status: identStatus, kind: 'identification-signing' },
     { id: 'vkyc', titleRu: 'Видеоидентификация (VKYC)', titleEn: 'VKYC', status: allDone ? 'done' : 'verify', kind: 'static' },
     // TODO: полный перечень блоков от Марго (например, FATCA/CRS, Source of funds) — добавить сюда.
   ];
@@ -76,14 +78,16 @@ export const giveCompanyEntryConsent = (): Promise<void> => {
 // Aadhaar-авторизация инициатора: «скан» QR → данные из UIDAI (5 полей; номер маскирован).
 // Письмо Марго 19.06: name / aadhaar number ******XXXX / telephone / email / address.
 export const passCompanyAadhaar = (): Promise<AadhaarResult> => {
-  // Данные инициатора (демо) — из Aadhaar-результата первого директора сид-компании.
-  const initiator = state.signatories[0];
+  // Данные инициатора (демо) — из Aadhaar-результата ассистента-заполнителя
+  // (CustomerRepresentative). Это дефолтный инициатор заявки, а не первый подписант.
+  const initiator = state.signatories.find((s) => s.roles.includes('CustomerRepresentative'))
+    ?? state.signatories[0];
   const result: AadhaarResult = initiator?.aadhaarResult ?? {
-    name: 'Rajesh Mehta',
-    aadhaarMasked: 'XXXX XXXX 4521',
-    phone: '+91 98201 33445',
-    email: 'rajesh.mehta@mehtatextiles.in',
-    address: 'Flat 12B, Sea Breeze Apartments, Bandra West, Mumbai, Maharashtra — 400050',
+    name: 'Karan Verma',
+    aadhaarMasked: 'XXXX XXXX 9034',
+    phone: '+91 98200 11223',
+    email: 'karan.verma@mehtatextiles.in',
+    address: '21, Lokhandwala Complex, Andheri West, Mumbai, Maharashtra — 400053',
   };
   state.entry = {
     ...(state.entry ?? emptyEntry()),
@@ -694,7 +698,7 @@ export interface BankAccount {
   number: string;
   ifsc: string;
   frozen: boolean;
-  holderName: string; // имя представителя/инициатора (с возвращением, …)
+  holderName: string; // «С возвращением, …» = имя КОМПАНИИ (решение Дениса), не инициатор
   company: string;
 }
 
@@ -703,14 +707,13 @@ const ACCOUNT_NUMBER = '5021 4477 9012 3456';
 const ACCOUNT_IFSC = 'SBIN0099001';
 
 export const getBankAccount = (): Promise<BankAccount> => {
-  // Имя владельца — заполнитель (CustomerRepresentative), иначе первый подписант.
-  const rep = state.signatories.find((s) => s.roles.includes('CustomerRepresentative'))
-    ?? state.signatories[0];
+  // Владелец счёта — КОМПАНИЯ: «С возвращением, Mehta Textiles Private Limited»
+  // (решение Дениса). Инициатор-ассистент — лишь заполнитель, не владелец.
   return delay({
     number: ACCOUNT_NUMBER,
     ifsc: ACCOUNT_IFSC,
     frozen: state.accountFrozen ?? false,
-    holderName: rep?.fullName ?? '',
+    holderName: state.company.legalName,
     company: state.company.legalName,
   });
 };

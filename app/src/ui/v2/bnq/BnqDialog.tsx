@@ -134,7 +134,7 @@ const dict: Record<Lang, {
   ru: {
     title: 'Расскажите подробнее о вашем бизнесе',
     subtitle: 'Ответьте на несколько вопросов — это поможет нам подобрать условия',
-    responsibilityNote: 'Ответы пойдут на проверку банком — отвечайте достоверно. Подтверждение и подписание — в конце.',
+    responsibilityNote: 'Отвечайте достоверно — ваши ответы проверит банк, и они влияют на решение по заявке. Подтверждение и подписание — в конце.',
     stepOf: (c, t) => `Вопрос ${c} из ${t}`,
     probeConfirm: (v) => `Мы определили: ${v}. Верно?`,
     yes: 'Да, верно',
@@ -198,7 +198,7 @@ const dict: Record<Lang, {
   en: {
     title: 'Tell us more about your business',
     subtitle: 'Answer a few questions — this helps us tailor the right setup for you',
-    responsibilityNote: 'Your answers will be reviewed by the bank — please answer accurately. Confirmation and signing come at the end.',
+    responsibilityNote: 'Answer accurately — your responses are reviewed by the bank and affect the decision on your application. Confirmation and signing come at the end.',
     stepOf: (c, t) => `Question ${c} of ${t}`,
     probeConfirm: (v) => `We have identified: ${v}. Is that correct?`,
     yes: 'Yes, correct',
@@ -1142,13 +1142,15 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
             <CardSubtitle style={{ marginTop: '0.5rem' }}>{t.subtitle}</CardSubtitle>
           </div>
 
-          {/* Мягкое информирование о значимости ответов — один раз в шапке (не на каждом вопросе).
+          {/* Информирование о серьёзности/ответственности за достоверность ответов (замысел Марго,
+              демо 16.06): опросник — серьёзная вещь, правдивость ответов влияет на решение.
               view="info" (сине-серый); НЕ warning/оранжевый — оранжевый зарезервирован под DVU/ошибку.
               Это не присяга: финальное подтверждение достоверности — на экране подписания.
-              Показываем ТОЛЬКО когда нет leadStep (= сценарий Sole Proprietor): для него это
-              единственное вводное. У Компании (есть leadStep — карточка подтверждения PAN) тот же
-              смысл уже дан в вводном на карточке PAN — здесь плашку не дублируем. */}
-          {!leadStep && <Note key={lang} view="info" size="s" text={t.responsibilityNote} />}
+              Показываем на ШАГАХ ВОПРОСОВ (когда НЕ на leadStep-карточке PAN). У Компании: карточка PAN
+              (onLead) — без плашки (там своё вводное «банк проверит»), а на самих вопросах — с плашкой.
+              У Sole Proprietor (нет leadStep, старт сразу с вопросов) — плашка на всех вопросах, как было.
+              Плашка постоянна на всех шагах-вопросах → не дёргает layout между вопросами. */}
+          {!onLead && <Note key={lang} view="info" size="s" text={t.responsibilityNote} />}
 
           {/* leadStep (PAN) рендерится В ТОЙ ЖЕ карточке; иначе — текущий вопрос.
               Навигация leadStep — собственная (onDone → Q1, back → наружу). */}

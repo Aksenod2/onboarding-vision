@@ -8,8 +8,7 @@ import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { COMPANY_DASHBOARD_ROUTE } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
-import { useCompany } from '../../../ui/v2/CompanyContext';
-import { dispatchInvites, getSignatories } from '../../../mock/v2/companyApi';
+import { dispatchInvites } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { Signatory } from '../../../mock/v2/companyTypes';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRowEnd } from './companyUi';
@@ -22,7 +21,6 @@ const dict: Record<Lang, {
   title: string; subtitle: string;
   cta: string;
   copyLink: string; copied: string; sentTo: string;
-  nonSignerText: string; nonSignerCta: string; // #37 — модалка не-подписанту
 }> = {
   ru: {
     title: 'Подписанты приглашены',
@@ -31,8 +29,6 @@ const dict: Record<Lang, {
     copyLink: 'Скопировать ссылку',
     copied: 'Ссылка скопирована',
     sentTo: 'Отправлено на',
-    nonSignerText: 'Спасибо, что заполнили заявку. Следите за статусом подписания на дашборде.',
-    nonSignerCta: 'Перейти к дашборду',
   },
   en: {
     title: 'Signatories invited',
@@ -41,8 +37,6 @@ const dict: Record<Lang, {
     copyLink: 'Copy link',
     copied: 'Link copied',
     sentTo: 'Sent to',
-    nonSignerText: 'Thank you for completing the application. Track the signing status on the dashboard.',
-    nonSignerCta: 'Go to dashboard',
   },
 };
 
@@ -63,47 +57,19 @@ const Toast = styled.div`
   box-shadow:0 8px 24px rgba(0,0,0,0.25); animation:toastIn 0.22s ease-out;
   @keyframes toastIn { from { opacity:0; transform:translate(-50%,-0.5rem); } to { opacity:1; transform:translate(-50%,0); } }
 `;
-// #37 — модалка не-подписанту (паттерн лайтбокса из CompanySignatory/SPSign).
-const ModalBackdrop = styled.div`
-  position:fixed; inset:0; z-index:10030; background:rgba(0,0,0,0.55);
-  display:flex; align-items:center; justify-content:center; padding:2rem;
-`;
-const ModalCard = styled.div`
-  background:#fff; border-radius:12px; box-shadow:0 24px 64px rgba(0,0,0,0.4);
-  width:min(440px,100%); padding:2rem 2.25rem; display:flex; flex-direction:column; gap:1.25rem;
-`;
-const ModalText = styled.p`margin:0; font-size:0.95rem; line-height:1.6; color:${textPrimary};`;
-const ModalFoot = styled.div`display:flex; justify-content:flex-end;`;
-
 export const CompanyDispatch = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
   const t = dict[lang];
-  const { setActiveSignatoryId, setSessionOrigin } = useCompany();
   const [signatories, setSignatories] = useState<Signatory[]>([]);
   const [toast, setToast] = useState<string | null>(null);
-  const [showNonSigner, setShowNonSigner] = useState(false); // #37
 
   // Рассылаем при заходе на экран (имитация отправки).
+  // Инициатор — всегда ассистент-заполнитель (CustomerRepresentative, не подписант).
+  // Блокирующей модалки «спасибо» больше нет: благодарность мягко переехала в инфобокс
+  // на дашборде (решение Дениса). Здесь только рассылка; переход — по кнопке внизу.
   useEffect(() => {
     dispatchInvites().then(setSignatories);
-    // Развилка по инициатору (CustomerRepresentative) после рассылки.
-    // Принудительный показ модалки не-подписанту для демо: ?nonsigner=1 в URL.
-    const forced = new URLSearchParams(window.location.search).get('nonsigner') === '1';
-    getSignatories().then((list) => {
-      const initiator = list.find((s) => s.roles.includes('CustomerRepresentative'));
-      const initiatorIsSigner = initiator ? goesThroughPhaseB(initiator) : false;
-      // #45 — инициатор-подписант минует дашборд: сразу в свою сессию (origin=initiator).
-      if (!forced && initiator && initiatorIsSigner) {
-        setActiveSignatoryId(initiator.id);
-        setSessionOrigin('initiator');
-        navigate('/company/signatory', { replace: true });
-        return;
-      }
-      // #37 — инициатор сам НЕ подписант → модалка «спасибо, следи за статусом» → дашборд.
-      setShowNonSigner(forced || (!!initiator && !initiatorIsSigner));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const recipients = signatories.filter(goesThroughPhaseB);
@@ -148,17 +114,6 @@ export const CompanyDispatch = () => {
         </CardBody>
       </Card>
       {toast && <Toast>{toast}</Toast>}
-      {/* #37 — модалка не-подписанту: после рассылки, если инициатор сам не подписывает */}
-      {showNonSigner && (
-        <ModalBackdrop onClick={() => setShowNonSigner(false)}>
-          <ModalCard onClick={(e) => e.stopPropagation()}>
-            <ModalText>{t.nonSignerText}</ModalText>
-            <ModalFoot>
-              <Button view="accent" size="m" text={t.nonSignerCta} onClick={() => { setShowNonSigner(false); navigate(COMPANY_DASHBOARD_ROUTE); }} />
-            </ModalFoot>
-          </ModalCard>
-        </ModalBackdrop>
-      )}
     </ScreenV2>
   );
 };

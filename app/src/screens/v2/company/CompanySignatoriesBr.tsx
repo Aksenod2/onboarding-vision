@@ -45,6 +45,9 @@ const dict: Record<Lang, {
   brViewResolution: string; brExpand: string; brResolutionTitle: string; brResolutionBody: string; brResolutionClose: string;
   brUploadLink: string; brPickFile: string; brRecognizing: string; brRecognized: string; brDvuNote: string;
   back: string; cta: string;
+  // Подсказки-причины, почему CTA пока недоступна (видимый список незаполненного, паттерн Q6b/Q7).
+  whyDisabledLead: string;
+  whyNoAs: string; whyNoGov: string; whyNoSigners: string; whySignerContacts: string;
 }> = {
   ru: {
     title: 'Board Resolution',
@@ -102,6 +105,11 @@ const dict: Record<Lang, {
     brDvuNote: 'Документ уйдёт на проверку менеджеру банка (вне автоматического маршрута). Это может занять больше времени.',
     back: 'Назад',
     cta: 'Сформировать BR и продолжить',
+    whyDisabledLead: 'Чтобы сформировать BR, осталось:',
+    whyNoAs: 'назначьте уполномоченного подписанта и укажите его контакты',
+    whyNoGov: 'выберите процедуру смены подписанта',
+    whyNoSigners: 'отметьте хотя бы одного подписанта Board Resolution',
+    whySignerContacts: 'укажите email и телефон у отмеченных подписантов',
   },
   en: {
     title: 'Board Resolution',
@@ -159,6 +167,11 @@ const dict: Record<Lang, {
     brDvuNote: 'The document will be sent to a bank manager for review (outside the automatic route). This may take longer.',
     back: 'Back',
     cta: 'Generate BR and continue',
+    whyDisabledLead: 'To generate the BR, you still need to:',
+    whyNoAs: 'nominate the Authorised Signatory and provide their contacts',
+    whyNoGov: 'choose the signatory-change procedure',
+    whyNoSigners: 'tick at least one Board Resolution signer',
+    whySignerContacts: 'provide email and phone for the ticked signers',
   },
 };
 
@@ -166,6 +179,13 @@ const Section = styled.section`display:flex; flex-direction:column; gap:0.75rem;
 const SectionTitle = styled.div`${bodySBold}; color:${textPrimary}; font-size:0.95rem;`;
 const Hint = styled.p`margin:0; font-size:0.82rem; color:${textSecondary}; line-height:1.45;`;
 const ErrorHint = styled.p`margin:0; font-size:0.8rem; color:#c0392b; line-height:1.4;`;
+// Подсказка-причина под CTA: что осталось заполнить, чтобы кнопка сработала (паттерн Q6b/Q7).
+const WhyDisabled = styled.div`
+  ${enter(0)}; display:flex; flex-direction:column; gap:0.25rem;
+  font-size:0.82rem; color:${textSecondary}; line-height:1.45;
+  & > strong { ${bodySBold}; color:${textPrimary}; font-weight:600; }
+  & ul { margin:0; padding-left:1.1rem; display:flex; flex-direction:column; gap:0.15rem; }
+`;
 
 // Карточка-обёртка вокруг боевого Radiobox/Checkbox (рамка выбранного состояния).
 const PickCard = styled.div<{ $checked: boolean }>`
@@ -351,11 +371,12 @@ export const CompanySignatoriesBr = () => {
   // --- Валидация ---
   // Мягкое правило: отметить хотя бы одного подписанта (иначе непонятно, кто подписывает).
   // Кворум («минимум два») банк проверяет на бэке — клиенту не показываем.
-  const signersValid = pickedSigners.size >= 1 &&
-    [...pickedSigners].every((id) => {
-      const c = signerContacts[id];
-      return c && c.email.trim() && c.phone.trim();
-    });
+  const hasSigner = pickedSigners.size >= 1;
+  const signerContactsFilled = [...pickedSigners].every((id) => {
+    const c = signerContacts[id];
+    return c && c.email.trim() && c.phone.trim();
+  });
+  const signersValid = hasSigner && signerContactsFilled;
 
   // Контакты директора, выбранного как AS. ЕДИНЫЙ источник на человека — та же запись
   // signerContacts[asDirectorId], что и в блоке «кто подписывает». Правка email/phone в любом
@@ -372,6 +393,14 @@ export const CompanySignatoriesBr = () => {
   const govValid = governance !== '';
 
   const canContinue = !!signersValid && !!asValid && govValid;
+
+  // Видимый список «что осталось заполнить» — чтобы CTA не была немой серой кнопкой (паттерн Q6b/Q7).
+  // Порядок — сверху вниз по экрану: AS → governance → подписанты.
+  const missingReasons: string[] = [];
+  if (!asValid) missingReasons.push(t.whyNoAs);
+  if (!govValid) missingReasons.push(t.whyNoGov);
+  if (!hasSigner) missingReasons.push(t.whyNoSigners);
+  else if (!signerContactsFilled) missingReasons.push(t.whySignerContacts);
 
   const pickTemplate = async () => {
     setBrSource('template');
@@ -552,6 +581,7 @@ export const CompanySignatoriesBr = () => {
               value={governance}
               onChange={(value: string) => setGovernance(value as GovernanceOption)}
             />
+            {showErrors && !govValid && <ErrorHint>{t.whyNoGov}</ErrorHint>}
             {govDesc && <Hint>{govDesc}</Hint>}
             {/* Полный текст governance + выбранная опция — перенесён сюда из тела резолюции. */}
             <InlineDocGovBlock>
@@ -642,9 +672,17 @@ export const CompanySignatoriesBr = () => {
             {showErrors && pickedSigners.size < 1 && <ErrorHint>{t.noSignerError}</ErrorHint>}
           </Section>
 
+          {/* CTA остаётся кликабельной даже при незаполненной форме: клик подсвечивает поля (showErrors)
+              и раскрывает список причин ниже — пользователь видит, что доделать, а не упирается в немую серую кнопку. */}
+          {showErrors && !canContinue && missingReasons.length > 0 && (
+            <WhyDisabled>
+              <strong>{t.whyDisabledLead}</strong>
+              <ul>{missingReasons.map((r) => <li key={r}>{r}</li>)}</ul>
+            </WhyDisabled>
+          )}
           <ButtonRow>
             <Button view="secondary" size="l" text={t.back} onClick={() => navigate('/company/confirm')} />
-            <Button view="accent" size="l" text={t.cta} onClick={handleContinue} disabled={showErrors && !canContinue} />
+            <Button view="accent" size="l" text={t.cta} onClick={handleContinue} />
           </ButtonRow>
         </CardBody>
       </Card>

@@ -19,6 +19,11 @@ interface CompanyContextValue {
   // Записывает экран-источник, читает и сразу гасит экран-приёмник.
   pendingToast: string | null;
   setPendingToast: (msg: string | null) => void;
+  // Версия mock-состояния заявки: инкремент при мутациях без смены роута
+  // (refresh статусов, догрузка документа). Подписчики (левая навигация-панель)
+  // перечитывают статусы блоков, держа панель синхронной с правым контентом.
+  caseVersion: number;
+  bumpCaseVersion: () => void;
 }
 
 const CompanyContext = createContext<CompanyContextValue>({
@@ -28,6 +33,8 @@ const CompanyContext = createContext<CompanyContextValue>({
   setSessionOrigin: () => undefined,
   pendingToast: null,
   setPendingToast: () => undefined,
+  caseVersion: 0,
+  bumpCaseVersion: () => undefined,
 });
 
 export const useCompany = () => useContext(CompanyContext);
@@ -36,8 +43,10 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
   const [activeSignatoryId, setActiveSignatoryId] = useState<string | null>(null);
   const [sessionOrigin, setSessionOrigin] = useState<SessionOrigin>('dashboard');
   const [pendingToast, setPendingToast] = useState<string | null>(null);
+  const [caseVersion, setCaseVersion] = useState(0);
+  const bumpCaseVersion = () => setCaseVersion((v) => v + 1);
   return (
-    <CompanyContext.Provider value={{ activeSignatoryId, setActiveSignatoryId, sessionOrigin, setSessionOrigin, pendingToast, setPendingToast }}>
+    <CompanyContext.Provider value={{ activeSignatoryId, setActiveSignatoryId, sessionOrigin, setSessionOrigin, pendingToast, setPendingToast, caseVersion, bumpCaseVersion }}>
       {children}
     </CompanyContext.Provider>
   );

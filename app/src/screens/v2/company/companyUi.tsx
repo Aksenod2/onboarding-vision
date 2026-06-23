@@ -113,13 +113,17 @@ const AadhaarBoxTitle = styled.p`
   text-transform: uppercase;
   color: ${textSecondary};
 `;
+// Сетка «лейбл | значение»: фикс. колонка лейблов (10rem) → все значения начинаются на одной вертикали,
+// даже при разной длине лейблов (Адрес / Дата регистрации длиннее остальных). Длинный адрес переносится
+// в своей колонке (1fr), не сбивая выравнивание.
 const AadhaarRow = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: 10rem 1fr;
   gap: 0.75rem;
   font-size: 0.88rem;
   line-height: 1.4;
   color: ${textPrimary};
-  .label { color: ${textSecondary}; min-width: 6.5rem; flex-shrink: 0; }
+  .label { color: ${textSecondary}; }
   .value { font-weight: 600; word-break: break-word; }
 `;
 

@@ -5,6 +5,7 @@ import { textPrimary, textSecondary, textAccent, bodyM, bodySBold } from '@salut
 import { radii, eyebrow } from '../designSystem';
 import { useLanguage } from './LanguageContext';
 import type { Lang } from './LanguageContext';
+import { useCompany } from './CompanyContext';
 import { COMPANY_HUB_ITEMS } from './companySteps';
 import type { HubItem } from './companySteps';
 import { getCompanyCase, getApplicationBlocks } from '../../mock/v2/companyApi';
@@ -17,17 +18,18 @@ import type { ApplicationBlock, ApplicationBlockStatus } from '../../mock/v2/com
 // Используется в двух местах: десктоп-колонка (sticky) и мобильный drawer (тот же список).
 
 // Состояние пункта: см. дизайн-бриф §2.
-type ItemState = 'active' | 'done' | 'pending' | 'verifying' | 'locked';
+// 'action' — банк запросил документ (in-request): оранжевый, реально нужно действие.
+// Действие совершается в правом контенте (карточка-обращение), не в панели.
+type ItemState = 'active' | 'done' | 'pending' | 'verifying' | 'action' | 'locked';
 
-const dict: Record<Lang, { sectionsLabel: string; inProgress: string; completed: string; appNo: string; verifyingNote: string }> = {
-  ru: { sectionsLabel: 'Разделы заявки', inProgress: 'В обработке', completed: 'Завершено', appNo: 'Заявка', verifyingNote: 'Проверяем' },
-  en: { sectionsLabel: 'Application sections', inProgress: 'In Progress', completed: 'Completed', appNo: 'Application', verifyingNote: 'Verifying' },
+const dict: Record<Lang, { sectionsLabel: string; inProgress: string; completed: string; appNo: string; verifyingNote: string; actionNote: string }> = {
+  ru: { sectionsLabel: 'Разделы заявки', inProgress: 'В обработке', completed: 'Завершено', appNo: 'Заявка', verifyingNote: 'Проверяем', actionNote: 'Нужно действие' },
+  en: { sectionsLabel: 'Application sections', inProgress: 'In Progress', completed: 'Completed', appNo: 'Application', verifyingNote: 'Verifying', actionNote: 'Action required' },
 };
 
 // Маппинг hub-B пункт → блок заявки (getApplicationBlocks) для статуса.
 const HUB_TO_BLOCK: Record<string, string> = {
   'hub-ident': 'identification-signing',
-  'hub-business': 'business-profile',
   'hub-vkyc': 'vkyc',
 };
 
@@ -109,6 +111,7 @@ const Marker = styled.span<{ $state: ItemState }>`
       case 'done': return css`background: rgba(33,160,56,0.14); color: #1a7a28;`;
       case 'active': return css`background: rgba(33,160,56,0.18); color: #1a7a28;`;
       case 'verifying': return css`background: rgba(100,116,139,0.16); color: #475569;`;
+      case 'action': return css`background: rgba(245,140,32,0.18); color: #b56412;`; // оранжевый — реально нужно действие
       case 'locked': return css`background: rgba(100,116,139,0.10); color: #94a3b8;`;
       default: return css`background: rgba(0,0,0,0.06); color: ${textSecondary};`;
     }
@@ -122,12 +125,15 @@ const ItemTitle = styled.span<{ $state: ItemState }>`
   color: ${({ $state }) => ($state === 'pending' || $state === 'locked' ? textSecondary : textPrimary)};
 `;
 const ItemNote = styled.span`font-size: 0.72rem; color: ${textSecondary};`;
+// Подпись «Нужно действие» — оранжевая (action ≠ спокойный verifying).
+const ActionNote = styled.span`font-size: 0.72rem; font-weight: 600; color: #b56412;`;
 
 // Глиф статуса в маркере.
 const markerGlyph = (state: ItemState, order?: number): string => {
   switch (state) {
     case 'done': return '✓';
     case 'verifying': return '⟳';
+    case 'action': return '!';
     case 'locked': return '⟳';
     default: return order ? String(order) : '•';
   }
@@ -137,7 +143,9 @@ const markerGlyph = (state: ItemState, order?: number): string => {
 const blockToState = (status: ApplicationBlockStatus | undefined, locked: boolean): ItemState => {
   if (locked) return 'locked';
   if (status === 'done') return 'done';
-  // verify / in-progress / in-request / action-required — всё это «мониторинг» (read).
+  // in-request / action-required — банк запросил документ: реально нужно действие (оранжевый).
+  if (status === 'in-request' || status === 'action-required') return 'action';
+  // verify / in-progress — спокойный «мониторинг» (read, сине-серый).
   return 'verifying';
 };
 
@@ -151,6 +159,9 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
   const t = dict[lang];
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  // Версия mock-состояния: инкрементится при мутациях без смены роута
+  // (refresh статусов, догрузка документа на дашборде) → перечитываем блоки/кейс.
+  const { caseVersion } = useCompany();
 
   const [companyName, setCompanyName] = useState('');
   const [appId, setAppId] = useState('');
@@ -167,8 +178,9 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
     });
     getApplicationBlocks().then((b) => { if (alive) setBlocks(b); });
     return () => { alive = false; };
-    // Перечитываем при смене роута: статусы блоков живые (после рассылки/refresh).
-  }, [pathname]);
+    // Перечитываем при смене роута И при мутации состояния без навигации
+    // (caseVersion): статусы блоков живые (после рассылки/refresh/догрузки документа).
+  }, [pathname, caseVersion]);
 
   // Состояние пункта фазы A — по активному роуту: пройденные = done, текущий = active, будущие = pending.
   const phaseAItems = COMPANY_HUB_ITEMS.filter((i) => i.phase === 'A');
@@ -189,7 +201,9 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
   const go = (item: HubItem, state: ItemState) => {
     if (state === 'locked') return;
     onNavigate?.();
-    if (!pathname.startsWith(item.route) || item.phase === 'B') navigate(item.route);
+    // action (in-request) → ведём на дашборд к карточке-обращению банка (догрузка там, не в панели).
+    const target = state === 'action' ? `${item.route}#bank-request` : item.route;
+    if (!pathname.startsWith(item.route) || item.phase === 'B') navigate(target);
   };
 
   return (
@@ -225,6 +239,7 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
                     <ItemBody>
                       <ItemTitle $state={state}>{lang === 'ru' ? item.titleRu : item.titleEn}</ItemTitle>
                       {state === 'verifying' && <ItemNote>{t.verifyingNote}</ItemNote>}
+                      {state === 'action' && <ActionNote>{t.actionNote}</ActionNote>}
                     </ItemBody>
                   </Item>
                 </li>
