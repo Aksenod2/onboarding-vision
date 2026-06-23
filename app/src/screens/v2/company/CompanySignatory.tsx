@@ -23,7 +23,8 @@ import type { Signatory, SignatoryStep, AadhaarResult } from '../../../mock/v2/c
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ButtonRowEnd, ConsentRow, SuccessNote } from './companyUi';
 
 // CO-SIGNATORY — персональная сессия подписанта (фаза B), один экран-роутер по currentStep:
-// consents → aadhaar → dsc-sign → vkyc → done (#35: подпись ДО видео, видео финальное).
+// aadhaar (с согласиями Privacy+eKYC на панели) → [pan] → dsc-sign → vkyc → done
+// (#35: подпись ДО видео, видео финальное; вариант C: отдельного шага «Согласия» больше нет).
 // Точки входа: «Войти как» с дашборда (origin=dashboard), invite-ссылка ?invite=<id> (origin=invite),
 // инициатор-подписант после рассылки (origin=initiator). Контекст activeSignatoryId + sessionOrigin.
 // Роут: /company/signatory
@@ -274,17 +275,18 @@ const SummaryTime = styled.p`margin:0; ${bodySBold}; font-size:0.9rem; color:${t
 const Demo = styled.p`margin:0; font-size:0.78rem; color:${textSecondary}; opacity:0.8;`;
 const CodeWrap = styled.div`display:flex; justify-content:center;`;
 
+// Согласия (Privacy + Aadhaar eKYC) перенесены на Aadhaar-панель (вариант C, как у входа компании) —
+// отдельного шага «Согласия» больше нет. Первый шаг сессии — Aadhaar; waiting маппим на aadhaar.
 const STEP_TO_PROGRESS: Record<Exclude<SignatoryStep, 'done'>, string> = {
-  waiting: 'co-b-consents', consents: 'co-b-consents', aadhaar: 'co-b-aadhaar',
+  waiting: 'co-b-aadhaar', consents: 'co-b-aadhaar', aadhaar: 'co-b-aadhaar',
   pan: 'co-b-pan', 'dsc-sign': 'co-b-sign', vkyc: 'co-b-vkyc',
 };
 // Для верхнего прогресса используем тот же StepProgress c company-mini-реестром.
-// Порядок #35: Согласия → Aadhaar → [PAN — только «свой» AS] → Подписание → Видео.
+// Порядок: Aadhaar (с согласиями) → [PAN — только «свой» AS] → Подписание → Видео.
 // Шаг PAN скрыт в прогрессе у тех, кому не нужен (PAN из реестра у директоров).
 const miniSteps = (withPan: boolean): StepDef[] => {
   const steps: StepDef[] = [
-    { id: 'co-b-consents', route: '', order: 1, titleRu: 'Согласия', titleEn: 'Consents' },
-    { id: 'co-b-aadhaar', route: '', order: 2, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
+    { id: 'co-b-aadhaar', route: '', order: 1, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
   ];
   if (withPan) steps.push({ id: 'co-b-pan', route: '', order: steps.length + 1, titleRu: 'PAN', titleEn: 'PAN' });
   steps.push({ id: 'co-b-sign', route: '', order: steps.length + 1, titleRu: 'Подписание', titleEn: 'Signing' });
@@ -315,7 +317,6 @@ export const CompanySignatory = () => {
   const [cAadhaar, setCAadhaar] = useState(false);
   const [aadhaarPhase, setAadhaarPhase] = useState<'qr' | 'waiting' | 'success'>('qr');
   const [aadhaarResult, setAadhaarResult] = useState<AadhaarResult | null>(null);
-  const [aadhaarConsent, setAadhaarConsent] = useState(false);
   const [panValue, setPanValue] = useState('');
   const [panError, setPanError] = useState(false);
   const [vkycConsent, setVkycConsent] = useState(false);
@@ -387,7 +388,9 @@ export const CompanySignatory = () => {
     : <Button view="secondary" size="l" text={t.exitBtn} onClick={() => setExited(true)} />;
 
   const id = sig.id;
-  const step: SignatoryStep = sig.currentStep === 'waiting' ? 'consents' : sig.currentStep;
+  // waiting (ссылка отправлена, не заходил) и legacy 'consents' маппим на aadhaar — первый шаг сессии.
+  const step: SignatoryStep =
+    sig.currentStep === 'waiting' || sig.currentStep === 'consents' ? 'aadhaar' : sig.currentStep;
   const refresh = () => getSignatory(id).then((s) => setSig(s ?? null));
 
   const eyebrow = (
@@ -397,22 +400,19 @@ export const CompanySignatory = () => {
     </>
   );
 
-  // Прогресс. Замысел: на обратимых под-фазах (consents) пройденные сегменты кликабельны, на
-  // необратимых (aadhaar после скана / dsc-sign / vkyc) — нет. НО: мини-реестр MINI_STEPS имеет
-  // route:'' (нет deep-link на под-шаг — шаг гонится sig.currentStep на бэке, роут один). Поэтому
-  // StepProgress физически не может довести клик до смены под-шага, а его модель «текущий шаг
-  // обратим ⇒ ВСЕ прочие сегменты кликабельны» открыла бы и прыжок ВПЕРЁД (consents → vkyc), что
-  // неверно. Единственная обратимая под-фаза — самая первая (consents), назад от неё прыгать некуда.
-  // Поэтому держим сегменты некликабельными (isIrreversible→true), а реальную обратимость на
-  // consents/summary обеспечивает кнопка «Назад/Выйти» в теле шага. Помечено как компромисс в отчёте.
+  // Прогресс. Мини-реестр MINI_STEPS имеет route:'' (нет deep-link на под-шаг — шаг гонится
+  // sig.currentStep на бэке, роут один). StepProgress физически не может довести клик до смены
+  // под-шага, поэтому держим сегменты некликабельными (isIrreversible→true); реальную обратимость
+  // на старте обеспечивает кнопка «Назад/Выйти» в теле шага. Первый шаг — Aadhaar (согласия теперь
+  // на самой Aadhaar-панели, как у входа компании — отдельного шага «Согласия» нет).
   // Шаг PAN показываем в прогрессе только тем, кому он нужен («свой» AS, PAN не из реестра).
   const withPan = needsPanStep(sig);
   const progress = step !== 'done'
     ? <StepProgress currentStepId={STEP_TO_PROGRESS[step]} steps={miniSteps(withPan)} backRoute={exitRoute ?? COMPANY_DASHBOARD_ROUTE} isIrreversible={() => true} hideBack={exitRoute === null} />
     : undefined;
 
-  // ── Вводный экран сессии (#31) — первый шаг, до согласий. Показываем только в самом начале. ──
-  if (step === 'consents' && showSummary && sig.currentStep === 'waiting') {
+  // ── Вводный экран сессии (#31) — показываем один раз в самом начале, до Aadhaar. ──
+  if (showSummary && (sig.currentStep === 'waiting' || sig.currentStep === 'consents')) {
     return (
       <ScreenV2 progress={progress}>
         <Card>
@@ -433,32 +433,6 @@ export const CompanySignatory = () => {
     );
   }
 
-  // ── Шаг: Согласия ──
-  if (step === 'consents') {
-    const ready = cPrivacy && cAadhaar;
-    const next = async () => {
-      await giveSignatoryConsent(id, 'Privacy Notice');
-      await giveSignatoryConsent(id, 'Aadhaar');
-      await setSignatoryStep(id, 'aadhaar');
-      await refresh();
-    };
-    return (
-      <ScreenV2 progress={progress}>
-        <Card>
-          <CardHeader>{eyebrow}<Title>{t.consentsTitle}</Title><Subtitle>{t.consentsSub}</Subtitle></CardHeader>
-          <CardBody>
-            <ConsentRow><Checkbox label={t.cPrivacy} description={t.cPrivacyDesc} checked={cPrivacy} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCPrivacy(e.target.checked)} /></ConsentRow>
-            <ConsentRow><Checkbox label={t.cAadhaar} description={t.cAadhaarDesc} checked={cAadhaar} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCAadhaar(e.target.checked)} /></ConsentRow>
-            <ButtonRow>
-              {exitBtn}
-              <Button view="accent" size="l" text={t.cont} disabled={!ready} onClick={next} />
-            </ButtonRow>
-          </CardBody>
-        </Card>
-      </ScreenV2>
-    );
-  }
-
   // ── Шаг: Aadhaar eKYC ──
   if (step === 'aadhaar') {
     const onScan = () => {
@@ -471,7 +445,18 @@ export const CompanySignatory = () => {
       timers.current.push(tt);
     };
     // «Свой» AS (PAN не из реестра) → шаг ввода PAN; директора (PAN из Probe) → сразу подписание.
-    const next = async () => { await setSignatoryStep(id, withPan ? 'pan' : 'dsc-sign'); await refresh(); };
+    // При переходе фиксируем оба согласия (Privacy + Aadhaar eKYC) — регуляторно обязательны.
+    const next = async () => {
+      await giveSignatoryConsent(id, 'Privacy Notice');
+      await giveSignatoryConsent(id, 'Aadhaar');
+      await setSignatoryStep(id, withPan ? 'pan' : 'dsc-sign');
+      await refresh();
+    };
+    // Согласия ДО QR (гейтят QR), как у входа компании: Data processing (Privacy) + Aadhaar eKYC.
+    const aadhaarConsents: AadhaarConsent[] = [
+      { id: 'privacy', label: t.cPrivacy, description: t.cPrivacyDesc, checked: cPrivacy, onChange: setCPrivacy },
+      { id: 'eKYC', label: t.cAadhaar, description: t.cAadhaarDesc, checked: cAadhaar, onChange: setCAadhaar },
+    ];
     return (
       <ScreenV2 progress={progress}>
         <Card>
@@ -481,11 +466,11 @@ export const CompanySignatory = () => {
             {aadhaarPhase !== 'qr' && <IrreversibleMarker><span className="ic">✓</span>{t.irreversibleMarker}</IrreversibleMarker>}
           </CardHeader>
           <CardBody>
-            {/* Единый Aadhaar-блок (как у входа компании): howto → согласие → QR-замок → скан → данные. */}
+            {/* Единый Aadhaar-блок (как у входа компании): howto → 2 согласия → QR-замок → скан → данные. */}
             <AadhaarScanPanel
               phase={aadhaarPhase}
               variant="session"
-              consents={[{ id: 'eKYC', label: t.aadhaarConsent, description: t.aadhaarConsentDesc, checked: aadhaarConsent, onChange: setAadhaarConsent } as AadhaarConsent]}
+              consents={aadhaarConsents}
               showAppLink
               result={aadhaarResult}
               lang={lang}

@@ -30,7 +30,6 @@ const dict: Record<Lang, { sectionsLabel: string; inProgress: string; completed:
 // Маппинг hub-B пункт → блок заявки (getApplicationBlocks) для статуса.
 const HUB_TO_BLOCK: Record<string, string> = {
   'hub-ident': 'identification-signing',
-  'hub-vkyc': 'vkyc',
 };
 
 const PanelRoot = styled.nav`

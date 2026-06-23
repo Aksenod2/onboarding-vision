@@ -52,7 +52,8 @@ export const getApplicationBlocks = (): Promise<ApplicationBlock[]> => {
     { id: 'company-details', titleRu: 'Данные компании', titleEn: 'Company details', status: 'verify', kind: 'static' },
     { id: 'board-resolution', titleRu: 'Подписанты и решение совета', titleEn: 'Signatories & Board Resolution', status: state.br.confirmed ? 'done' : 'verify', kind: 'static' },
     { id: 'identification-signing', titleRu: 'Идентификация и подписание', titleEn: 'Personal Identification & Signing', status: identStatus, kind: 'identification-signing' },
-    { id: 'vkyc', titleRu: 'Видеоидентификация (VKYC)', titleEn: 'VKYC', status: allDone ? 'done' : 'verify', kind: 'static' },
+    // VKYC отдельным блоком не выносим: это под-шаг сессии подписанта и под-статус участника
+    // (внутри «Идентификация и подписание» VKYC уже отражён парой «Подписание + VKYC» по каждому).
     // TODO: полный перечень блоков от Марго (например, FATCA/CRS, Source of funds) — добавить сюда.
   ];
   return delay(blocks);
@@ -710,7 +711,8 @@ export const signByDsc = (id: string): Promise<Signatory[]> => {
 // Линейная цепочка прогресса подписанта (для авто-продвижения по Refresh).
 // Шаг 'pan' — между aadhaar и dsc-sign, ТОЛЬКО для «своего» AS (needsPanStep). У директоров
 // (PAN из Probe) — выпадает: цепочку строим per-подписант через chainFor().
-const STEP_CHAIN_FULL: SignatoryStep[] = ['waiting', 'consents', 'aadhaar', 'pan', 'vkyc', 'dsc-sign', 'done'];
+// Вариант C: согласия (Privacy+eKYC) теперь на Aadhaar-панели — отдельного шага 'consents' нет.
+const STEP_CHAIN_FULL: SignatoryStep[] = ['waiting', 'aadhaar', 'pan', 'vkyc', 'dsc-sign', 'done'];
 const chainFor = (s: Signatory): SignatoryStep[] =>
   needsPanStep(s) ? STEP_CHAIN_FULL : STEP_CHAIN_FULL.filter((st) => st !== 'pan');
 

@@ -55,22 +55,22 @@ export const COMPANY_HUB_ITEMS: HubItem[] = [
   { id: 'co-signatories-br', route: '/company/signatories-br', phase: 'A', order: 3, titleRu: 'Подписанты и решение совета', titleEn: 'Signatories & Board Resolution' },
   { id: 'co-dispatch', route: '/company/dispatch', phase: 'A', order: 4, titleRu: 'Приглашение подписантов', titleEn: 'Invite signatories' },
   // --- разделитель A ↔ мониторинг рисуется в панели по смене phase ---
+  // VKYC отдельным пунктом не выносим: это под-статус участника внутри «Идентификация и
+  // подписание» (drill-down дашборда), а заполнитель (CustomerRepresentative) VKYC сам не проходит.
   { id: 'hub-ident', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', titleRu: 'Идентификация и подписание', titleEn: 'Personal Identification & Signing' },
-  { id: 'hub-vkyc', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', locked: true, titleRu: 'Видеоидентификация (VKYC)', titleEn: 'VKYC' },
 ];
 
 // Мини-сессия подписанта (фаза B). Для прогресса внутри персональной сессии.
 export interface SignatorySessionStep {
-  id: 'co-b-consents' | 'co-b-aadhaar' | 'co-b-vkyc' | 'co-b-sign';
+  id: 'co-b-aadhaar' | 'co-b-vkyc' | 'co-b-sign';
   titleRu: string;
   titleEn: string;
   order: number;
 }
-// Порядок (#35): согласия → Aadhaar → подписание (DSC) → видео (VKYC).
-// Подпись ДО видео; видео — финальный шаг (счёт не открывается до VKYC).
+// Порядок: Aadhaar (с согласиями Privacy+eKYC на панели) → подписание (DSC) → видео (VKYC).
+// Вариант C: отдельного шага «Согласия» больше нет. Подпись ДО видео; видео — финальный шаг.
 export const SIGNATORY_STEPS: SignatorySessionStep[] = [
-  { id: 'co-b-consents', order: 1, titleRu: 'Согласия', titleEn: 'Consents' },
-  { id: 'co-b-aadhaar', order: 2, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
-  { id: 'co-b-sign', order: 3, titleRu: 'Подписание (DSC)', titleEn: 'Signing (DSC)' },
-  { id: 'co-b-vkyc', order: 4, titleRu: 'Видеоидентификация', titleEn: 'Video identification' },
+  { id: 'co-b-aadhaar', order: 1, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
+  { id: 'co-b-sign', order: 2, titleRu: 'Подписание (DSC)', titleEn: 'Signing (DSC)' },
+  { id: 'co-b-vkyc', order: 3, titleRu: 'Видеоидентификация', titleEn: 'Video identification' },
 ];
