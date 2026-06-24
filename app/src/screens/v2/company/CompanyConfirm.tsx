@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button, TextField, Note, Checkbox, Select } from '@salutejs/sdds-serv'; // TODO свериться с MCP
@@ -14,10 +14,12 @@ import {
   setUboModified, uploadUboShareholdingDoc, uploadCompanyFieldProof,
   getDirectors, addDirector, updateDirector, removeDirector,
   setDirectorsModified, uploadDirectorsProofDoc,
-  getBoardResolution, setAsFromBnq,
+  getBoardResolution, setAsFromBnq, getBnq,
 } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { CompanyDetails, Signatory, Ubo, CompanyDocument, BrSignerConfig, Director } from '../../../mock/v2/companyTypes';
+import type { BnqAnswer } from '../../../mock/v2/types';
+import { buildStepOrder } from '../../../ui/v2/bnq/BnqDialog';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ConsentRow } from './companyUi';
 
 // CO-CONFIRM — шаг 2 фазы A: обзор данных компании + редактирование + бизнес-профиль (директора, UBO).
@@ -32,7 +34,7 @@ const dict: Record<Lang, {
   sectionCompany: string; sectionSignatories: string;
   fromRegistry: string; prefilled: string; back: string; cta: string;
   edit: string; save: string; cancel: string;
-  labels: { legalName: string; pan: string; cin: string; gstin: string; address: string; correspondence: string };
+  labels: { legalName: string; legalType: string; incorporationDate: string; pan: string; cin: string; gstin: string; address: string; correspondence: string };
   addrLine: string; addrCity: string; addrState: string; addrPin: string;
   correspondencePlaceholder: string;
   // Edit reg-поля: правка → подтверждающий документ → DVU (паттерн SP06)
@@ -48,7 +50,7 @@ const dict: Record<Lang, {
   sectionAs: string; asHint: string;
   asName: string; asDesignation: string; asEmail: string; asPhone: string;
   asFromDirectors: string; asNewPersonRole: string;
-  asNotAssigned: string; asPanNote: string;
+  asNotAssigned: string; asPanLabel: string; asPanHint: string; asPanError: string;
   sectionUbo: string; uboHint: string;
   uboShare: string; uboName: string;
   uboAdd: string; uboRemove: string;
@@ -62,6 +64,9 @@ const dict: Record<Lang, {
   attentionNote: string; // #36 — плашка «внимательно проверяйте»
   signatoryConsent: string; // #38 — consent по полноте подписантов (Directors/Partners/UBO/AS)
   responsibilityGate: string; // #36 — чекбокс-гейт перед CTA
+  // #60 — ответы клиента на вопросы опросника на превью (read-only + правка в анкете)
+  sectionAnswers: string; answersHint: string; answersEdit: string; answersEmpty: string;
+  qLabels: Record<string, string>;
 }> = {
   ru: {
     title: 'Проверьте данные компании',
@@ -76,7 +81,8 @@ const dict: Record<Lang, {
     save: 'Сохранить',
     cancel: 'Отмена',
     labels: {
-      legalName: 'Юридическое наименование', pan: 'PAN', cin: 'CIN', gstin: 'GSTIN',
+      legalName: 'Юридическое наименование', legalType: 'Тип юрлица', incorporationDate: 'Дата регистрации',
+      pan: 'PAN', cin: 'CIN', gstin: 'GSTIN',
       address: 'Юридический адрес', correspondence: 'Адрес для переписки',
     },
     addrLine: 'Адрес (строка)', addrCity: 'Город', addrState: 'Штат', addrPin: 'PIN-код',
@@ -109,7 +115,9 @@ const dict: Record<Lang, {
     asFromDirectors: 'Директор компании',
     asNewPersonRole: 'Назначенное лицо',
     asNotAssigned: 'Уполномоченный подписант ещё не назначен — назначьте его в анкете.',
-    asPanNote: 'PAN не требуется — подписант введёт его сам при идентификации.',
+    asPanLabel: 'PAN подписанта',
+    asPanHint: 'PAN обязателен — он нужен для сверки подписанта на видеоидентификации с указанным в Board Resolution.',
+    asPanError: 'Укажите корректный PAN. Пример: ABCDE1234F',
     sectionUbo: 'Бенефициарные владельцы (UBO)',
     uboHint: 'Лица с долей владения 25% и более. Подтянуты из данных компании — проверьте и дополните при необходимости.',
     uboShare: 'Доля, %',
@@ -134,6 +142,24 @@ const dict: Record<Lang, {
     attentionNote: 'Внимательно проверяйте всю вносимую информацию — это может повлиять на решение банка о предоставлении продукта.',
     signatoryConsent: 'Подтверждаю, что предоставил(а) полную и достоверную информацию по всем лицам, требуемым согласно KYC-нормам Банка, включая, помимо прочего, всех директоров, партнёров, конечных бенефициарных владельцев и уполномоченных подписантов, применимых к организационно-правовой структуре компании.',
     responsibilityGate: 'Я несу ответственность за достоверность вносимой информации',
+    sectionAnswers: 'Ваши ответы',
+    answersHint: 'Это ответы, которые вы дали в анкете. Вы их подписываете и даёте по ним согласие — проверьте и при необходимости измените.',
+    answersEdit: 'Изменить в анкете',
+    answersEmpty: 'Нет ответа',
+    qLabels: {
+      Q1: 'Отрасль / сегмент',
+      Q3: 'Резидентность компании',
+      Q4: 'Налоговый статус',
+      Q4b: 'Классификация FATCA / CRS',
+      Q5: 'Публичное должностное лицо (PEP)',
+      Q6: 'Чистая выручка',
+      Q6b: 'Кредиты / овердрафты в других банках',
+      Q7: 'Планы по кредитным продуктам',
+      Q8: 'Требуемая сумма кредита',
+      Q9: 'Импорт / экспорт',
+      Q10: 'Страны-партнёры по импорту/экспорту',
+      Q11: 'Документ IEC',
+    },
   },
   en: {
     title: 'Review company details',
@@ -148,7 +174,8 @@ const dict: Record<Lang, {
     save: 'Save',
     cancel: 'Cancel',
     labels: {
-      legalName: 'Legal name', pan: 'PAN', cin: 'CIN', gstin: 'GSTIN',
+      legalName: 'Legal name', legalType: 'Legal type', incorporationDate: 'Date of incorporation',
+      pan: 'PAN', cin: 'CIN', gstin: 'GSTIN',
       address: 'Registered address', correspondence: 'Correspondence address',
     },
     addrLine: 'Address line', addrCity: 'City', addrState: 'State', addrPin: 'PIN code',
@@ -181,7 +208,9 @@ const dict: Record<Lang, {
     asFromDirectors: 'Company director',
     asNewPersonRole: 'Appointed person',
     asNotAssigned: 'The Authorised Signatory has not been appointed yet — appoint one in the questionnaire.',
-    asPanNote: 'No PAN required — the signatory will enter it themselves during identification.',
+    asPanLabel: 'Signatory PAN',
+    asPanHint: 'PAN is required — it is used to match the signatory at video identification with the one named in the Board Resolution.',
+    asPanError: 'Enter a valid PAN. Example: ABCDE1234F',
     sectionUbo: 'Ultimate Beneficial Owners (UBO)',
     uboHint: 'Persons holding 25% or more. Pulled from company data — review and add if needed.',
     uboShare: 'Share, %',
@@ -206,8 +235,29 @@ const dict: Record<Lang, {
     attentionNote: 'Please review all information you enter carefully — it may affect the Bank’s decision on providing the product.',
     signatoryConsent: "I confirm that I have provided complete and accurate information for all individuals required under the Bank's KYC norms, including but not limited to all Directors, Partners, Ultimate Beneficial Owners and Authorized Signatories as applicable to the legal structure of the entity.",
     responsibilityGate: 'I take responsibility for the accuracy of the information provided',
+    sectionAnswers: 'Your answers',
+    answersHint: 'These are the answers you provided in the questionnaire. You sign and consent to them — review and edit if needed.',
+    answersEdit: 'Edit in questionnaire',
+    answersEmpty: 'No answer',
+    qLabels: {
+      Q1: 'Industry / segment',
+      Q3: 'Company residency',
+      Q4: 'Tax residency',
+      Q4b: 'FATCA / CRS classification',
+      Q5: 'Politically exposed person (PEP)',
+      Q6: 'Net revenue',
+      Q6b: 'Existing credit / overdraft with other banks',
+      Q7: 'Credit facilities planned',
+      Q8: 'Credit amount required',
+      Q9: 'Import / export activity',
+      Q10: 'Import / export partner countries',
+      Q11: 'IEC document',
+    },
   },
 };
+
+// PAN физлица (#58, AS «another person»): 5 букв, 4 цифры, 1 буква.
+const PERSON_PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 
 const Section = styled.section`display:flex; flex-direction:column; gap:0.75rem;`;
 const SectionHead = styled.div`
@@ -215,7 +265,9 @@ const SectionHead = styled.div`
   padding-bottom:0.25rem; border-bottom:1px solid rgba(0,0,0,0.06);
 `;
 const SectionTitle = styled.div`${bodySBold}; color:${textPrimary}; font-size:0.95rem;`;
-const Grid = styled.dl`margin:0; display:grid; grid-template-columns:auto 1fr; gap:0.45rem 1.25rem;`;
+// $lw — фиксированная ширина колонки лейблов (чтобы секции «Company details» и «Your answers»
+// имели ОДИНАКОВЫЕ колонки; без неё auto считает ширину по контенту каждой секции отдельно).
+const Grid = styled.dl<{ $lw?: string }>`margin:0; display:grid; grid-template-columns:${(p) => p.$lw ?? 'auto'} 1fr; gap:0.45rem 1.25rem;`;
 const DT = styled.dt`${bodySBold}; font-size:0.8rem; color:${textSecondary}; white-space:nowrap;`;
 const DD = styled.dd`margin:0; font-size:0.85rem; color:${textPrimary};`;
 const Reg = styled.span`font-size:0.68rem; color:${textSecondary}; opacity:0.8; margin-left:0.4rem; &::before{content:'✦'; font-size:0.55rem; margin-right:0.2rem;}`;
@@ -335,6 +387,8 @@ export const CompanyConfirm = () => {
 
   const [company, setCompany] = useState<CompanyDetails | null>(null);
   const [signatories, setSignatories] = useState<Signatory[]>([]);
+  // #60 — ответы клиента на вопросы опросника (показываем на превью, он их подписывает).
+  const [bnq, setBnq] = useState<BnqAnswer[]>([]);
 
   // #15b — режим правки данных компании + черновик редактируемого поля (адрес переписки).
   const [editingCompany, setEditingCompany] = useState(false);
@@ -364,8 +418,8 @@ export const CompanyConfirm = () => {
   const [asDraft, setAsDraft] = useState<{
     mode: 'from-directors' | 'new-person';
     directorId: string; dirEmail: string; dirPhone: string;
-    newName: string; newDesignation: string; newEmail: string; newPhone: string;
-  }>({ mode: 'from-directors', directorId: '', dirEmail: '', dirPhone: '', newName: '', newDesignation: '', newEmail: '', newPhone: '' });
+    newName: string; newDesignation: string; newEmail: string; newPhone: string; newPan: string;
+  }>({ mode: 'from-directors', directorId: '', dirEmail: '', dirPhone: '', newName: '', newDesignation: '', newEmail: '', newPhone: '', newPan: '' });
 
   // #17 — UBO-строки + декларация. FATCA/CRS перенесён в опросник (Q4b) — здесь нет.
   const [uboRows, setUboRows] = useState<UboRow[]>([]);
@@ -392,6 +446,7 @@ export const CompanyConfirm = () => {
       setCorrespondenceDraft(c.correspondenceAddress ?? '');
     });
     getSignatories().then(setSignatories);
+    getBnq().then(setBnq); // #60 — ответы опросника для превью
     getDirectors().then((list) => {
       setDirectors(list);
       const rows: DirRow[] = list.map((d) => ({
@@ -440,6 +495,13 @@ export const CompanyConfirm = () => {
   const addr = company
     ? `${company.registeredAddress.line}, ${company.registeredAddress.city}, ${company.registeredAddress.state} — ${company.registeredAddress.pin}`
     : '';
+
+  // #60 — видимые ответы опросника для превью: тот же порядок/скип, что в анкете
+  // (buildStepOrder: Q8 инлайн под Q7, Q10/Q11 скрыты при отсутствии ВЭД). QAS показан
+  // в секции «Уполномоченный подписант» — здесь дублировать не нужно.
+  const answerRows = buildStepOrder(bnq)
+    .map((i) => bnq[i])
+    .filter((a) => a && a.q !== 'QAS');
 
   const startEdit = () => {
     setCorrespondenceDraft(company?.correspondenceAddress ?? '');
@@ -553,8 +615,9 @@ export const CompanyConfirm = () => {
     : undefined;
   const asView = asConfig?.asAssigned
     ? asConfig.asMode === 'from-directors'
-      ? { name: asDirector?.fullName ?? '', designation: asDirector?.designation ?? t.asFromDirectors, email: asConfig.asDirectorEmail, phone: asConfig.asDirectorPhone }
-      : { name: asConfig.asNewName, designation: asConfig.asNewDesignation || t.asNewPersonRole, email: asConfig.asNewEmail, phone: asConfig.asNewPhone }
+      ? { name: asDirector?.fullName ?? '', designation: asDirector?.designation ?? t.asFromDirectors, email: asConfig.asDirectorEmail, phone: asConfig.asDirectorPhone, pan: '' }
+      // #58 — для «another person» показываем PAN в превью (read-only).
+      : { name: asConfig.asNewName, designation: asConfig.asNewDesignation || t.asNewPersonRole, email: asConfig.asNewEmail, phone: asConfig.asNewPhone, pan: asConfig.asNewPan }
     : null;
 
   const startEditAs = () => {
@@ -568,19 +631,20 @@ export const CompanyConfirm = () => {
       newDesignation: asConfig.asNewDesignation,
       newEmail: asConfig.asNewEmail,
       newPhone: asConfig.asNewPhone,
+      newPan: asConfig.asNewPan,
     });
     setAsEditing(true);
   };
   const cancelEditAs = () => setAsEditing(false);
-  // Валидно: из директоров — выбран директор + контакты; «свой» — ФИО + контакты (PAN не нужен).
+  // Валидно: из директоров — выбран директор + контакты; «свой» — ФИО + контакты + PAN (#58).
   const asDraftValid = asDraft.mode === 'from-directors'
     ? !!asDraft.directorId && !!asDraft.dirEmail.trim() && !!asDraft.dirPhone.trim()
-    : !!asDraft.newName.trim() && !!asDraft.newEmail.trim() && !!asDraft.newPhone.trim();
+    : !!asDraft.newName.trim() && !!asDraft.newEmail.trim() && !!asDraft.newPhone.trim() && PERSON_PAN_REGEX.test(asDraft.newPan);
   const saveAs = async () => {
     if (!asDraftValid) return;
     const br = asDraft.mode === 'from-directors'
       ? await setAsFromBnq({ asMode: 'from-directors', asDirectorId: asDraft.directorId, asDirectorEmail: asDraft.dirEmail.trim(), asDirectorPhone: asDraft.dirPhone.trim() })
-      : await setAsFromBnq({ asMode: 'new-person', asNewName: asDraft.newName.trim(), asNewDesignation: asDraft.newDesignation.trim(), asNewEmail: asDraft.newEmail.trim(), asNewPhone: asDraft.newPhone.trim() });
+      : await setAsFromBnq({ asMode: 'new-person', asNewName: asDraft.newName.trim(), asNewDesignation: asDraft.newDesignation.trim(), asNewEmail: asDraft.newEmail.trim(), asNewPhone: asDraft.newPhone.trim(), asNewPan: asDraft.newPan.trim() });
     setAsConfig(br.signerConfig);
     setAsEditing(false);
   };
@@ -720,12 +784,16 @@ export const CompanyConfirm = () => {
               </SectionHead>
 
               {!editingCompany ? (
-                <Grid>
+                <Grid $lw="20rem">
+                  {/* #59 — инфо по юрлицу: наименование + тип юрлица + дата регистрации */}
                   <DT>{t.labels.legalName}</DT><DD>{company.legalName}<Reg>{t.fromRegistry}</Reg></DD>
+                  <DT>{t.labels.legalType}</DT><DD>{company.entityType}<Reg>{t.fromRegistry}</Reg></DD>
+                  <DT>{t.labels.incorporationDate}</DT><DD>{company.incorporationDate}<Reg>{t.fromRegistry}</Reg></DD>
                   <DT>{t.labels.pan}</DT><DD>{company.pan}</DD>
                   <DT>{t.labels.cin}</DT><DD>{company.cin}<Reg>{t.fromRegistry}</Reg></DD>
                   <DT>{t.labels.gstin}</DT><DD>{company.gstin}<Reg>{t.fromRegistry}</Reg></DD>
                   <DT>{t.labels.address}</DT><DD>{addr}<Reg>{t.fromRegistry}</Reg></DD>
+                  {/* #59 — correspondent address (if different) */}
                   <DT>{t.labels.correspondence}</DT>
                   <DD>{company.correspondenceAddress || <Empty>{t.correspondencePlaceholder}</Empty>}</DD>
                 </Grid>
@@ -742,8 +810,10 @@ export const CompanyConfirm = () => {
 
                   {/* reg-поля редактируемы; правка → требует подтверждающий документ → DVU */}
                   {renderRegField('legalName', t.labels.legalName)}
-                  {/* PAN — идентификатор, не редактируется (как и в view: без бейджа из реестра) */}
+                  {/* #59 — тип юрлица + дата регистрации (из реестра, read-only) + PAN-идентификатор */}
                   <Grid>
+                    <DT>{t.labels.legalType}</DT><DD>{company.entityType}<Reg>{t.fromRegistry}</Reg></DD>
+                    <DT>{t.labels.incorporationDate}</DT><DD>{company.incorporationDate}<Reg>{t.fromRegistry}</Reg></DD>
                     <DT>{t.labels.pan}</DT><DD>{company.pan}</DD>
                   </Grid>
                   {renderRegField('cin', t.labels.cin)}
@@ -767,6 +837,26 @@ export const CompanyConfirm = () => {
                   />
                 </EditForm>
               )}
+            </Section>
+          )}
+
+          {/* #60 — ответы клиента на вопросы опросника (он их подписывает / даёт consent).
+              Read-only; правка — в анкете (единое место правки, ссылка ведёт на /company/bnq). */}
+          {answerRows.length > 0 && (
+            <Section>
+              <SectionHead>
+                <SectionTitle>{t.sectionAnswers}</SectionTitle>
+                <LinkBtn type="button" onClick={() => navigate('/company/bnq')}>{t.answersEdit}</LinkBtn>
+              </SectionHead>
+              <Hint>{t.answersHint}</Hint>
+              <Grid $lw="20rem">
+                {answerRows.map((a) => (
+                  <Fragment key={a.q}>
+                    <DT>{t.qLabels[a.q] ?? a.attribute}</DT>
+                    <DD>{a.value ? a.value : <Empty>{t.answersEmpty}</Empty>}</DD>
+                  </Fragment>
+                ))}
+              </Grid>
             </Section>
           )}
 
@@ -812,6 +902,7 @@ export const CompanyConfirm = () => {
                   <Grid>
                     <DT>{t.asName}</DT><DD>{asView.name}</DD>
                     <DT>{t.asDesignation}</DT><DD>{asView.designation}</DD>
+                    {asView.pan && (<><DT>{t.asPanLabel}</DT><DD>{asView.pan}</DD></>)}
                     <DT>{t.asEmail}</DT><DD>{asView.email || <Empty>—</Empty>}</DD>
                     <DT>{t.asPhone}</DT><DD>{asView.phone || <Empty>—</Empty>}</DD>
                   </Grid>
@@ -862,7 +953,12 @@ export const CompanyConfirm = () => {
                       <TextField label={t.asPhone} value={asDraft.newPhone} size="m"
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDraft((d) => ({ ...d, newPhone: e.target.value }))} />
                     </Row>
-                    <Hint>{t.asPanNote}</Hint>
+                    {/* #58 — PAN обязателен для «another person» (сверка на VKYC ↔ Board Resolution). */}
+                    <TextField label={t.asPanLabel} value={asDraft.newPan} size="m" placeholder="ABCDE1234F"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsDraft((d) => ({ ...d, newPan: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) }))} />
+                    {asDraft.newPan && !PERSON_PAN_REGEX.test(asDraft.newPan)
+                      ? <Note view="negative" size="s" title={t.asPanError} text="" />
+                      : <Hint>{t.asPanHint}</Hint>}
                   </>
                 )}
               </UboCard>

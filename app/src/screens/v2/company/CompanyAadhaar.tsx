@@ -29,7 +29,7 @@ const dict: Record<Lang, {
   cPrivacyLabel: string; cPrivacyDesc: string;
   cRegistryLabel: string; cRegistryDesc: string;
   registryLead: string;
-  qrCaption: string; appLink: string;
+  qrCaption: string; appLink: string; learnMore: string;
   ctaScanned: string; waiting: string; success: string;
   errorTitle: string; errorText: string; retry: string; demoFail: string;
   cont: string;
@@ -48,6 +48,7 @@ const dict: Record<Lang, {
     registryLead: 'Чтобы продолжить, подтвердите доступ к реестрам — мы используем его для верификации полученных данных.',
     qrCaption: 'Наведите камеру сюда',
     appLink: 'Скачать приложение Aadhaar',
+    learnMore: 'Подробнее',
     ctaScanned: 'Я отсканировал код',
     waiting: 'Получаем данные из UIDAI…',
     success: 'Aadhaar-данные получены из UIDAI',
@@ -71,6 +72,7 @@ const dict: Record<Lang, {
     registryLead: 'To continue, confirm registry access — we use it to verify the retrieved data.',
     qrCaption: 'Point your camera here',
     appLink: 'Download the Aadhaar App',
+    learnMore: 'Learn more',
     ctaScanned: 'I have scanned the code',
     waiting: 'Fetching data from UIDAI…',
     success: 'Aadhaar data received from UIDAI',
@@ -178,6 +180,7 @@ export const CompanyAadhaar = () => {
               qrLockedHint: t.qrLockedHint,
               qrCaption: t.qrCaption,
               appLink: t.appLink,
+              learnMore: t.learnMore,
               ctaScanned: t.ctaScanned,
               waiting: t.waiting,
               success: t.success,

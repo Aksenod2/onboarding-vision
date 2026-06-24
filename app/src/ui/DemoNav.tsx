@@ -18,7 +18,7 @@ const MANAGER: Node[] = [
 ];
 
 const V2: Node[] = [
-  { l: '1 Лендинг', p: '/v2/sole' },
+  { l: '1 Лендинг (старт)', p: '/v2/sole?flow=sole' },
   { l: '2 Письмо', p: '/v2/email' },
   { l: '3 Регистрация', p: '/v2/login' },
   { l: '4 Дашборд', p: '/v2/dashboard' },
@@ -32,17 +32,19 @@ const V2: Node[] = [
   { l: '12 Подписание', p: '/v2/sign' },
 ];
 
-// Сценарий Компания (мульти-логин). Фаза A заполнителя → дашборд-монитор → сессия подписанта.
+// Сценарий Компания (мульти-логин). Начало пути = общий лендинг «Become our customer»
+// (`/v2/sole?flow=company`), кнопка которого ведёт во вход Компании (Aadhaar).
+// Затем дашборд-монитор → сессия подписанта.
 const COMPANY: Node[] = [
-  { l: '1 Старт', p: '/company' },
-  { l: '2 Вход через Aadhaar', p: '/company/aadhaar' },
+  { l: '1 Лендинг (старт)', p: '/v2/sole?flow=company' },
+  { l: '2 Вход Aadhaar', p: '/company/aadhaar' },
   { l: '3 Пин-код', p: '/company/passcode' },
   { l: '4 Анкета (PAN + вопросы)', p: '/company/bnq' },
   { l: '5 Данные компании', p: '/company/confirm' },
   { l: '6 Подписанты и BR', p: '/company/signatories-br' },
-  { l: '7 Приглашения', p: '/company/dispatch' },
-  { l: '8 Дашборд (монитор)', p: '/company/dashboard' },
-  { l: '9 Сессия подписанта', p: '/company/signatory' },
+  { l: '7 Дашборд (монитор)', p: '/company/dashboard' },
+  { l: '8 Сессия подписанта', p: '/company/signatory' },
+  { l: '9 Интернет-банк', p: '/company/bank' },
   { l: '• Повторный вход', p: '/company/login' },
 ];
 

@@ -6,10 +6,14 @@ import { radii, eyebrow } from '../designSystem';
 import { useLanguage } from './LanguageContext';
 import type { Lang } from './LanguageContext';
 import { useCompany } from './CompanyContext';
-import { COMPANY_HUB_ITEMS } from './companySteps';
+import { COMPANY_HUB_ITEMS, COMPANY_DASHBOARD_ROUTE } from './companySteps';
 import type { HubItem } from './companySteps';
-import { getCompanyCase, getApplicationBlocks } from '../../mock/v2/companyApi';
+import { getCompanyCase, getApplicationBlocks, getInitiator } from '../../mock/v2/companyApi';
+import { goesThroughPhaseB } from '../../mock/v2/companyTypes';
 import type { ApplicationBlock, ApplicationBlockStatus } from '../../mock/v2/companyTypes';
+
+// Собственная сессия фазы B запускается на /company/signatory (резюм по currentStep).
+const COMPANY_SIGNATORY_ROUTE = '/company/signatory';
 
 // Левая навигация-хаб заявки Компании (заполнитель). Замещает верхний StepProgress.
 // Структура: шапка заявки (компания + № + общий статус) → разделы фазы A (кликабельны)
@@ -27,9 +31,14 @@ const dict: Record<Lang, { sectionsLabel: string; inProgress: string; completed:
   en: { sectionsLabel: 'Application sections', inProgress: 'In Progress', completed: 'Completed', appNo: 'Application', verifyingNote: 'Verifying', actionNote: 'Action required' },
 };
 
-// Маппинг hub-B пункт → блок заявки (getApplicationBlocks) для статуса.
+// Маппинг hub-пункт → блок заявки (getApplicationBlocks) для статуса.
+// hub-ident / hub-sign — блоки фазы B (PI и Signing — разные процессы, Денис 2026-06-23);
+// co-confirm («Данные компании») сопоставлен блоку company-details, чтобы #62 (DVU = Action
+// Required из «Данных компании») подсвечивался и в левой панели.
 const HUB_TO_BLOCK: Record<string, string> = {
-  'hub-ident': 'identification-signing',
+  'hub-ident': 'personal-identification',
+  'hub-sign': 'signing',
+  'co-confirm': 'company-details',
 };
 
 const PanelRoot = styled.nav`
@@ -160,12 +169,16 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
   const { pathname } = useLocation();
   // Версия mock-состояния: инкрементится при мутациях без смены роута
   // (refresh статусов, догрузка документа на дашборде) → перечитываем блоки/кейс.
-  const { caseVersion } = useCompany();
+  const { caseVersion, setActiveSignatoryId, setSessionOrigin } = useCompany();
 
   const [companyName, setCompanyName] = useState('');
   const [appId, setAppId] = useState('');
   const [done, setDone] = useState(false);
   const [blocks, setBlocks] = useState<ApplicationBlock[]>([]);
+  // Driver дизейбла фазы B (Марго 23.06): идёт ли САМ заполнитель в фазу B (он назначен
+  // Director/AS) или номинировал другого. Данные, НЕ хардкод роли «офис-бой».
+  const [fillerId, setFillerId] = useState<string | null>(null);
+  const [fillerIsSignatory, setFillerIsSignatory] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -176,6 +189,11 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
       setDone(c.status === 'Completed');
     });
     getApplicationBlocks().then((b) => { if (alive) setBlocks(b); });
+    getInitiator().then((s) => {
+      if (!alive) return;
+      setFillerId(s?.id ?? null);
+      setFillerIsSignatory(!!s && goesThroughPhaseB(s));
+    });
     return () => { alive = false; };
     // Перечитываем при смене роута И при мутации состояния без навигации
     // (caseVersion): статусы блоков живые (после рассылки/refresh/догрузки документа).
@@ -187,12 +205,25 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
 
   const stateOf = (item: HubItem, idx: number): ItemState => {
     if (item.phase === 'A') {
+      // #62 — DVU по «Данным компании»: если блок company-details = action-required,
+      // подсвечиваем пункт оранжевым Action Required (поверх done/pending), пока не на нём.
+      const blockId = HUB_TO_BLOCK[item.id];
+      if (blockId && !pathname.startsWith(item.route)) {
+        const block = blocks.find((b) => b.id === blockId);
+        if (block?.status === 'action-required' || block?.status === 'in-request') return 'action';
+      }
       if (pathname.startsWith(item.route)) return 'active';
       // Если мы вне фазы A (на дашборде) — все A пройдены (done).
       if (activeIdx === -1) return 'done';
       return idx < activeIdx ? 'done' : 'pending';
     }
-    // Фаза B — по статусу блока.
+    // Фаза B. hub-ident / hub-sign — собственные шаги заполнителя (его личная сессия видео-
+    // идентификации и подписания). Марго 23.06: если заполнитель САМ не подписант (номинировал
+    // другого / не назначен Director/AS) — оба пункта disabled, он только мониторит остальных.
+    // Driver — данные (fillerIsSignatory), не флаг «офис-бой».
+    if ((item.id === 'hub-ident' || item.id === 'hub-sign') && !fillerIsSignatory) {
+      return 'locked';
+    }
     const block = blocks.find((b) => b.id === HUB_TO_BLOCK[item.id]);
     return blockToState(block?.status, !!item.locked);
   };
@@ -200,9 +231,28 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
   const go = (item: HubItem, state: ItemState) => {
     if (state === 'locked') return;
     onNavigate?.();
-    // action (in-request) → ведём на дашборд к карточке-обращению банка (догрузка там, не в панели).
-    const target = state === 'action' ? `${item.route}#bank-request` : item.route;
-    if (!pathname.startsWith(item.route) || item.phase === 'B') navigate(target);
+    // action (DVU / in-request):
+    // «Данные компании» = финальная (сформированная) анкета → ведём на /company/confirm,
+    // НЕ на вопросы /company/bnq и НЕ на дашборд (правка Дениса 2026-06-23).
+    // остальные блоки → на дашборд к карточке-обращению банка (догрузка там, не в панели).
+    if (state === 'action') {
+      if (item.id === 'co-confirm') { navigate('/company/confirm'); return; }
+      navigate(`${COMPANY_DASHBOARD_ROUTE}#bank-request`); return;
+    }
+    // hub-ident / hub-sign кликабельны только когда заполнитель — подписант (state ≠ locked
+    // отсёкся выше). Ведём в ЕГО СОБСТВЕННУЮ сессию фазы B (не «войти как другой», не дашборд):
+    // активный подписант = заполнитель, origin 'initiator' (инициатор-подписант минул дашборд).
+    // Сессия едина (Aadhaar → подписание → видео) и резюмится по currentStep, поэтому оба
+    // пункта ведут в один поток — он откроется на нужном шаге.
+    if (item.id === 'hub-ident' || item.id === 'hub-sign') {
+      if (fillerId) {
+        setActiveSignatoryId(fillerId);
+        setSessionOrigin('initiator');
+      }
+      navigate(COMPANY_SIGNATORY_ROUTE);
+      return;
+    }
+    if (!pathname.startsWith(item.route) || item.phase === 'B') navigate(item.route);
   };
 
   return (

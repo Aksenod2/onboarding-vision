@@ -9,9 +9,10 @@
 //   заголовок (рисует экран) → «How it works» (AadhaarHowTo) ДО QR → ссылка «Скачать приложение»
 //   → согласия (гейтят QR) → QR ПОД ЗАМКОМ до согласий → кнопка «Я отсканировал» → спиннер
 //   → блок данных (AadhaarResultBox, 5 полей, номер маскирован) → контекстный слот-продолжение.
+import { useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { Button, Note, Checkbox } from '@salutejs/sdds-serv'; // TODO свериться с MCP
-import { textPrimary, textSecondary, bodySBold } from '@salutejs/sdds-themes/tokens';
+import { textPrimary, textSecondary, textAccent, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../designSystem';
 import { AadhaarHowTo } from './AadhaarHowTo';
 import { AadhaarResultBox } from '../../screens/v2/company/companyUi';
@@ -34,6 +35,7 @@ export interface AadhaarScanPanelTexts {
   qrLockedHint: string;
   qrCaption: string;
   appLink: string;
+  learnMore?: string; // #51 — подпись вторичной кнопки «Learn more» (дефолт — из словаря экрана)
   ctaScanned: string;
   waiting: string;
   success: string;
@@ -65,11 +67,27 @@ const Wrap = styled.div`
   flex-direction: column;
   gap: 1.25rem;
 `;
-// «Скачать приложение» — тихой строкой рядом с инструкцией, ДО согласий и QR.
+// #51 (Марго 23.06, форма уточнена Денисом): «Download app» и «Learn more» — ссылки одного типа,
+// меняем местами только АКЦЕНТ (не делаем primary/secondary кнопки). Логика Марго: в Индии ~10%
+// пользуются Aadhaar App, а без неё человек не пройдёт — значит акцент (зелёный) на Download.
+const AppCtaRow = styled.div`
+  display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; align-self: flex-start;
+`;
+// Download — акцентная (зелёная) заметная ссылка.
 const AppLink = styled.a`
-  align-self: flex-start;
+  color: ${textAccent};
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  &:hover { opacity: 0.8; }
+`;
+// Learn more — приглушённая серая ссылка.
+const LearnMoreLink = styled.button`
+  background: none; border: none; padding: 0;
   color: ${textSecondary};
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
@@ -142,16 +160,28 @@ export const AadhaarScanPanel = ({
   const consentsGiven = consents.every((c) => c.checked);
   // На фазах qr/error экран ещё на этапе «дай согласие → отсканируй»; данных нет.
   const isPreScan = phase === 'qr' || phase === 'error';
+  // #51 — модалка «Learn more» теперь открывается вторичной кнопкой в ряду (инлайн-ссылку прячем).
+  const [howToOpen, setHowToOpen] = useState(false);
 
   return (
     <Wrap>
-      {/* 1. «How it works» — ДО QR. + ссылка «Скачать приложение» рядом с инструкцией. */}
+      {/* 1. «How it works» — ДО QR. Под инструкцией ряд: «Download app» (зелёный) + «Learn more» (серый). */}
       {isPreScan && (
         <>
-          <AadhaarHowTo variant={variant} />
-          {showAppLink && (
-            <AppLink href={appLinkHref} target="_blank" rel="noopener noreferrer">{t.appLink}</AppLink>
-          )}
+          <AadhaarHowTo
+            variant={variant}
+            hideInlineLink
+            howToOpen={howToOpen}
+            onHowToOpenChange={setHowToOpen}
+          />
+          <AppCtaRow>
+            {showAppLink && (
+              <AppLink href={appLinkHref} target="_blank" rel="noopener noreferrer">{t.appLink}</AppLink>
+            )}
+            <LearnMoreLink type="button" onClick={() => setHowToOpen(true)}>
+              {t.learnMore ?? 'Learn more'}
+            </LearnMoreLink>
+          </AppCtaRow>
         </>
       )}
 

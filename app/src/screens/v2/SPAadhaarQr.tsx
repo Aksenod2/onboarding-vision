@@ -32,6 +32,7 @@ const dict: Record<
     qrLockedHint: string;
     qrCaption: string;
     appLink: string;
+    learnMore: string;
     consentLabel: string;
     consentDescription: string;
     ctaScanned: string;
@@ -49,6 +50,7 @@ const dict: Record<
     qrLockedHint: 'Дайте согласие выше, чтобы получить QR-код.',
     qrCaption: 'Откройте приложение Aadhaar → Scan QR',
     appLink: 'Скачать приложение Aadhaar',
+    learnMore: 'Подробнее',
     // Согласие на Aadhaar eKYC — текст из BRD 9-Consents-Dashboard (suggested)
     consentLabel: 'Согласие на Aadhaar eKYC',
     consentDescription:
@@ -67,6 +69,7 @@ const dict: Record<
     qrLockedHint: 'Give the consent above to get the QR code.',
     qrCaption: 'Open the Aadhaar App → Scan QR',
     appLink: 'Download the Aadhaar App',
+    learnMore: 'Learn more',
     // Aadhaar eKYC Consent — текст из BRD 9-Consents-Dashboard (suggested)
     consentLabel: 'Aadhaar eKYC Consent',
     consentDescription:
@@ -203,6 +206,7 @@ export const SPAadhaarQr = () => {
               qrLockedHint: t.qrLockedHint,
               qrCaption: t.qrCaption,
               appLink: t.appLink,
+              learnMore: t.learnMore,
               ctaScanned: t.ctaScanned,
               waiting: t.waiting,
               success: t.successText,

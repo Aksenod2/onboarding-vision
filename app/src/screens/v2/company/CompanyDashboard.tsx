@@ -34,8 +34,10 @@ const dict: Record<Lang, {
   // #34/#25 — DVU-догрузка по обратному запросу банка (карточка-обращение банка)
   bankRequestTitle: string;
   dvuHint: string; dvuUpload: string; dvuUploading: string; dvuUploaded: string; dvuToast: string;
-  // секция drill-down участников + подсказка-финал
-  signatoriesHint: string; hint: string;
+  // объединённая секция drill-down участников (PI + Signing в одном списке) + подсказка-финал
+  participantsTitle: string; participantsHint: string; hint: string;
+  // короткие префиксы для двух бейджей в шапке объединённого блока
+  badgePi: string; badgeSigning: string;
   // инфобокс «заявка отправлена» (мягкая благодарность вместо блокирующей модалки)
   sentBanner: string;
 }> = {
@@ -64,8 +66,11 @@ const dict: Record<Lang, {
     dvuUploading: 'Загрузка…',
     dvuUploaded: 'Документ загружен',
     dvuToast: 'Документ отправлен в банк',
-    signatoriesHint: 'Коллеги-подписанты: идентификация и подписание документов.',
+    participantsTitle: 'Идентификация и подписание',
+    participantsHint: 'Коллеги-подписанты проходят видеоидентификацию и подписывают документы (DSC).',
     hint: 'Счёт откроется, когда все участники пройдут идентификацию и подпишут документы.',
+    badgePi: 'Идентификация',
+    badgeSigning: 'Подписание',
     sentBanner: 'Заявка отправлена подписантам. Следите за статусом подписания и видеоидентификации ниже.',
   },
   en: {
@@ -93,8 +98,11 @@ const dict: Record<Lang, {
     dvuUploading: 'Uploading…',
     dvuUploaded: 'Document uploaded',
     dvuToast: 'Document sent to the bank',
-    signatoriesHint: 'Co-signatories: identification and document signing.',
+    participantsTitle: 'Identification & Signing',
+    participantsHint: 'Co-signatories complete video identification and sign the documents (DSC).',
     hint: 'The account will open once all participants complete identification and sign the documents.',
+    badgePi: 'Identification',
+    badgeSigning: 'Signing',
     sentBanner: 'The application has been sent to signatories. Track signing and video identification status below.',
   },
 };
@@ -137,6 +145,10 @@ const BlockBadge = styled.span<{ $status: ApplicationBlockStatus }>`
   ${bodySBold}; font-size:0.74rem; letter-spacing:0.03em; padding:0.22rem 0.65rem; border-radius:14px;
   ${({ $status }) => blockStatusStyle[$status]}
 `;
+// Шапка объединённого блока: ДВА маленьких сводных бейджа (Идентификация / Подписание) рядом —
+// процессы концептуально раздельные, поэтому общий статус не схлопываем, а показываем оба.
+const HeadBadges = styled.div`display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;`;
+const HeadBadgePrefix = styled.span`${eyebrow}; font-size:0.62rem; color:${textSecondary}; margin-right:0.1rem;`;
 
 // --- Drill-down: участники внутри блока «Personal Identification & Signing» ---
 const List = styled.div`display:flex; flex-direction:column; gap:0.75rem; padding:0.25rem 0 0.5rem;`;
@@ -159,8 +171,8 @@ const PersonTop = styled.div`display:flex; align-items:center; gap:0.5rem; flex-
 const PName = styled.span`${bodySBold}; font-size:0.92rem; color:${textPrimary};`;
 const Chips = styled.div`display:flex; gap:0.3rem; flex-wrap:wrap;`;
 const Chip = styled.span`font-size:0.68rem; font-weight:600; color:rgb(33,160,56); background:rgba(33,160,56,0.1); border-radius:0.4rem; padding:0.1rem 0.45rem;`;
-// Два под-статуса в строке участника: подписание + VKYC.
-const SubStatuses = styled.div`display:flex; gap:1rem; flex-wrap:wrap;`;
+// Два под-статуса участника — ДВЕ строки (VKYC + Подписание): на узкой панели читается лучше колонок (Денис).
+const SubStatuses = styled.div`display:flex; flex-direction:column; gap:0.25rem;`;
 const SubStatus = styled.span<{ $status: SubStepStatus }>`
   font-size:0.8rem; display:inline-flex; align-items:center; gap:0.35rem;
   color:${({ $status }) => ($status === 'done' ? '#1a7a28' : '#475569')};
@@ -282,32 +294,37 @@ export const CompanyDashboard = () => {
     navigate('/company/signatory'); // мини-сессия резюмится по currentStep
   };
 
-  // Сводный статус блока «Personal Identification & Signing» — для заголовка аккордеона.
-  const identBlock = blocks.find((b) => b.kind === 'identification-signing');
+  // Денис 2026-06-23 (подтверждено Марго): Personal Identification (видеоверификация) и Signing
+  // (подписание) — РАЗНЫЕ процессы → ДВЕ отдельные секции-монитора. Порядок: PI → Signing.
+  const identBlock = blocks.find((b) => b.kind === 'personal-identification');
+  const signingBlock = blocks.find((b) => b.kind === 'signing');
 
-  // Обращение банка («In request»): открыто, когда какой-либо блок = in-request (теперь это
-  // «Идентификация и подписание») и есть незакрытый запрос документа. Действие (догрузка) —
-  // здесь, в правом контенте; статус виден на блоке в левой панели (оранжевый).
-  const bankRequestOpen = blocks.some((b) => b.status === 'in-request') && !!data.dvuRequest;
+  // #62 — обращение банка (DVU): открыто, когда блок «Данные компании» = action-required
+  // и есть незакрытый запрос документа. Действие (догрузка) — здесь, в правом контенте;
+  // статус виден на блоке «Данные компании» в левой панели (оранжевый Action Required).
+  const bankRequestOpen = blocks.some((b) => b.status === 'action-required' || b.status === 'in-request') && !!data.dvuRequest;
 
-  // Содержимое drill-down: список участников с двумя под-статусами.
+  // Содержимое объединённого блока-монитора: ОДИН список участников, каждый человек — ОДНА карточка
+  // (без дублирования) с ДВУМЯ строками под-статуса: VKYC + Подписание. Действия по человеку
+  // («Войти как»/«Напомнить») — ОДИН раз на строку. Карточка считается «done», когда оба статуса done.
   const participantsBody = (
     <List>
       {recipients.map((s) => {
         const sDone = s.status === 'done';
-        const signing = signingSubStatus(s);
         const vkyc = vkycSubStatus(s);
+        const signing = signingSubStatus(s);
+        const bothDone = vkyc === 'done' && signing === 'done';
         return (
-          <PersonCard key={s.id} $done={sDone}>
-            <Avatar $done={sDone}>{initials(s.fullName)}</Avatar>
+          <PersonCard key={s.id} $done={bothDone}>
+            <Avatar $done={bothDone}>{initials(s.fullName)}</Avatar>
             <PersonInfo>
               <PersonTop>
                 <PName>{s.fullName}</PName>
                 <Chips>{s.roles.map((r) => <Chip key={r}>{lang === 'ru' ? roleLabel[r].ru : roleLabel[r].en}</Chip>)}</Chips>
               </PersonTop>
               <SubStatuses>
-                <SubStatus $status={signing}><span className="lbl">{t.signing}:</span> {t.subStatus[signing]}</SubStatus>
                 <SubStatus $status={vkyc}><span className="lbl">{t.vkyc}:</span> {t.subStatus[vkyc]}</SubStatus>
+                <SubStatus $status={signing}><span className="lbl">{t.signing}:</span> {t.subStatus[signing]}</SubStatus>
               </SubStatuses>
             </PersonInfo>
             {!sDone && (
@@ -373,21 +390,40 @@ export const CompanyDashboard = () => {
         </RequestPanel>
       )}
 
-      {/* DRILL-DOWN УЧАСТНИКОВ (Б.2) — секция «Идентификация и подписание».
-          Аккордеон со сводным статус-бейджем; содержимое = список ЛЮДЕЙ с двумя под-статусами
-          (подписание + VKYC) + «Напомнить»/«Войти как». «Обновить статусы» — тихая ссылка у заголовка. */}
-      {identBlock && (
+      {/* DRILL-DOWN УЧАСТНИКОВ (Б.2) — ОДИН объединённый блок-монитор «Идентификация и подписание».
+          Денис 2026-06-24: на дашборде это ОДИН список людей (без дубликата), у каждого ДВА под-статуса
+          (VKYC + Подписание) в две строки. Процессы концептуально раздельные — это видно в навигации
+          (PI и Signing — два пункта) и в getApplicationBlocks (два блока для статусов панели), но на
+          дашборде их сводим в один перечень. Сводный статус — ДВА маленьких бейджа в шапке (Идентификация /
+          Подписание): берут готовые статусы обоих блоков, не схлопывая процессы в один. Действия
+          (Напомнить/Войти как) — ОДИН раз на строку. «Обновить статусы» — у заголовка блока. */}
+      {(identBlock || signingBlock) && (
         <Section>
           <SectionHead>
-            <SectionLabel>{lang === 'ru' ? identBlock.titleRu : identBlock.titleEn}</SectionLabel>
+            <SectionLabel>{t.participantsTitle}</SectionLabel>
             <Button view="clear" size="s" text={t.refresh} onClick={refresh} />
           </SectionHead>
-          {!done && <Hint>{t.signatoriesHint}</Hint>}
+          {!done && <Hint>{t.participantsHint}</Hint>}
           <Accordion stretching="filled" defaultActiveEventKey={done ? [] : [0]}>
             <AccordionItem
               eventKey={0}
-              title={lang === 'ru' ? identBlock.titleRu : identBlock.titleEn}
-              contentRight={<BlockBadge $status={identBlock.status}>{t.blockStatus[identBlock.status]}</BlockBadge>}
+              title={t.participantsTitle}
+              contentRight={(
+                <HeadBadges>
+                  {identBlock && (
+                    <span>
+                      <HeadBadgePrefix>{t.badgePi}</HeadBadgePrefix>
+                      <BlockBadge $status={identBlock.status}>{t.blockStatus[identBlock.status]}</BlockBadge>
+                    </span>
+                  )}
+                  {signingBlock && (
+                    <span>
+                      <HeadBadgePrefix>{t.badgeSigning}</HeadBadgePrefix>
+                      <BlockBadge $status={signingBlock.status}>{t.blockStatus[signingBlock.status]}</BlockBadge>
+                    </span>
+                  )}
+                </HeadBadges>
+              )}
             >
               {participantsBody}
             </AccordionItem>

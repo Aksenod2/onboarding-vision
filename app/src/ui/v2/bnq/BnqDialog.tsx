@@ -46,6 +46,7 @@ export interface BnqAsAssignment {
   asNewDesignation?: string;
   asNewEmail?: string;
   asNewPhone?: string;
+  asNewPan?: string; // #58 — PAN обязателен для «another person»
 }
 
 export interface BnqDataPort {
@@ -131,7 +132,9 @@ const dict: Record<Lang, {
   qasDesignationLabel: string;
   qasEmailLabel: string;
   qasPhoneLabel: string;
-  qasPanNote: string;
+  qasPanLabel: string;
+  qasPanHint: string;
+  qasPanError: string;
   // Q5
   q5Label: string;
   q5Yes: string;
@@ -210,7 +213,9 @@ const dict: Record<Lang, {
     qasDesignationLabel: 'Должность / роль',
     qasEmailLabel: 'Email',
     qasPhoneLabel: 'Телефон',
-    qasPanNote: 'PAN указывать не нужно — подписант введёт его сам при идентификации.',
+    qasPanLabel: 'PAN подписанта',
+    qasPanHint: 'PAN обязателен — он нужен для сверки подписанта на видеоидентификации с указанным в Board Resolution.',
+    qasPanError: 'Укажите корректный PAN. Пример: ABCDE1234F',
     q5Label:
       'Занимаете ли вы или ваши близкие родственники (в течение последних 5 лет) публичные должности (госслужащий, судья, военный руководитель)?',
     q5Yes: 'Да',
@@ -285,7 +290,9 @@ const dict: Record<Lang, {
     qasDesignationLabel: 'Designation / role',
     qasEmailLabel: 'Email',
     qasPhoneLabel: 'Phone',
-    qasPanNote: 'No need to enter a PAN — the signatory will enter it themselves during identification.',
+    qasPanLabel: 'Signatory PAN',
+    qasPanHint: 'PAN is required — it is used to match the signatory at video identification with the one named in the Board Resolution.',
+    qasPanError: 'Enter a valid PAN. Example: ABCDE1234F',
     q5Label:
       'Do you or your close relatives hold or have held in the past 5 years any public positions (government officials, judges, military executives)?',
     q5Yes: 'Yes',
@@ -523,6 +530,9 @@ const ConfirmRow = styled.div`
 // «Нет» в обоих языках (RU «Нет, не …» / EN «No, I don't …»)
 export const isNoAnswer = (value: string) => /^\s*(no|нет)/i.test(value);
 
+// PAN физлица (#58, QAS «another person»): 5 букв, 4 цифры, 1 буква.
+const PERSON_PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+
 /**
  * Skip-флаги выводим НАПРЯМУЮ из ответов (single source of truth = массив bnq),
  * а не из отдельного React-state. Раньше держали скип в useState (skipQ8/skipTrade),
@@ -607,7 +617,8 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   const [asDirectorId, setAsDirectorId] = useState('');
   const [asDirEmail, setAsDirEmail] = useState('');
   const [asDirPhone, setAsDirPhone] = useState('');
-  const [asNew, setAsNew] = useState({ name: '', designation: '', email: '', phone: '' });
+  // #58 — pan добавлен в «свой» AS (обязателен).
+  const [asNew, setAsNew] = useState({ name: '', designation: '', email: '', phone: '', pan: '' });
 
   // ─── Загрузка BNQ ───────────────────────────────────────────────────────────
 
@@ -631,6 +642,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
           designation: a.asNewDesignation ?? '',
           email: a.asNewEmail ?? '',
           phone: a.asNewPhone ?? '',
+          pan: a.asNewPan ?? '',
         });
       }
     });
@@ -742,7 +754,9 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
           });
         } catch (_) { /* игнорируем */ }
       } else {
+        // #58 — для «another person» PAN обязателен и должен быть валиден.
         if (!asNew.name.trim() || !asNew.email.trim() || !asNew.phone.trim()) return;
+        if (!PERSON_PAN_REGEX.test(asNew.pan)) return;
         value = asNew.designation.trim() ? `${asNew.name} (${asNew.designation})` : asNew.name;
         try {
           await port.saveAsAssignment?.({
@@ -751,6 +765,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
             asNewDesignation: asNew.designation.trim(),
             asNewEmail: asNew.email.trim(),
             asNewPhone: asNew.phone.trim(),
+            asNewPan: asNew.pan.trim(),
           });
         } catch (_) { /* игнорируем */ }
       }
@@ -972,8 +987,9 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
     }
 
     // ── QAS: назначение Authorized Signatory (только Компания) ───────────────
-    // Радио «из директоров / свой». «Из директоров» → выбор директора + контакты;
-    // «свой» → ФИО, должность/роль, email, телефон. PAN НЕ запрашиваем (вводит сам AS в сессии).
+    // Радио «из директоров / свой». «Из директоров» → выбор директора + контакты (PAN из Probe42);
+    // «свой» (another person) → ФИО, должность/роль, email, телефон + ОБЯЗАТЕЛЬНЫЙ PAN
+    // (для сверки записанного в board resolution с тем, кто придёт на VKYC — Марго 2026-06-23).
     if (q === 'QAS') {
       return (
         <QBlock>
@@ -1031,7 +1047,15 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
                 label={t.qasPhoneLabel} value={asNew.phone} type="text"
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAsNew((p) => ({ ...p, phone: e.target.value }))}
               />
-              <FieldHint>{t.qasPanNote}</FieldHint>
+              {/* #58 — PAN обязателен для «another person» (сверка на VKYC ↔ Board Resolution). */}
+              <TextField
+                label={t.qasPanLabel} value={asNew.pan} type="text" placeholder="ABCDE1234F"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setAsNew((p) => ({ ...p, pan: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) }))}
+              />
+              {asNew.pan && !PERSON_PAN_REGEX.test(asNew.pan)
+                ? <Note view="negative" size="s" title={t.qasPanError} text="" />
+                : <FieldHint>{t.qasPanHint}</FieldHint>}
             </>
           )}
         </QBlock>
@@ -1296,7 +1320,8 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
     }
     if (currentQ.q === 'QAS') {
       if (asMode === 'from-directors') return !asDirectorId || !asDirEmail.trim() || !asDirPhone.trim();
-      return !asNew.name.trim() || !asNew.email.trim() || !asNew.phone.trim();
+      // #58 — «another person»: PAN обязателен и валиден.
+      return !asNew.name.trim() || !asNew.email.trim() || !asNew.phone.trim() || !PERSON_PAN_REGEX.test(asNew.pan);
     }
     return false;
   })();

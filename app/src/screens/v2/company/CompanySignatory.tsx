@@ -37,7 +37,7 @@ const dict: Record<Lang, {
   // aadhaar
   aadhaarTitle: string; aadhaarSub: string; aadhaarConsent: string; aadhaarConsentDesc: string;
   qrCaption: string; ctaScanned: string; aadhaarWaiting: string; aadhaarSuccess: string;
-  aadhaarConsentLead: string; aadhaarQrLockedHint: string; aadhaarAppLink: string;
+  aadhaarConsentLead: string; aadhaarQrLockedHint: string; aadhaarAppLink: string; aadhaarLearnMore: string;
   // vkyc
   vkycTitle: string; vkycSub: string; vkycConsent: string; vkycConsentDesc: string;
   ctaStartVideo: string; videoRunning: string; videoDone: string;
@@ -76,7 +76,7 @@ const dict: Record<Lang, {
     aadhaarWaiting: 'Получаем данные из UIDAI…', aadhaarSuccess: 'Aadhaar-данные получены. Личность подтверждена UIDAI',
     aadhaarConsentLead: 'Перед идентификацией через Aadhaar подтвердите согласие — это регуляторное требование.',
     aadhaarQrLockedHint: 'Дайте согласие выше, чтобы получить QR-код.',
-    aadhaarAppLink: 'Скачать приложение Aadhaar',
+    aadhaarAppLink: 'Скачать приложение Aadhaar', aadhaarLearnMore: 'Подробнее',
     vkycTitle: 'Видеосессия', vkycSub: 'Подтвердите свою личность по видео',
     vkycConsent: 'Согласие на видеоидентификацию (VKYC)', vkycConsentDesc: 'Даю согласие на видеозапись сессии, проверки на живость и фиксацию документа.',
     ctaStartVideo: 'Начать видеоидентификацию', videoRunning: 'Идентификация выполняется…', videoDone: 'Идентификация пройдена',
@@ -148,7 +148,7 @@ const dict: Record<Lang, {
     aadhaarWaiting: 'Fetching data from UIDAI…', aadhaarSuccess: 'Aadhaar data received. Identity verified by UIDAI',
     aadhaarConsentLead: 'Before identifying via Aadhaar, please confirm the consent — this is a regulatory requirement.',
     aadhaarQrLockedHint: 'Give the consent above to get the QR code.',
-    aadhaarAppLink: 'Download the Aadhaar App',
+    aadhaarAppLink: 'Download the Aadhaar App', aadhaarLearnMore: 'Learn more',
     vkycTitle: 'Video session', vkycSub: 'Verify your identity over video',
     vkycConsent: 'Video KYC consent (VKYC)', vkycConsentDesc: 'I consent to recording the session, liveness checks and document capture.',
     ctaStartVideo: 'Start video identification', videoRunning: 'Identification in progress…', videoDone: 'Identification passed',
@@ -295,9 +295,11 @@ const miniSteps = (withPan: boolean): StepDef[] => {
 };
 
 // #41 — гард навигации фазы B: куда вести «выход из сессии».
-// invite/initiator — приглашённый/инициатор не должен видеть дашборд инициатора → null (навигация скрыта).
+// Денис 2026-06-23: дефолт — заполнитель САМ подписант и ходит в СВОЮ сессию из хаба (origin=initiator).
+// Он владелец дашборда → выход возвращает его на дашборд/хаб (как и origin=dashboard).
+// Только 'invite' — внешний приглашённый подписант: дашборд инициатора видеть не должен → null (заглушка).
 const exitTarget = (origin: 'dashboard' | 'invite' | 'initiator'): string | null =>
-  origin === 'dashboard' ? COMPANY_DASHBOARD_ROUTE : null;
+  origin === 'invite' ? null : COMPANY_DASHBOARD_ROUTE;
 
 export const CompanySignatory = () => {
   const navigate = useNavigate();
@@ -363,8 +365,9 @@ export const CompanySignatory = () => {
     );
   }
 
-  // Выход из сессии для invite/initiator — нейтральный экран-заглушка «Сессия закрыта».
-  // Дашборд инициатора такой подписант видеть не должен (гард #41), но выход доступен ВСЕГДА.
+  // Выход из сессии для внешнего invite — нейтральный экран-заглушка «Сессия закрыта».
+  // Дашборд инициатора приглашённый видеть не должен (гард #41), но выход доступен ВСЕГДА.
+  // Заполнитель-подписант (origin=initiator) сюда не попадает — у него exitRoute = дашборд.
   if (exited) {
     return (
       <ScreenV2>
@@ -381,8 +384,8 @@ export const CompanySignatory = () => {
   // #41 — точка выхода из сессии (гард навигации): null → дашборд инициатора скрыт.
   const exitRoute = exitTarget(sessionOrigin);
   // Выход из сессии доступен ВСЕГДА (базовый UX):
-  //  • origin=dashboard → «К дашборду» (на дашборд заявки);
-  //  • origin=invite/initiator → «Выйти» из сессии на нейтральную заглушку (дашборд инициатора скрыт).
+  //  • origin=dashboard / initiator → «К дашборду» (заполнитель-подписант и «Войти как» — владельцы хаба);
+  //  • origin=invite → «Выйти» из сессии на нейтральную заглушку (дашборд инициатора скрыт).
   const exitBtn = exitRoute
     ? <Button view="secondary" size="l" text={t.toDashboardBtn} onClick={() => navigate(exitRoute)} />
     : <Button view="secondary" size="l" text={t.exitBtn} onClick={() => setExited(true)} />;
@@ -480,6 +483,7 @@ export const CompanySignatory = () => {
                 qrLockedHint: t.aadhaarQrLockedHint,
                 qrCaption: t.qrCaption,
                 appLink: t.aadhaarAppLink,
+                learnMore: t.aadhaarLearnMore,
                 ctaScanned: t.ctaScanned,
                 waiting: t.aadhaarWaiting,
                 success: t.aadhaarSuccess,
@@ -641,7 +645,8 @@ export const CompanySignatory = () => {
           <SuccessNote><span className="ic">✓</span>{t.doneSub}</SuccessNote>
           {/* #39 — формулировка результата (схема шаг 15): личный кабинет + уведомление на email */}
           <Hint>{t.doneFollowUp}</Hint>
-          {/* #41 — гард: invite/initiator не ведём на дашборд инициатора, показываем «Готово» без навигации. */}
+          {/* #41 — гард: внешний invite не ведём на дашборд инициатора, показываем «Готово» без навигации.
+              Заполнитель-подписант (initiator) и «Войти как» (dashboard) возвращаются на дашборд штатно. */}
           {exitRoute
             ? <ButtonRowEnd><Button view="accent" size="l" text={t.toDashboard} onClick={() => navigate(exitRoute)} /></ButtonRowEnd>
             : <ButtonRowEnd><Button view="accent" size="l" text={t.doneClose} disabled /></ButtonRowEnd>}

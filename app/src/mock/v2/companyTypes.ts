@@ -90,12 +90,14 @@ export interface BrSignerConfig {
   asDirectorId: string | null;
   asDirectorEmail: string;
   asDirectorPhone: string;
-  // ветка 'new-person': «свой» AS — ФИО, должность/роль, контакты. PAN НЕ здесь:
-  // его вводит сам AS в своей сессии (после Aadhaar, перед VKYC).
+  // ветка 'new-person': «свой» AS — ФИО, должность/роль, контакты + PAN.
+  // #58 (Марго 23.06): для «another person» PAN ОБЯЗАТЕЛЕН — нужен идентификатор для сверки
+  // того, кто придёт на VKYC, с тем, что записано в Board Resolution (в Индии много тёзок).
   asNewName: string;
   asNewDesignation: string;
   asNewEmail: string;
   asNewPhone: string;
+  asNewPan: string;
   // назначен ли AS (заполнитель ответил на вопрос QAS) — для подсказок на BR/анкете.
   asAssigned: boolean;
 }
@@ -173,7 +175,7 @@ export interface CompanyDetails {
 }
 
 // --- Шаги фазы A (заполнитель) для верхнего прогресса ---
-export type CompanyPhaseAStep = 'pan' | 'bnq-br' | 'confirm' | 'dispatch';
+export type CompanyPhaseAStep = 'pan' | 'bnq-br' | 'confirm';
 
 // --- Обёртка кейса Company ---
 export interface CompanyCaseV2 {
@@ -247,9 +249,12 @@ export interface CompanyEntry {
 //   оранжевый, внутри блока — кнопка догрузки запрошенного (вместо отдельной панели).
 export type ApplicationBlockStatus = 'verify' | 'in-progress' | 'done' | 'action-required' | 'in-request';
 
-// Блок «Personal Identification & Signing» — drill-down: список участников с под-статусами.
-// kind помечает блок, в который можно «провалиться» (раскрытие Accordion на дашборде).
-export type ApplicationBlockKind = 'identification-signing' | 'static';
+// Блоки-мониторы с drill-down по участникам (раскрытие Accordion на дашборде):
+//  • 'personal-identification' — список участников с VKYC-под-статусом (видеоверификация);
+//  • 'signing' — список участников с под-статусом подписания (DSC).
+// Денис 2026-06-23 (подтверждено Марго): Personal Identification и Signing — РАЗНЫЕ процессы.
+// 'static' — блок без drill-down (Данные компании, BR).
+export type ApplicationBlockKind = 'personal-identification' | 'signing' | 'static';
 
 export interface ApplicationBlock {
   id: string;

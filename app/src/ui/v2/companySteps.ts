@@ -12,11 +12,12 @@ export const COMPANY_DASHBOARD_ROUTE = '/company/dashboard';
 // нулевой шаг внутри) → Подтверждение данных (анкета, состав директоров) → Подписанты и BR
 // (AS назначается из подтверждённого состава директоров) → Приглашение.
 // PAN влит в диалог-шаг (co-bnq), отдельного co-pan больше нет.
+// #52 (Марго 23.06): отдельного шага «Приглашение подписантов» (dispatch) больше нет —
+// приглашения уходят автоматически после подтверждения Board Resolution.
 export const COMPANY_STEPS_A: StepDef[] = [
   { id: 'co-bnq', route: '/company/bnq', order: 1, titleRu: 'Анкета', titleEn: 'Questionnaire' },
   { id: 'co-confirm', route: '/company/confirm', order: 2, titleRu: 'Подтверждение данных компании', titleEn: 'Confirm company details' },
   { id: 'co-signatories-br', route: '/company/signatories-br', order: 3, titleRu: 'Подписанты и BR', titleEn: 'Signatories & BR' },
-  { id: 'co-dispatch', route: '/company/dispatch', order: 4, titleRu: 'Приглашение подписантов', titleEn: 'Invite signatories' },
 ];
 
 // Фаза B шаги фазы A необратимыми не считаем — заполнитель может ходить назад.
@@ -53,11 +54,12 @@ export const COMPANY_HUB_ITEMS: HubItem[] = [
   { id: 'co-bnq', route: '/company/bnq', phase: 'A', order: 1, titleRu: 'Анкета', titleEn: 'Questionnaire' },
   { id: 'co-confirm', route: '/company/confirm', phase: 'A', order: 2, titleRu: 'Данные компании', titleEn: 'Company details' },
   { id: 'co-signatories-br', route: '/company/signatories-br', phase: 'A', order: 3, titleRu: 'Подписанты и решение совета', titleEn: 'Signatories & Board Resolution' },
-  { id: 'co-dispatch', route: '/company/dispatch', phase: 'A', order: 4, titleRu: 'Приглашение подписантов', titleEn: 'Invite signatories' },
+  // #52: отдельного пункта «Приглашение подписантов» нет — инвайты уходят автоматически после BR.
   // --- разделитель A ↔ мониторинг рисуется в панели по смене phase ---
-  // VKYC отдельным пунктом не выносим: это под-статус участника внутри «Идентификация и
-  // подписание» (drill-down дашборда), а заполнитель (CustomerRepresentative) VKYC сам не проходит.
-  { id: 'hub-ident', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', titleRu: 'Идентификация и подписание', titleEn: 'Personal Identification & Signing' },
+  // Денис 2026-06-23 (подтверждено Марго): Personal Identification (видеоверификация) и Signing
+  // (подписание) — РАЗНЫЕ процессы → два отдельных пункта. Порядок: PI → Signing.
+  { id: 'hub-ident', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', titleRu: 'Персональная идентификация', titleEn: 'Personal Identification' },
+  { id: 'hub-sign', route: COMPANY_DASHBOARD_ROUTE, phase: 'B', titleRu: 'Подписание', titleEn: 'Signing' },
 ];
 
 // Мини-сессия подписанта (фаза B). Для прогресса внутри персональной сессии.

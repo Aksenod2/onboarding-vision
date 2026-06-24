@@ -5,6 +5,7 @@ import { Button, TextField, Checkbox, Select, Attach, Spinner } from '@salutejs/
 import { textPrimary, textSecondary, textAccent, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, enter } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
+import { COMPANY_DASHBOARD_ROUTE } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import {
@@ -432,13 +433,16 @@ export const CompanySignatoriesBr = () => {
         asContact: asConfig.asMode === 'from-directors'
           ? { email: asConfig.asDirectorEmail, phone: asConfig.asDirectorPhone }
           : undefined,
+        // #58 — для «another person» PAN обязателен (введён в опроснике): передаём в фазу B.
         asNewPerson: asConfig.asMode === 'new-person'
-          ? { fullName: asConfig.asNewName, pan: '', email: asConfig.asNewEmail, phone: asConfig.asNewPhone }
+          ? { fullName: asConfig.asNewName, pan: asConfig.asNewPan, email: asConfig.asNewEmail, phone: asConfig.asNewPhone }
           : undefined,
       });
+      // #52 — приглашения уходят автоматически внутри confirmBoardResolution
+      // (отдельного шага «invite signatures»/dispatch больше нет). Сразу на дашборд.
       await confirmBoardResolution();
     } catch (_) { /* демо: игнорируем */ }
-    navigate('/company/dispatch');
+    navigate(COMPANY_DASHBOARD_ROUTE);
   };
 
   const govItems = [

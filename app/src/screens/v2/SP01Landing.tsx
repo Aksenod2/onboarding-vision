@@ -234,10 +234,10 @@ export const SP01Landing = () => {
   const { lang, setLang } = useLanguage();
   const t = dict[lang];
 
-  // Sole Proprietor стартует с лендинга → /v2/login (email/OTP).
-  // Компания (flow=company) идёт по своей точке входа: согласия → Aadhaar → пин-код (целевка Марго).
-  const isCompany = searchParams.get('flow') === 'company';
-  const loginPath = isCompany ? '/company' : '/v2/login';
+  // Компания — дефолтный сценарий: кнопка ведёт во вход Компании (Aadhaar → пин-код → опросник).
+  // Sole Proprietor — по `?flow=sole`: лендинг → /v2/login (email/OTP).
+  const isSole = searchParams.get('flow') === 'sole';
+  const loginPath = isSole ? '/v2/login' : '/company/aadhaar';
 
   return (
     <Page>

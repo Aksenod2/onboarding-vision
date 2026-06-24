@@ -148,12 +148,23 @@ const ModalFoot = styled.div`display:flex; justify-content:flex-end; padding-top
 
 interface AadhaarHowToProps {
   variant?: Variant;
+  // #51 — «Learn more» вынесен в кнопочный ряд панели (вторичная кнопка) рядом с «Download app».
+  // Тогда инлайн-ссылку прячем (hideInlineLink) и управляем модалкой извне (howToOpen/onHowToOpenChange).
+  hideInlineLink?: boolean;
+  howToOpen?: boolean;
+  onHowToOpenChange?: (open: boolean) => void;
 }
 
-export const AadhaarHowTo = ({ variant = 'entry' }: AadhaarHowToProps) => {
+export const AadhaarHowTo = ({ variant = 'entry', hideInlineLink, howToOpen, onHowToOpenChange }: AadhaarHowToProps) => {
   const { lang } = useLanguage();
   const t = dict[lang][variant];
-  const [howTo, setHowTo] = useState(false);
+  // Внутреннее состояние модалки — только в неконтролируемом режиме (инлайн-ссылка).
+  const [howToInner, setHowToInner] = useState(false);
+  const howTo = howToOpen ?? howToInner;
+  const setHowTo = (open: boolean) => {
+    if (onHowToOpenChange) onHowToOpenChange(open);
+    else setHowToInner(open);
+  };
 
   return (
     <>
@@ -161,7 +172,7 @@ export const AadhaarHowTo = ({ variant = 'entry' }: AadhaarHowToProps) => {
         <Reassure>{t.reassure}</Reassure>
         <StepsTitle>{t.stepsTitle}</StepsTitle>
         <StepsList>{t.steps.map((s, i) => <StepItem key={i}>{s}</StepItem>)}</StepsList>
-        <HowToBtn type="button" onClick={() => setHowTo(true)}>{t.howToLink}</HowToBtn>
+        {!hideInlineLink && <HowToBtn type="button" onClick={() => setHowTo(true)}>{t.howToLink}</HowToBtn>}
       </StepsBlock>
 
       {howTo && (

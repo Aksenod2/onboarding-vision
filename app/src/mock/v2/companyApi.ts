@@ -7,7 +7,8 @@ import type {
   Ubo, FatcaClassification, CompanyDocument, AadhaarResult, BrSignerConfig,
   ApplicationBlock, Director,
 } from './companyTypes';
-import { goesThroughPhaseB } from './companyTypes';
+import { goesThroughPhaseB, vkycSubStatus, signingSubStatus } from './companyTypes';
+import type { SubStepStatus } from './companyTypes';
 import type { ConsentType, BnqAnswer } from './types';
 
 let state: CompanyCaseV2 = structuredClone(mehtaTextiles);
@@ -25,35 +26,46 @@ export const getCompany = (): Promise<CompanyDetails> => delay(state.company);
 export const getSignatories = (): Promise<Signatory[]> => delay(state.signatories);
 export const getSignatory = (id: string): Promise<Signatory | undefined> =>
   delay(state.signatories.find((s) => s.id === id));
+// Текущий заполнитель (Customer Representative) — за ним вход/дашборд/собственная сессия фазы B.
+// Тот же предикат, что используют passCompanyAadhaar/buildPhaseBSignatories. Дефолт — [0].
+export const getInitiator = (): Promise<Signatory | undefined> =>
+  delay(state.signatories.find((s) => s.roles.includes('CustomerRepresentative')) ?? state.signatories[0]);
 export const getBoardResolution = (): Promise<BoardResolution> => delay(state.br);
 export const getBnq = (): Promise<BnqAnswer[]> => delay(state.bnq);
 export const getUbo = (): Promise<Ubo[]> => delay(state.ubo);
 export const getCompanyDocuments = (): Promise<CompanyDocument[]> => delay(state.companyDocuments);
 
 // --- Блоки заявки (верхний уровень двухуровневого дашборда, Б.1/Б.3) ---
-// Возвращаем обзор блоков «что с моей заявкой» со статусами. Статус блока
-// «Personal Identification & Signing» выводим из прогресса подписантов; остальные —
+// Возвращаем обзор блоков «что с моей заявкой» со статусами. Статусы блоков-мониторов
+// (Персональная идентификация / Подписание) выводим из прогресса подписантов; остальные —
 // демо-значения (банк ещё не подтвердил → 'verify', спокойный сине-серый).
+// Денис 2026-06-23 (подтверждено Марго): Personal Identification (видеоверификация) и Signing
+// (подписание) — РАЗНЫЕ процессы → ДВА отдельных блока. Порядок: PI → Signing.
 // TODO: полный перечень блоков от Марго (ОВ-Б1) — список конфигурируемый, дополняется без правки UI.
 export const getApplicationBlocks = (): Promise<ApplicationBlock[]> => {
   const required = state.signatories.filter(goesThroughPhaseB);
-  const allDone = required.length > 0 && required.every((s) => s.status === 'done');
-  const anyStarted = required.some((s) => s.status !== 'waiting');
-  // #25/#23 — обратный запрос банка (DVU) больше не отдельная панель и больше не висит на
-  // отдельной строке «Бизнес-профиль и UBO» (её убрали: дублировала «Данные компании»).
-  // Запрос «Source of funds» перепривязан к блоку «Идентификация и подписание»: пока документ
-  // не догружен — этот блок получает статус 'in-request'. Загрузка — в карточке на дашборде.
+  // Агрегат под-статуса по участникам: all done → 'done'; any started → 'in-progress'; иначе 'verify'.
+  const aggregate = (sub: (s: typeof required[number]) => SubStepStatus): ApplicationBlock['status'] => {
+    if (required.length === 0) return 'verify';
+    const subs = required.map(sub);
+    if (subs.every((x) => x === 'done')) return 'done';
+    if (subs.some((x) => x !== 'pending')) return 'in-progress';
+    return 'verify';
+  };
+  // #62 (Марго 23.06): обратный запрос банка (DVU) отображается/инициируется из «Данных компании»
+  // со статусом Action Required. Пока запрошенный документ не догружен — блок «Данные компании»
+  // получает статус 'action-required'. Загрузка — в карточке-обращении на дашборде.
   const bankRequestOpen = state.dvuRequest?.status === 'requested';
-  const identStatus: ApplicationBlock['status'] = bankRequestOpen
-    ? 'in-request'
-    : allDone ? 'done' : anyStarted ? 'in-progress' : 'verify';
+  const companyDetailsStatus: ApplicationBlock['status'] = bankRequestOpen ? 'action-required' : 'verify';
+  const personalIdentStatus = aggregate(vkycSubStatus);
+  const signingStatus = aggregate(signingSubStatus);
   // Единый нейминг (дизайн-бриф §3): одна сущность = одна строка и здесь, и в COMPANY_HUB_ITEMS.
   const blocks: ApplicationBlock[] = [
-    { id: 'company-details', titleRu: 'Данные компании', titleEn: 'Company details', status: 'verify', kind: 'static' },
+    { id: 'company-details', titleRu: 'Данные компании', titleEn: 'Company details', status: companyDetailsStatus, kind: 'static' },
     { id: 'board-resolution', titleRu: 'Подписанты и решение совета', titleEn: 'Signatories & Board Resolution', status: state.br.confirmed ? 'done' : 'verify', kind: 'static' },
-    { id: 'identification-signing', titleRu: 'Идентификация и подписание', titleEn: 'Personal Identification & Signing', status: identStatus, kind: 'identification-signing' },
-    // VKYC отдельным блоком не выносим: это под-шаг сессии подписанта и под-статус участника
-    // (внутри «Идентификация и подписание» VKYC уже отражён парой «Подписание + VKYC» по каждому).
+    // PI → Signing: два отдельных процесса/блока (видеоверификация и подписание).
+    { id: 'personal-identification', titleRu: 'Персональная идентификация', titleEn: 'Personal Identification', status: personalIdentStatus, kind: 'personal-identification' },
+    { id: 'signing', titleRu: 'Подписание', titleEn: 'Signing', status: signingStatus, kind: 'signing' },
     // TODO: полный перечень блоков от Марго (например, FATCA/CRS, Source of funds) — добавить сюда.
   ];
   return delay(blocks);
@@ -220,11 +232,13 @@ export interface AsAssignment {
   asDirectorId?: string;
   asDirectorEmail?: string;
   asDirectorPhone?: string;
-  // ветка 'new-person': «свой» AS — ФИО, должность/роль, контакты (БЕЗ PAN — его вводит сам AS в сессии)
+  // ветка 'new-person': «свой» AS — ФИО, должность/роль, контакты + PAN.
+  // #58: PAN обязателен для «another person» (идентификатор для сверки на VKYC ↔ Board Resolution).
   asNewName?: string;
   asNewDesignation?: string;
   asNewEmail?: string;
   asNewPhone?: string;
+  asNewPan?: string;
 }
 
 export const setAsFromBnq = (a: AsAssignment): Promise<BoardResolution> => {
@@ -238,6 +252,7 @@ export const setAsFromBnq = (a: AsAssignment): Promise<BoardResolution> => {
     asNewDesignation: a.asNewDesignation ?? state.br.signerConfig.asNewDesignation,
     asNewEmail: a.asNewEmail ?? state.br.signerConfig.asNewEmail,
     asNewPhone: a.asNewPhone ?? state.br.signerConfig.asNewPhone,
+    asNewPan: a.asNewPan ?? state.br.signerConfig.asNewPan,
     asAssigned: true,
   };
   state.br = { ...state.br, signerConfig: cfg };
@@ -481,6 +496,13 @@ export const buildPhaseBSignatories = (sel: BrSelection): Promise<Signatory[]> =
 export const confirmBoardResolution = (): Promise<BoardResolution> => {
   const ts = nowIST();
   state.br = { ...state.br, confirmed: true, confirmedAt: ts, date: ts };
+  // #52 (Марго 23.06): отдельного шага «invite signatures» нет — после подтверждения Board
+  // Resolution приглашения уходят подписантам АВТОМАТИЧЕСКИ («разослал, оно само ушло»).
+  state.signatories = state.signatories.map((s) =>
+    goesThroughPhaseB(s) ? { ...s, inviteSent: true } : s,
+  );
+  state.status = 'InProgress';
+  state.currentScreen = 'CO-DASHBOARD';
   return delay(state.br);
 };
 
@@ -630,15 +652,8 @@ export const confirmCompanyData = (): Promise<void> => {
   return delay(undefined);
 };
 
-// Рассылка ссылок подписантам: всем, кто проходит фазу B (Director/AS).
-export const dispatchInvites = (): Promise<Signatory[]> => {
-  state.signatories = state.signatories.map((s) =>
-    goesThroughPhaseB(s) ? { ...s, inviteSent: true } : s,
-  );
-  state.status = 'InProgress';
-  state.currentScreen = 'CO-DASHBOARD';
-  return delay(state.signatories);
-};
+// #52 — рассылка приглашений (dispatchInvites) больше не отдельный шаг: перенесена
+// внутрь confirmBoardResolution (инвайты уходят автоматически после подтверждения BR).
 
 // Напомнить подписанту (mock: помечаем reminderSent на карточке).
 export const remindSignatory = (id: string): Promise<Signatory[]> => {

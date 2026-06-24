@@ -44,6 +44,7 @@ const port: BnqDataPort = {
         asNewDesignation: c.asNewDesignation,
         asNewEmail: c.asNewEmail,
         asNewPhone: c.asNewPhone,
+        asNewPan: c.asNewPan,
       };
       return a;
     }),

@@ -24,7 +24,6 @@ import { CompanyLogin } from './screens/v2/company/CompanyLogin';
 import { CompanyBnqDialog } from './screens/v2/company/CompanyBnqDialog';
 import { CompanySignatoriesBr } from './screens/v2/company/CompanySignatoriesBr';
 import { CompanyConfirm } from './screens/v2/company/CompanyConfirm';
-import { CompanyDispatch } from './screens/v2/company/CompanyDispatch';
 import { CompanyDashboard } from './screens/v2/company/CompanyDashboard';
 import { CompanySignatory } from './screens/v2/company/CompanySignatory';
 import { CompanyBank } from './screens/v2/company/CompanyBank';
@@ -41,15 +40,16 @@ const ScrollToTop = () => {
   return null;
 };
 
-// Поток: корень `/` и `/v2` ведут на сценарий Компания (`/company`); лендинг Sole Proprietor — по `/v2/sole`; менеджер — RM/DVU.
+// Поток: корень `/` и `/v2` ведут на общий лендинг «Become our customer» (`/v2/sole`).
+// Кнопка лендинга по умолчанию → вход Компании (Aadhaar); `?flow=sole` → Sole Proprietor. Менеджер — RM/DVU.
 // Клиентская v1 (CL-01…CL-09) заархивирована 2026-06-10 (решение Дениса; история — в git).
 export const App = () => {
   return (
     <BrowserRouter>
       <ScrollToTop />
       <Routes>
-        {/* По умолчанию открываем сценарий Компания (решение Дениса). Лендинг Sole Proprietor — по адресу /v2/sole. */}
-        <Route path="/" element={<Navigate to="/company" replace />} />
+        {/* По умолчанию открываем общий лендинг (решение Дениса 2026-06-09): прот стартует с «Become our customer». */}
+        <Route path="/" element={<Navigate to="/v2/sole" replace />} />
         <Route path="/rm/queue" element={<RM01Queue />} />
         <Route path="/rm/task" element={<RM02Task />} />
         <Route path="/rm/kyc" element={<RM03KycTask />} />
@@ -59,9 +59,9 @@ export const App = () => {
         <Route path="/v2/*" element={
           <LanguageProvider>
             <Routes>
-              {/* /v2 по умолчанию ведёт на сценарий Компания (решение Дениса). */}
-              <Route index element={<Navigate to="/company" replace />} />
-              {/* Лендинг Sole Proprietor — на отдельном пути, флоу ИП остаётся доступен. */}
+              {/* /v2 по умолчанию ведёт на общий лендинг (решение Дениса 2026-06-09). */}
+              <Route index element={<Navigate to="/v2/sole" replace />} />
+              {/* Общий лендинг «Become our customer» — начало пути. Кнопка по умолчанию → Компания; `?flow=sole` → Sole Proprietor. */}
               <Route path="sole" element={<SP01Landing />} />
               <Route path="email" element={<SP02Email />} />
               <Route path="login" element={<SP03Register />} />
@@ -99,7 +99,9 @@ export const App = () => {
                 <Route path="bnq" element={<CompanyBnqDialog />} />
                 <Route path="signatories-br" element={<CompanySignatoriesBr />} />
                 <Route path="confirm" element={<CompanyConfirm />} />
-                <Route path="dispatch" element={<CompanyDispatch />} />
+                {/* #52 — отдельного шага «Приглашение подписантов» больше нет: инвайты уходят
+                    автоматически после Board Resolution. Старый роут редиректим на дашборд. */}
+                <Route path="dispatch" element={<Navigate to="/company/dashboard" replace />} />
                 <Route path="dashboard" element={<CompanyDashboard />} />
                 <Route path="signatory" element={<CompanySignatory />} />
                 {/* #43 — растворение онбординга: вход в интернет-банк (без онбординг-хрома). */}

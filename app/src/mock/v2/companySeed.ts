@@ -43,16 +43,21 @@ export const mehtaTextiles: CompanyCaseV2 = {
     segment: 'Trading',
   },
 
-  // Подписанты + ассистент-заполнитель. Karan — ТОЛЬКО заполнитель (CustomerRepresentative),
-  // дефолтный инициатор: заполняет заявку → рассылает → дашборд-мониторинг (сам не подписывает).
-  // Rajesh — Director + AS (подписант); Amit — AS не из реестра (ручной ввод).
+  // Подписанты + заполнитель-инициатор. Karan — заполнитель-ПОДПИСАНТ (дефолт демо, Денис 2026-06-23):
+  // основной кейс Марго (~80%) — заполняющий сам уполномоченный, проходит фазу B бесшовно от анкеты
+  // к видеокиваси. Роли: CustomerRepresentative (заполняет/рассылает) + AuthorizedSignatory (подписывает).
+  // → goesThroughPhaseB(Karan)===true: пункты Personal Identification / Signing в левой панели кликабельны,
+  //   он попадает в список участников дашборда со своими статусами VKYC/Signing.
+  // Rajesh — Director (подписывает BR); Amit — AS не из реестра (ручной ввод).
   // Karan стоит В КОНЦЕ массива — не [0], чтобы не задеть boost idx===0 в advanceSignatories
-  // и не попасть в фазу B (он не goesThroughPhaseB: нет Director/AuthorizedSignatory).
+  // (разнобой прогресса даём верхним строкам). Дашборд фильтрует goesThroughPhaseB, порядок строк
+  // = порядок массива — Karan показывается последним, остальные подписанты не сдвинуты.
+  // data-driven дизейбл фазы B (не-подписант → locked) остаётся рабочим: меняется лишь ДЕФОЛТ.
   signatories: [
     {
       id: 'sig-rajesh',
       fullName: 'Rajesh Mehta',
-      roles: ['Director', 'AuthorizedSignatory'],
+      roles: ['Director'],
       pan: 'ABKPM7788D',
       panSource: 'registry',
       email: 'rajesh.mehta@mehtatextiles.in',
@@ -118,14 +123,16 @@ export const mehtaTextiles: CompanyCaseV2 = {
       signature: { signed: false, method: 'DSC' },
     },
     {
-      // Ассистент-заполнитель (дефолтный инициатор). Роль ТОЛЬКО CustomerRepresentative:
-      // заполняет заявку и рассылает приглашения, но сам не подписант (нет в directors/ubo,
-      // не goesThroughPhaseB → отфильтрован из фазы B и списка получателей дашборда).
-      // PAN для заполнителя не обязателен. Входит на портал через свой Aadhaar (passCompanyAadhaar).
+      // Заполнитель-ПОДПИСАНТ (дефолтный инициатор + единственный Authorized Signatory).
+      // Денис 2026-06-23: основной кейс — заполняющий сам уполномочен → проходит фазу B сам:
+      //   CustomerRepresentative (заполняет/рассылает, вход на портал через свой Aadhaar) +
+      //   AuthorizedSignatory (goesThroughPhaseB===true → PI/Signing кликабельны, он в списке дашборда).
+      // PAN заполнен (как у подписанта — нужен для AS и для QAS-номинации «другой человек»).
+      // Входит на портал через свой Aadhaar (passCompanyAadhaar тянет его aadhaarResult).
       id: 'sig-karan',
       fullName: 'Karan Verma',
-      roles: ['CustomerRepresentative'],
-      pan: '',
+      roles: ['CustomerRepresentative', 'AuthorizedSignatory'],
+      pan: 'AOPPV2231K',
       panSource: 'manual',
       email: 'karan.verma@mehtatextiles.in',
       phone: '+91 98200 11223',
@@ -160,39 +167,34 @@ export const mehtaTextiles: CompanyCaseV2 = {
       secretaryName: 'Vikram Iyer', // демо: Company Secretary компании (ветка 'secretary')
       secretaryEmail: 'vikram.iyer@mehtatextiles.in',
       secretaryPhone: '+91 98200 55410',
-      asMode: 'from-directors',
+      asMode: 'new-person',
       governance: null,
-      // Выбор AS — назначается в опроснике (QAS). Дефолт демо: Rajesh Mehta (директор из Probe),
-      // контакты подтянуты; «свой» AS пуст. asAssigned=true — дефолтный сценарий уже с назначенным AS.
-      asDirectorId: 'dir-rajesh',
-      asDirectorEmail: 'rajesh.mehta@mehtatextiles.in',
-      asDirectorPhone: '+91 98201 33445',
-      asNewName: '',
-      asNewDesignation: '',
-      asNewEmail: '',
-      asNewPhone: '',
+      // Выбор AS — назначается в опроснике (QAS). Дефолт демо (Денис 2026-06-23): AS = САМ ЗАПОЛНИТЕЛЬ
+      // (Karan Verma). Он не директор из реестра → ветка «другой человек» (new-person) с его контактами
+      // и PAN. buildPhaseBSignatories мэтчит его по fullName с существующей записью и доклеивает роль AS.
+      // «директор-AS» (from-directors) оставлен пустым. asAssigned=true — дефолт уже с назначенным AS.
+      asDirectorId: null,
+      asDirectorEmail: '',
+      asDirectorPhone: '',
+      asNewName: 'Karan Verma',
+      asNewDesignation: 'Company Representative',
+      asNewEmail: 'karan.verma@mehtatextiles.in',
+      asNewPhone: '+91 98200 11223',
+      asNewPan: 'AOPPV2231K',
       asAssigned: true,
     },
   },
 
-  // BNQ — как у SP (риск-категоризация); демо-значения для Trading-компании.
+  // BNQ — порядок по правке #56 (Марго 23.06): PAN (нулевой leadStep) → БИЗНЕС-вопросы
+  // (индустрия → revenue → кредит/овердрафт → планы по кредиту → импорт/экспорт → номинирование AS)
+  // → COMPLIANCE в конце (резидентство → налоговый статус → FATCA → PEP).
+  // Порядок шагов опросника = ПОРЯДОК этого массива (buildStepOrder сохраняет его).
+  // Q2 (Company Vintage / дата регистрации) убран из опросника: дата подтянута из PAN и
+  // подтверждается на экране «Данные компании из PAN» (company.incorporationDate) — как вопрос дублирует.
+  // Значение даты НЕ теряем: оно остаётся в CompanyDetails.incorporationDate (golden record).
   bnq: [
+    // — БИЗНЕС —
     { q: 'Q1', attribute: 'Business Industry / Segment', block: 1, source: 'available', value: 'Trading', riskScore: 2 },
-    // Q2 (Company Vintage / дата регистрации) убран из опросника: дата подтянута из PAN и
-    // подтверждается на экране «Данные компании из PAN» (company.incorporationDate) — как вопрос дублирует.
-    // Значение даты НЕ теряем: оно остаётся в CompanyDetails.incorporationDate (golden record).
-    { q: 'Q3', attribute: 'Company Residency', block: 1, source: 'available', value: 'Indian resident', riskScore: 0 },
-    { q: 'Q4', attribute: 'Tax Residency', block: 1, source: 'not_available', value: 'Indian National', riskScore: 1 },
-    // Q4b — FATCA/CRS налоговый статус компании (перенесён из финальной анкеты в опросник, решение Дениса).
-    // ТОЛЬКО Компания (в seed.ts Sole Proprietor этого вопроса нет). Value: «<классификация> · <страна>».
-    // По умолчанию для торговой компании-резидента Индии — Active NFFE · India.
-    { q: 'Q4b', attribute: 'FATCA / CRS classification', block: 1, source: 'not_available', value: 'Active NFFE · India', riskScore: null },
-    // QAS — назначение Authorized Signatory (перенесено из Board Resolution в опросник, Марго 23.06).
-    // ТОЛЬКО Компания (в Sole Proprietor этого вопроса нет). Сам выбор (директор/«свой» + контакты)
-    // хранится в state.br.signerConfig (asMode/asDirectorId/asNew*). Значение bnq — человекочитаемый
-    // снимок для golden-record. Дефолт демо: Rajesh Mehta (директор-AS).
-    { q: 'QAS', attribute: 'Authorized Signatory nomination', block: 1, source: 'not_available', value: 'Rajesh Mehta (Managing Director)', riskScore: null },
-    { q: 'Q5', attribute: 'PEP', block: 1, source: 'not_available', value: 'No', riskScore: 0 },
     { q: 'Q6', attribute: 'Net Revenue', block: 2, source: 'available', value: '12 Cr (AOC-4, last year)', riskScore: null },
     // Q6b — существующая кредитная задолженность (CC/OD) в других банках (business questioner Марго,
     // «Вопрос A»). Влияет на доступный тип счёта (фоновая логика банка, порог 10 крор). Перед Q7 (планы).
@@ -203,6 +205,20 @@ export const mehtaTextiles: CompanyCaseV2 = {
     { q: 'Q9', attribute: 'Import / Export Activity', block: 2, source: 'available', value: 'Yes — export activities only', riskScore: null },
     { q: 'Q10', attribute: 'Import/Export — partner countries', block: 2, source: 'not_available', value: 'Russia', riskScore: null },
     { q: 'Q11', attribute: 'Import/Export — IEC', block: 2, source: 'not_available', value: 'IEC uploaded now', riskScore: null, triggered: 'DVU' },
+    // QAS — назначение Authorized Signatory (перенесено из Board Resolution в опросник, Марго 23.06).
+    // ТОЛЬКО Компания (в Sole Proprietor этого вопроса нет). Сам выбор (директор/«свой» + контакты)
+    // хранится в state.br.signerConfig (asMode/asDirectorId/asNew*). Значение bnq — человекочитаемый
+    // снимок для golden-record. Дефолт демо (Денис 2026-06-23): сам заполнитель Karan Verma. Завершает бизнес-блок.
+    { q: 'QAS', attribute: 'Authorized Signatory nomination', block: 1, source: 'not_available', value: 'Karan Verma (Company Representative)', riskScore: null },
+    // — COMPLIANCE (в конце) —
+    { q: 'Q3', attribute: 'Company Residency', block: 1, source: 'available', value: 'Indian resident', riskScore: 0 },
+    { q: 'Q4', attribute: 'Tax Residency', block: 1, source: 'not_available', value: 'Indian National', riskScore: 1 },
+    // Q4b — FATCA/CRS налоговый статус компании (перенесён из финальной анкеты в опросник, решение Дениса).
+    // ТОЛЬКО Компания (в seed.ts Sole Proprietor этого вопроса нет). Value: «<классификация> · <страна>».
+    // По умолчанию для торговой компании-резидента Индии — Active NFFE · India.
+    // Правка #8: FATCA связан с резидентством — стоит сразу после Q3/Q4 (одна compliance-группа).
+    { q: 'Q4b', attribute: 'FATCA / CRS classification', block: 1, source: 'not_available', value: 'Active NFFE · India', riskScore: null },
+    { q: 'Q5', attribute: 'PEP', block: 1, source: 'not_available', value: 'No', riskScore: 0 },
   ],
 
   // Согласия уровня компании (реестры — до PAN). Личные согласия подписантов — в signatory.consents.
