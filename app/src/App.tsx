@@ -29,6 +29,8 @@ import { CompanySignatory } from './screens/v2/company/CompanySignatory';
 import { CompanyBank } from './screens/v2/company/CompanyBank';
 import { LanguageProvider } from './ui/v2/LanguageContext';
 import { CompanyProvider } from './ui/v2/CompanyContext';
+import { RmThemeProvider } from './rm/RmThemeProvider';
+import { CrmSmoke } from './rm/CrmSmoke';
 import { DemoNav } from './ui/DemoNav';
 
 // Сброс прокрутки наверх при смене экрана (React Router сам этого не делает).
@@ -50,11 +52,22 @@ export const App = () => {
       <Routes>
         {/* По умолчанию открываем общий лендинг (решение Дениса 2026-06-09): прот стартует с «Become our customer». */}
         <Route path="/" element={<Navigate to="/v2/sole" replace />} />
-        <Route path="/rm/queue" element={<RM01Queue />} />
-        <Route path="/rm/task" element={<RM02Task />} />
-        <Route path="/rm/kyc" element={<RM03KycTask />} />
-        <Route path="/rm/vkyc" element={<RM04VkycMeeting />} />
-        <Route path="/rm/session" element={<RM05Session />} />
+        {/* RM-ветка (роль Менеджера). Обёрнута в RmThemeProvider — MUI/Caldera (оранжевая тема).
+            Существующие RM01…RM05 на SDDS продолжают рендериться (MUI-компоненты не используют).
+            Новый CRM/Caldera (решение Дениса 25.06) — на чистом MUI v5, /rm/crm — smoke-экран. */}
+        <Route path="/rm/*" element={
+          <RmThemeProvider>
+            <Routes>
+              <Route path="queue" element={<RM01Queue />} />
+              <Route path="task" element={<RM02Task />} />
+              <Route path="kyc" element={<RM03KycTask />} />
+              <Route path="vkyc" element={<RM04VkycMeeting />} />
+              <Route path="session" element={<RM05Session />} />
+              <Route path="crm" element={<CrmSmoke />} />
+              <Route path="*" element={<Navigate to="/rm/queue" replace />} />
+            </Routes>
+          </RmThemeProvider>
+        } />
         {/* v2 flow — обёрнуто в LanguageProvider, v1 роуты не затронуты */}
         <Route path="/v2/*" element={
           <LanguageProvider>
