@@ -7,6 +7,7 @@ import { radii } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
+import { useCompany } from '../../../ui/v2/CompanyContext';
 import {
   getCompany, getSignatories, getUbo, confirmCompanyData,
   updateCompanyData, addUbo, updateUbo, removeUbo, setUboDeclared,
@@ -15,9 +16,10 @@ import {
   getDirectors, addDirector, updateDirector, removeDirector,
   setDirectorsModified, uploadDirectorsProofDoc,
   getBoardResolution, setAsFromBnq, getBnq,
+  getCompanyCase, uploadDvuDocument,
 } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
-import type { CompanyDetails, Signatory, Ubo, CompanyDocument, BrSignerConfig, Director } from '../../../mock/v2/companyTypes';
+import type { CompanyDetails, Signatory, Ubo, CompanyDocument, BrSignerConfig, Director, DvuRequest } from '../../../mock/v2/companyTypes';
 import type { BnqAnswer } from '../../../mock/v2/types';
 import { buildStepOrder } from '../../../ui/v2/bnq/BnqDialog';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ConsentRow } from './companyUi';
@@ -40,6 +42,10 @@ const dict: Record<Lang, {
   // Edit reg-поля: правка → подтверждающий документ → DVU (паттерн SP06)
   regProofLabel: string; regProofRequired: string; regProofUpload: string; regProofUploaded: string;
   regDvuTitle: string; regDvuText: string;
+  // #62 (Марго 23.06) — обратный запрос банка (DVU): банк запросил догрузить документ.
+  // Карточка живёт ЗДЕСЬ (Company Details), статус Action Required; на дашборде — только индикатор.
+  bankRequestTitle: string; bankRequestHint: string;
+  dvuUpload: string; dvuUploading: string; dvuUploaded: string;
   // Директора — блок на финальной анкете (правка → документ → DVU)
   sectionDirectors: string; dirHint: string;
   dirName: string; dirDesignation: string; dirPan: string;
@@ -93,6 +99,11 @@ const dict: Record<Lang, {
     regProofUploaded: 'Загружено',
     regDvuTitle: 'Данные уйдут на проверку',
     regDvuText: 'Изменённые реестровые данные будут направлены в отдел проверки банка (DVU). Решение по счёту обычно от этого не меняется.',
+    bankRequestTitle: 'Банк запросил документ',
+    bankRequestHint: 'По вашей заявке банк запросил дополнительный документ. Приложите его здесь, чтобы продолжить проверку.',
+    dvuUpload: 'Догрузить документ',
+    dvuUploading: 'Загрузка…',
+    dvuUploaded: 'Документ загружен',
     sectionDirectors: 'Директора',
     dirHint: 'Подтянуты из реестра. Проверьте состав и данные, при необходимости измените или дополните.',
     dirName: 'ФИО',
@@ -149,7 +160,6 @@ const dict: Record<Lang, {
     qLabels: {
       Q1: 'Отрасль / сегмент',
       Q3: 'Резидентность компании',
-      Q4: 'Налоговый статус',
       Q4b: 'Классификация FATCA / CRS',
       Q5: 'Публичное должностное лицо (PEP)',
       Q6: 'Чистая выручка',
@@ -186,6 +196,11 @@ const dict: Record<Lang, {
     regProofUploaded: 'Uploaded',
     regDvuTitle: 'Changes will be reviewed',
     regDvuText: 'The edited registry data will be sent to the bank Document Verification Unit (DVU). This usually does not affect the account decision.',
+    bankRequestTitle: 'The bank requested a document',
+    bankRequestHint: 'The bank has requested an additional document for your application. Upload it here to continue the review.',
+    dvuUpload: 'Upload document',
+    dvuUploading: 'Uploading…',
+    dvuUploaded: 'Document uploaded',
     sectionDirectors: 'Directors',
     dirHint: 'Pulled from the registry. Review the composition and details — edit or add if needed.',
     dirName: 'Full name',
@@ -242,7 +257,6 @@ const dict: Record<Lang, {
     qLabels: {
       Q1: 'Industry / segment',
       Q3: 'Company residency',
-      Q4: 'Tax residency',
       Q4b: 'FATCA / CRS classification',
       Q5: 'Politically exposed person (PEP)',
       Q6: 'Net revenue',
@@ -349,6 +363,17 @@ const UboDvuNote = styled.div`
   &::before { content:'ℹ'; flex-shrink:0; color:${textSecondary}; }
 `;
 
+// #62 — обратный запрос банка (DVU): банк запросил догрузить документ. Акцентный оранжевый блок
+// («action required»): карточка живёт на Company Details (здесь), на дашборде — только индикатор статуса.
+const BankRequest = styled.div`
+  display:flex; flex-direction:column; gap:0.6rem;
+  padding:1rem 1.125rem; border-radius:${radii.panel};
+  background:rgba(245,140,32,0.06); border:1px solid rgba(245,140,32,0.32);
+`;
+const BankRequestHead = styled.div`${bodySBold}; font-size:0.9rem; color:#b56412;`;
+const BankRequestRow = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;`;
+const BankRequestDoc = styled.span`${bodySBold}; font-size:0.88rem; color:${textPrimary};`;
+
 // #16 — строка документа компании: имя + статус источника + действие (Заменить / Выбрать файл).
 const DocRow = styled.div`
   display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;
@@ -384,8 +409,12 @@ export const CompanyConfirm = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
   const t = dict[lang];
+  const { bumpCaseVersion } = useCompany();
 
   const [company, setCompany] = useState<CompanyDetails | null>(null);
+  // #62 — обратный запрос банка (DVU): что банк просит догрузить. undefined — запроса нет.
+  const [dvuRequest, setDvuRequest] = useState<DvuRequest | undefined>(undefined);
+  const [dvuUploading, setDvuUploading] = useState(false);
   const [signatories, setSignatories] = useState<Signatory[]>([]);
   // #60 — ответы клиента на вопросы опросника (показываем на превью, он их подписывает).
   const [bnq, setBnq] = useState<BnqAnswer[]>([]);
@@ -445,6 +474,8 @@ export const CompanyConfirm = () => {
       setCompany(c);
       setCorrespondenceDraft(c.correspondenceAddress ?? '');
     });
+    // #62 — обратный запрос банка (DVU) живёт на кейсе; карточка догрузки рендерится здесь.
+    getCompanyCase().then((c) => setDvuRequest(c.dvuRequest));
     getSignatories().then(setSignatories);
     getBnq().then(setBnq); // #60 — ответы опросника для превью
     getDirectors().then((list) => {
@@ -483,6 +514,18 @@ export const CompanyConfirm = () => {
     const updated = await uploadCompanyDocument(doc.id, fakeFileName(doc));
     setDocs(updated);
     setDocPhase((p) => ({ ...p, [doc.id]: 'idle' }));
+  };
+
+  // #62 — догрузка документа по обратному запросу банка (DVU). Та же mock-механика, что была
+  // на дашборде (uploadDvuDocument), переиспользуется — теперь действие инициируется отсюда.
+  // После загрузки статус блока «Данные компании» уходит из action-required → синхронизируем
+  // левую навигацию (bumpCaseVersion: статус-индикатор на дашборде/в панели обновится).
+  const handleDvuUpload = async () => {
+    setDvuUploading(true);
+    const updated = await uploadDvuDocument('source-of-funds.pdf');
+    setDvuRequest(updated ?? undefined);
+    setDvuUploading(false);
+    bumpCaseVersion();
   };
 
   const handleDocReplace = async (doc: CompanyDocument) => {
@@ -837,6 +880,31 @@ export const CompanyConfirm = () => {
                   />
                 </EditForm>
               )}
+            </Section>
+          )}
+
+          {/* #62 (Марго 23.06) — обратный запрос банка (DVU): банк запросил догрузить документ.
+              Карточка-действие живёт ЗДЕСЬ (Company Details), со статусом Action Required; на дашборде
+              остаётся только индикатор статуса (левая навигация). Показываем, пока документ не догружен. */}
+          {dvuRequest && (
+            <Section>
+              <BankRequest>
+                <BankRequestHead>{t.bankRequestTitle}</BankRequestHead>
+                <Hint>{t.bankRequestHint}</Hint>
+                <BankRequestRow>
+                  <BankRequestDoc>{dvuRequest.docName}</BankRequestDoc>
+                  {dvuRequest.status === 'uploaded'
+                    ? <DocUploaded>{t.dvuUploaded}{dvuRequest.fileName ? ` · ${dvuRequest.fileName}` : ''}</DocUploaded>
+                    : (
+                      <Button
+                        view="secondary" size="s"
+                        text={dvuUploading ? t.dvuUploading : t.dvuUpload}
+                        disabled={dvuUploading}
+                        onClick={handleDvuUpload}
+                      />
+                    )}
+                </BankRequestRow>
+              </BankRequest>
             </Section>
           )}
 

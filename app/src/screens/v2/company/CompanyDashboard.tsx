@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import styled, { css } from 'styled-components';
 import { Button, Accordion, AccordionItem, Note } from '@salutejs/sdds-serv'; // имена сверены по @salutejs/sdds-serv/types
-import { textPrimary, textSecondary, textPositive, bodyM, bodySBold } from '@salutejs/sdds-themes/tokens';
+import { textPrimary, textSecondary, bodyM, bodySBold } from '@salutejs/sdds-themes/tokens';
 import { radii, elevation, enter, eyebrow } from '../../../ui/designSystem';
 import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import { useCompany } from '../../../ui/v2/CompanyContext';
 import {
-  getCompanyCase, getApplicationBlocks, remindSignatory, uploadDvuDocument, advanceSignatories,
+  getCompanyCase, getApplicationBlocks, remindSignatory, advanceSignatories,
 } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB, signingSubStatus, vkycSubStatus } from '../../../mock/v2/companyTypes';
 import type {
@@ -31,9 +31,6 @@ const dict: Record<Lang, {
   // финал — счёт открыт, но ожидает активации (НЕ «активирован»)
   accountTitle: string; accountSub: string; accountNumber: string; debitFreeze: string; toBank: string;
   stepLabel: Record<SignatoryStep, string>;
-  // #34/#25 — DVU-догрузка по обратному запросу банка (карточка-обращение банка)
-  bankRequestTitle: string;
-  dvuHint: string; dvuUpload: string; dvuUploading: string; dvuUploaded: string; dvuToast: string;
   // объединённая секция drill-down участников (PI + Signing в одном списке) + подсказка-финал
   participantsTitle: string; participantsHint: string; hint: string;
   // короткие префиксы для двух бейджей в шапке объединённого блока
@@ -60,12 +57,6 @@ const dict: Record<Lang, {
       waiting: 'Ожидает', consents: 'Согласия', aadhaar: 'Aadhaar eKYC', pan: 'Ввод PAN',
       vkyc: 'Видеоидентификация', 'dsc-sign': 'Подписание', done: 'Готово',
     },
-    bankRequestTitle: 'Банк запросил документ',
-    dvuHint: 'Банк запросил дополнительный документ по заявке. Приложите его, чтобы продолжить проверку.',
-    dvuUpload: 'Догрузить документ',
-    dvuUploading: 'Загрузка…',
-    dvuUploaded: 'Документ загружен',
-    dvuToast: 'Документ отправлен в банк',
     participantsTitle: 'Идентификация и подписание',
     participantsHint: 'Коллеги-подписанты проходят видеоидентификацию и подписывают документы (DSC).',
     hint: 'Счёт откроется, когда все участники пройдут идентификацию и подпишут документы.',
@@ -92,12 +83,6 @@ const dict: Record<Lang, {
       waiting: 'Waiting', consents: 'Consents', aadhaar: 'Aadhaar eKYC', pan: 'PAN entry',
       vkyc: 'Video identification', 'dsc-sign': 'Signing', done: 'Done',
     },
-    bankRequestTitle: 'The bank requested a document',
-    dvuHint: 'The bank has requested an additional document for the application. Upload it to continue the review.',
-    dvuUpload: 'Upload document',
-    dvuUploading: 'Uploading…',
-    dvuUploaded: 'Document uploaded',
-    dvuToast: 'Document sent to the bank',
     participantsTitle: 'Identification & Signing',
     participantsHint: 'Co-signatories complete video identification and sign the documents (DSC).',
     hint: 'The account will open once all participants complete identification and sign the documents.',
@@ -194,23 +179,6 @@ const Toast = styled.div`
 // Шапка секции обзора: заголовок слева, «Обновить» справа.
 const SectionHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;`;
 
-// #25/#34 — обращение банка («In request», решение №3 брифа) как самостоятельная карточка
-// в правом контенте (не «хвост» строки блока). Оранжевая рамка + текст запроса + кнопка догрузки.
-const RequestPanel = styled.div`
-  display:flex; flex-direction:column; gap:0.6rem;
-  margin-bottom:1.75rem; padding:1.1rem 1.375rem 1.25rem;
-  border-radius:${radii.card};
-  background:rgba(245,140,32,0.06); border:1px solid rgba(245,140,32,0.28); ${enter(0.08)};
-`;
-const RequestHead = styled.div`${eyebrow}; color:#b56412; font-size:0.68rem;`;
-const RequestRow = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;`;
-const DvuDoc = styled.span`${bodySBold}; font-size:0.95rem; color:${textPrimary};`;
-const DvuHintText = styled.p`margin:0; ${bodyM}; font-size:0.84rem; color:${textSecondary};`;
-const DvuUploaded = styled.span`
-  display:inline-flex; align-items:center; gap:0.3rem; font-size:0.82rem; font-weight:600; color:${textPositive};
-  &::before { content:'✓'; }
-`;
-
 // #26 — две явные секции дашборда: «Моя заявка» и «Участники». Карточка-контейнер + заголовок.
 const Section = styled.section`
   margin-bottom:1.75rem; padding:1.25rem 1.375rem 1.4rem;
@@ -225,14 +193,12 @@ const initials = (name: string) => name.split(' ').map((w) => w[0]).join('').toU
 
 export const CompanyDashboard = () => {
   const navigate = useNavigate();
-  const { hash } = useLocation();
   const { lang } = useLanguage();
   const t = dict[lang];
   const { setActiveSignatoryId, setSessionOrigin, bumpCaseVersion } = useCompany();
   const [data, setData] = useState<CompanyCaseV2 | null>(null);
   const [blocks, setBlocks] = useState<ApplicationBlock[]>([]);
   const [toast, setToast] = useState<string | null>(null);
-  const [dvuUploading, setDvuUploading] = useState(false); // #34
 
   // getCompanyCase() резолвит ОДИН и тот же mock-объект state (общий reference).
   // setData(тот же reference) → React.memo bail-out, ре-рендера нет, продвинутые
@@ -245,13 +211,6 @@ export const CompanyDashboard = () => {
     setBlocks(await getApplicationBlocks());
   };
   useEffect(() => { load(); }, []);
-
-  // #bank-request — клик по оранжевому пункту панели ведёт сюда: скроллим к карточке-обращению.
-  useEffect(() => {
-    if (hash !== '#bank-request' || !data) return;
-    const el = document.getElementById('bank-request');
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [hash, data]);
 
   // «Обновить статусы» — демо-симуляция живого мониторинга: продвигаем
   // не завершённых подписантов на следующий этап, затем перечитываем кейс
@@ -273,16 +232,6 @@ export const CompanyDashboard = () => {
     flashToast(t.reminderToast);
   };
 
-  // #34 — догрузка документа по обратному запросу банка (fake-upload).
-  const handleDvuUpload = async () => {
-    setDvuUploading(true);
-    const updated = await uploadDvuDocument('source-of-funds.pdf');
-    setData((d) => (d ? { ...d, dvuRequest: updated } : d));
-    setDvuUploading(false);
-    bumpCaseVersion(); // догрузка меняет статус блока «Идентификация и подписание» → синхронизируем панель
-    flashToast(t.dvuToast);
-  };
-
   if (!data) return <ScreenV2 navHub><AppId>{lang === 'ru' ? 'Загрузка…' : 'Loading…'}</AppId></ScreenV2>;
 
   const done = data.status === 'Completed';
@@ -298,11 +247,6 @@ export const CompanyDashboard = () => {
   // (подписание) — РАЗНЫЕ процессы → ДВЕ отдельные секции-монитора. Порядок: PI → Signing.
   const identBlock = blocks.find((b) => b.kind === 'personal-identification');
   const signingBlock = blocks.find((b) => b.kind === 'signing');
-
-  // #62 — обращение банка (DVU): открыто, когда блок «Данные компании» = action-required
-  // и есть незакрытый запрос документа. Действие (догрузка) — здесь, в правом контенте;
-  // статус виден на блоке «Данные компании» в левой панели (оранжевый Action Required).
-  const bankRequestOpen = blocks.some((b) => b.status === 'action-required' || b.status === 'in-request') && !!data.dvuRequest;
 
   // Содержимое объединённого блока-монитора: ОДИН список участников, каждый человек — ОДНА карточка
   // (без дублирования) с ДВУМЯ строками под-статуса: VKYC + Подписание. Действия по человеку
@@ -367,28 +311,10 @@ export const CompanyDashboard = () => {
         </AccountBlock>
       )}
 
-      {/* ОБРАЩЕНИЕ БАНКА («In request», решение №3) — самостоятельная карточка с оранжевой рамкой.
-          Показывается только при открытом запросе. Статус виден в левой панели (оранжевый),
-          действие (догрузка) — здесь. Якорь #bank-request: клик по оранжевому пункту панели сюда. */}
-      {bankRequestOpen && data.dvuRequest && (
-        <RequestPanel id="bank-request">
-          <RequestHead>{t.bankRequestTitle}</RequestHead>
-          <RequestRow>
-            <DvuDoc>{data.dvuRequest.docName}</DvuDoc>
-            {data.dvuRequest.status === 'uploaded'
-              ? <DvuUploaded>{t.dvuUploaded}{data.dvuRequest.fileName ? ` · ${data.dvuRequest.fileName}` : ''}</DvuUploaded>
-              : (
-                <Button
-                  view="secondary" size="s"
-                  text={dvuUploading ? t.dvuUploading : t.dvuUpload}
-                  disabled={dvuUploading}
-                  onClick={handleDvuUpload}
-                />
-              )}
-          </RequestRow>
-          {data.dvuRequest.status === 'requested' && <DvuHintText>{t.dvuHint}</DvuHintText>}
-        </RequestPanel>
-      )}
+      {/* ОБРАЩЕНИЕ БАНКА (DVU, #62, Марго 23.06): карточка догрузки документа по обратному запросу
+          банка перенесена на экран «Данные компании» (CompanyConfirm) — действие инициируется ОТТУДА
+          со статусом Action Required. На дашборде остаётся только индикатор статуса блока «Данные
+          компании» в левой навигации (CompanyNavPanel читает getApplicationBlocks → action-required). */}
 
       {/* DRILL-DOWN УЧАСТНИКОВ (Б.2) — ОДИН объединённый блок-монитор «Идентификация и подписание».
           Денис 2026-06-24: на дашборде это ОДИН список людей (без дубликата), у каждого ДВА под-статуса

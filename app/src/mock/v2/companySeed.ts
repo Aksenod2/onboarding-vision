@@ -211,12 +211,14 @@ export const mehtaTextiles: CompanyCaseV2 = {
     // снимок для golden-record. Дефолт демо (Денис 2026-06-23): сам заполнитель Karan Verma. Завершает бизнес-блок.
     { q: 'QAS', attribute: 'Authorized Signatory nomination', block: 1, source: 'not_available', value: 'Karan Verma (Company Representative)', riskScore: null },
     // — COMPLIANCE (в конце) —
+    // Q4 (Tax Residency) убран из флоу Компании (Марго 23.06): дублирует резидентство (Q3)
+    // и сформулирован про физлицо. Резидентство компании теперь спрашиваем один раз — в Q3.
     { q: 'Q3', attribute: 'Company Residency', block: 1, source: 'available', value: 'Indian resident', riskScore: 0 },
-    { q: 'Q4', attribute: 'Tax Residency', block: 1, source: 'not_available', value: 'Indian National', riskScore: 1 },
     // Q4b — FATCA/CRS налоговый статус компании (перенесён из финальной анкеты в опросник, решение Дениса).
     // ТОЛЬКО Компания (в seed.ts Sole Proprietor этого вопроса нет). Value: «<классификация> · <страна>».
     // По умолчанию для торговой компании-резидента Индии — Active NFFE · India.
-    // Правка #8: FATCA связан с резидентством — стоит сразу после Q3/Q4 (одна compliance-группа).
+    // Правка Марго 23.06: FATCA — часть вопроса про резидентство → Q3 и Q4b показываются
+    // НА ОДНОЙ СТРАНИЦЕ опросника (группа compliance-резидентство), один CTA «Далее» на оба.
     { q: 'Q4b', attribute: 'FATCA / CRS classification', block: 1, source: 'not_available', value: 'Active NFFE · India', riskScore: null },
     { q: 'Q5', attribute: 'PEP', block: 1, source: 'not_available', value: 'No', riskScore: 0 },
   ],

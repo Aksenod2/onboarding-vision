@@ -35,7 +35,6 @@ const dict: Record<Lang, {
   // AS теперь выбран в опроснике — на BR показываем read-only (как данность).
   asReadName: string; asReadDesignation: string; asReadEmail: string; asReadPhone: string;
   asFromDirectors: string; asNewPersonRole: string;
-  asEditInQuestionnaire: string;
   asNotAssigned: string;
   secGovTitle: string; govLabel: string; govPlaceholder: string; govHelper: string;
   govNominated: string; govDecision: string; govResolutionText: string;
@@ -71,7 +70,6 @@ const dict: Record<Lang, {
     asReadPhone: 'Телефон',
     asFromDirectors: 'Директор компании',
     asNewPersonRole: 'Назначенное лицо',
-    asEditInQuestionnaire: 'Изменить в анкете',
     asNotAssigned: 'Уполномоченный подписант ещё не назначен. Вернитесь в анкету и назначьте его.',
     secGovTitle: 'Governance: смена уполномоченного подписанта',
     govLabel: 'Как будет проходить смена Authorised Signatory',
@@ -132,7 +130,6 @@ const dict: Record<Lang, {
     asReadPhone: 'Phone',
     asFromDirectors: 'Company director',
     asNewPersonRole: 'Appointed person',
-    asEditInQuestionnaire: 'Edit in questionnaire',
     asNotAssigned: 'The Authorised Signatory has not been appointed yet. Go back to the questionnaire to appoint one.',
     secGovTitle: 'Governance for Authorised Signatory changes',
     govLabel: 'How the Authorised Signatory will be changed',
@@ -176,10 +173,6 @@ const dict: Record<Lang, {
 
 const Section = styled.section`display:flex; flex-direction:column; gap:0.75rem;`;
 const SectionTitle = styled.div`${bodySBold}; color:${textPrimary}; font-size:0.95rem;`;
-// Шапка секции AS: заголовок слева, ссылка «Изменить в анкете» справа.
-const SectionHeadRow = styled.div`
-  display:flex; align-items:center; justify-content:space-between; gap:0.75rem;
-`;
 // Read-only блок AS (выбран в опроснике) — лист-вставка без полей ввода.
 const AsReadBox = styled.div`
   ${enter(0)}; padding:1rem 1.25rem; border-radius:${radii.panel};
@@ -496,10 +489,7 @@ export const CompanySignatoriesBr = () => {
           {/* СЕКЦИЯ 1 — Authorised Signatory: выбран в ОПРОСНИКЕ, здесь read-only (как данность).
               Правка — только в анкете (ссылка ведёт на финальную анкету, единое место правки). */}
           <Section>
-            <SectionHeadRow>
-              <SectionTitle>{t.secAsTitle}</SectionTitle>
-              <LinkBtn type="button" onClick={() => navigate('/company/confirm')}>{t.asEditInQuestionnaire}</LinkBtn>
-            </SectionHeadRow>
+            <SectionTitle>{t.secAsTitle}</SectionTitle>
             <Hint>{t.asHint}</Hint>
             {asView && asValid ? (
               <AsReadBox>

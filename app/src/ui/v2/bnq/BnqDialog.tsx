@@ -421,6 +421,25 @@ const QBlock = styled.div`
   min-height: 240px;
 `;
 
+// Парный шаг (резидентство + FATCA): вертикальный стек двух вопросов на одной странице.
+// Внутри стека снимаем min-height у QBlock, чтобы карточка не вырастала вдвое (240+240),
+// а тянулась по контенту — на парном шаге высота задаётся самим контентом двух форм.
+const GroupStack = styled.div`
+  display: flex;
+  flex-direction: column;
+
+  & > div > div {
+    min-height: 0;
+  }
+`;
+
+// Тонкий разделитель между вопросами парного шага.
+const PairDivider = styled.hr`
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  margin: 1.5rem 0;
+`;
+
 const QLabel = styled.p`
   margin: 0;
   ${bodySBold};
@@ -571,6 +590,37 @@ export function buildStepOrder(bnq: BnqAnswer[]): QIndex[] {
   return order;
 }
 
+/**
+ * Группировка плоского порядка (buildStepOrder) в ШАГИ опросника.
+ * Каждый шаг — массив индексов bnq; обычно длиной 1 (один вопрос на странице).
+ * Исключение — резидентство + FATCA (Марго 23.06): «FATCA — часть вопроса про резидентство,
+ * запросить её здесь же, на одной странице». Поэтому Q3 и Q4b склеиваются в ОДИН шаг
+ * (Q3 сверху, Q4b под ним), один CTA «Далее» на оба. Только Компания: в Sole Proprietor
+ * вопроса Q4b нет, поэтому Q3 там остаётся отдельным шагом — склейка срабатывает лишь
+ * когда оба вопроса присутствуют и идут подряд в плоском порядке.
+ * Прочий порядок не меняется (канон Марго: бизнес-блок → compliance → PEP).
+ */
+const STEP_PAIRS: ReadonlyArray<readonly [string, string]> = [['Q3', 'Q4b']];
+
+export function buildStepGroups(bnq: BnqAnswer[]): QIndex[][] {
+  const flat = buildStepOrder(bnq);
+  const groups: QIndex[][] = [];
+  for (let i = 0; i < flat.length; i++) {
+    const idx = flat[i];
+    const q = bnq[idx].q;
+    const pair = STEP_PAIRS.find(([lead]) => lead === q);
+    const nextIdx = flat[i + 1];
+    if (pair && nextIdx !== undefined && bnq[nextIdx].q === pair[1]) {
+      // Текущий = ведущий пары (Q3), следующий = парный (Q4b) — на один шаг.
+      groups.push([idx, nextIdx]);
+      i++; // парный вопрос уже включён — пропускаем его как отдельный шаг
+    } else {
+      groups.push([idx]);
+    }
+  }
+  return groups;
+}
+
 // ─── Компонент ────────────────────────────────────────────────────────────────
 
 export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgress, navHub }: BnqDialogProps) => {
@@ -651,45 +701,69 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   // ─── Порядок шагов ──────────────────────────────────────────────────────────
 
   const onLead = leadStep && stepIdx === -1;
-  const stepOrder = buildStepOrder(bnq);
-  const totalSteps = stepOrder.length;
-  const currentBnqIdx = stepOrder[stepIdx] ?? 0;
-  const currentQ = bnq[currentBnqIdx];
+  // Шаги опросника = ГРУППЫ вопросов (buildStepGroups). Обычно 1 вопрос на шаг; исключение —
+  // резидентство Q3 + FATCA Q4b на одной странице (Марго 23.06).
+  const stepGroups = buildStepGroups(bnq);
+  const totalSteps = stepGroups.length;
+  const currentGroup = stepGroups[stepIdx] ?? [0];
+  const currentQs = currentGroup.map((i) => bnq[i]).filter(Boolean) as BnqAnswer[];
+  // Ведущий вопрос шага — для одиночной логики (probe, localValue, валидация одиночных вопросов).
+  const currentQ = currentQs[0];
+  // Парный шаг (Q3 + Q4b) — рендерим оба вопроса формами, без probe-режима, один CTA «Далее».
+  const isPaired = currentQs.length > 1;
 
-  // При переходе к новому вопросу (и после загрузки данных) — заполняем поля ввода
+  // При переходе к новому шагу (и после загрузки данных) — заполняем поля ввода ВСЕХ вопросов шага.
   useEffect(() => {
-    if (onLead || !currentQ) return;
-    setLocalValue(currentQ.value ?? '');
+    if (onLead || currentQs.length === 0) return;
     setEditingProbe(false);
-    // Предзаполняем поля из данных Probe42, чтобы клиент правил, а не вводил заново.
-    if (currentQ.q === 'Q1') {
-      setIndustryVal(currentQ.value ?? '');
-      setSegmentVal(currentQ.value ?? ''); // сегмент тоже из Probe42
-    }
-    // Q7: подтягиваем сохранённую сумму кредита (ответ Q8) в инлайн-поле.
-    if (currentQ.q === 'Q7') {
-      const q8 = bnq.find((a) => a.q === 'Q8');
-      setCreditAmount(q8?.value ?? '');
-    }
-    // Q4b: разбираем сохранённый value «<классификация> · <страна>» обратно в поля.
-    if (currentQ.q === 'Q4b') {
-      const v = currentQ.value ?? '';
-      const [cls, country] = v.split('·').map((s) => s.trim());
-      setFatcaClass(cls || 'Active NFFE');
-      setFatcaCountry(country || 'India');
-    }
-    // Q6b: восстанавливаем радио Да/Нет и под-выбор порога из сохранённого value.
-    if (currentQ.q === 'Q6b') {
-      const v = currentQ.value ?? '';
-      if (!v) {
-        setQ6bYesNo('');
-        setQ6bThreshold('');
-      } else if (isNoAnswer(v)) {
-        setQ6bYesNo('no');
-        setQ6bThreshold('');
+    // localValue ведёт ведущий вопрос шага (Q3 в паре — это радио резидентства).
+    // Для Q3 в парном шаге маппим сохранённый снимок («Indian resident» из реестра) на текст
+    // варианта радио, чтобы нужный пункт был ПРЕДВЫБРАН (текст вариантов не меняем — Марго).
+    if (isPaired && currentQ.q === 'Q3') {
+      const v = (currentQ.value ?? '').toLowerCase();
+      if (v === t.q3Opt1 || v === t.q3Opt2) {
+        setLocalValue(currentQ.value ?? '');
+      } else if (v.includes('non') || v.includes('foreign') || v.includes('нерезидент') || v.includes('иностран')) {
+        setLocalValue(t.q3Opt2);
+      } else if (v) {
+        setLocalValue(t.q3Opt1); // резидент Индии — дефолт для распознанного значения
       } else {
-        setQ6bYesNo('yes');
-        setQ6bThreshold(v);
+        setLocalValue('');
+      }
+    } else {
+      setLocalValue(currentQ.value ?? '');
+    }
+    for (const cq of currentQs) {
+      // Предзаполняем поля из данных Probe42, чтобы клиент правил, а не вводил заново.
+      if (cq.q === 'Q1') {
+        setIndustryVal(cq.value ?? '');
+        setSegmentVal(cq.value ?? ''); // сегмент тоже из Probe42
+      }
+      // Q7: подтягиваем сохранённую сумму кредита (ответ Q8) в инлайн-поле.
+      if (cq.q === 'Q7') {
+        const q8 = bnq.find((a) => a.q === 'Q8');
+        setCreditAmount(q8?.value ?? '');
+      }
+      // Q4b: разбираем сохранённый value «<классификация> · <страна>» обратно в поля.
+      if (cq.q === 'Q4b') {
+        const v = cq.value ?? '';
+        const [cls, country] = v.split('·').map((s) => s.trim());
+        setFatcaClass(cls || 'Active NFFE');
+        setFatcaCountry(country || 'India');
+      }
+      // Q6b: восстанавливаем радио Да/Нет и под-выбор порога из сохранённого value.
+      if (cq.q === 'Q6b') {
+        const v = cq.value ?? '';
+        if (!v) {
+          setQ6bYesNo('');
+          setQ6bThreshold('');
+        } else if (isNoAnswer(v)) {
+          setQ6bYesNo('no');
+          setQ6bThreshold('');
+        } else {
+          setQ6bYesNo('yes');
+          setQ6bThreshold(v);
+        }
       }
     }
   }, [stepIdx, loading]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -718,9 +792,11 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   const handleNext = async () => {
     if (!currentQ) return;
 
-    // Если source=available и подтверждено probe — просто идём дальше
+    // Если source=available и подтверждено probe — просто идём дальше.
+    // В парном шаге (Q3+Q4b) ведущий вопрос Q3 рендерится формой-радио (НЕ probe),
+    // поэтому его значение всегда берём из localValue.
     let value =
-      currentQ.source === 'available' && !editingProbe
+      currentQ.source === 'available' && !editingProbe && !isPaired
         ? currentQ.value
         : localValue;
 
@@ -792,12 +868,22 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
       setBnq((prev) => applyAnswer(prev, 'Q8', amount));
     }
 
-    // Порядок пересчитываем ЛОКАЛЬНО по СВЕЖЕМУ массиву (с только что данным ответом):
-    // setBnq асинхронный, а решение «последний ли шаг» / какой вопрос следующий нужно сейчас.
-    // Это же убирает рассинхрон рендера: и порядок, и счётчик считаются из одного bnq.
-    const nextOrder = buildStepOrder(nextBnq);
+    // Парный шаг резидентство (Q3) + FATCA (Q4b): ведущий вопрос (Q3) сохранён выше как обычно,
+    // а парный Q4b сохраняем здесь же — его value собираем из классификации + страны (как одиночный Q4b).
+    // Один CTA «Далее» закрывает оба ответа (Марго 23.06).
+    if (isPaired && currentQs.some((cq) => cq.q === 'Q4b')) {
+      const q4bValue = `${fatcaClass} · ${fatcaCountry.trim() || 'India'}`;
+      try { await port.answerBnq('Q4b', q4bValue); } catch (_) { /* игнорируем */ }
+      nextBnq = applyAnswer(nextBnq, 'Q4b', q4bValue);
+      setBnq((prev) => applyAnswer(prev, 'Q4b', q4bValue));
+    }
 
-    const isLast = stepIdx >= nextOrder.length - 1;
+    // Порядок пересчитываем ЛОКАЛЬНО по СВЕЖЕМУ массиву (с только что данным ответом):
+    // setBnq асинхронный, а решение «последний ли шаг» / какой шаг следующий нужно сейчас.
+    // Это же убирает рассинхрон рендера: и группы шагов, и счётчик считаются из одного bnq.
+    const nextGroups = buildStepGroups(nextBnq);
+
+    const isLast = stepIdx >= nextGroups.length - 1;
     if (isLast) {
       onFinish();
     } else {
@@ -823,12 +909,15 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
     Q9: t.q9Label, Q10: t.q10Label, Q11: t.q11Label,
   };
 
-  const renderQuestion = () => {
-    if (!currentQ) return null;
-    const { q, source, value } = currentQ;
+  // Рендер одного вопроса шага. qa — конкретный вопрос (в парном шаге функция вызывается
+  // по разу на Q3 и Q4b). suppressProbe=true в парном шаге форсирует форму вместо probe-режима
+  // (резидентство Q3 показываем сразу радио, чтобы рядом поместилась FATCA с единым «Далее»).
+  const renderQuestion = (qa: BnqAnswer = currentQ, suppressProbe = false) => {
+    if (!qa) return null;
+    const { q, source, value } = qa;
 
     // ── Двойной сценарий: Probe подтянул ──────────────────────────────────────
-    if (source === 'available' && !editingProbe) {
+    if (source === 'available' && !editingProbe && !suppressProbe) {
       const labelParts = t.probeConfirm(value).split(value);
       return (
         <QBlock>
@@ -1273,7 +1362,7 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             setLocalValue(e.target.value)
           }
-          label={currentQ.attribute}
+          label={qa.attribute}
           type="text"
         />
       </QBlock>
@@ -1297,8 +1386,9 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
 
   // ─── Нужно ли показывать кнопку «Далее» или только «Да/Изменить» ─────────
 
+  // В парном шаге (Q3+Q4b) probe-режим выключаем: показываем обе формы + единый «Далее».
   const isProbeAvailable =
-    !onLead && currentQ?.source === 'available' && !editingProbe;
+    !onLead && !isPaired && currentQ?.source === 'available' && !editingProbe;
 
   const isLastStep = stepIdx === totalSteps - 1;
 
@@ -1310,6 +1400,11 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
   //   Q7  — при «Да» обязательна введённая сумма кредита (инлайн-поле Q8).
   const nextDisabled = (() => {
     if (onLead || !currentQ || isProbeAvailable) return false;
+    // Парный шаг резидентство (Q3) + FATCA (Q4b): Q3 — обязательный выбор резидентства (localValue),
+    // Q4b всегда заполнен (дефолтная классификация + страна India), отдельной блокировки не требует.
+    if (isPaired) {
+      return !localValue;
+    }
     if (currentQ.q === 'Q6b') {
       if (q6bYesNo === '') return true;            // ничего не выбрано
       if (q6bYesNo === 'yes' && !q6bThreshold) return true; // «Да» без порога
@@ -1372,7 +1467,20 @@ export const BnqDialog = ({ port, onFinish, onBackFromFirst, leadStep, topProgre
             </QBlock>
           ) : (
             <>
-              {renderQuestion()}
+              {/* Одиночный шаг — один вопрос. Парный шаг (резидентство Q3 + FATCA Q4b,
+                  Марго 23.06) — оба вопроса формами, Q3 сверху, Q4b под ним, с разделителем. */}
+              {isPaired ? (
+                <GroupStack>
+                  {currentQs.map((cq, i) => (
+                    <div key={cq.q}>
+                      {i > 0 && <PairDivider />}
+                      {renderQuestion(cq, true)}
+                    </div>
+                  ))}
+                </GroupStack>
+              ) : (
+                renderQuestion()
+              )}
 
               {/* Единый ряд навигации: «Назад» слева, действия справа.
                   В probe-режиме справа [Изменить] [Да, верно], иначе [Далее/Завершить]. */}
