@@ -435,7 +435,17 @@ const BankRequest = styled.div`
   padding:1rem 1.125rem; border-radius:${radii.panel};
   background:rgba(245,140,32,0.06); border:1px solid rgba(245,140,32,0.32);
 `;
-const BankRequestHead = styled.div`${bodySBold}; font-size:0.9rem; color:#b56412;`;
+// Иконка-алерт перед заголовком: громкая оранжевая action-карточка должна доминировать над тихим
+// info-Note (у того своя иконка). Глиф «!» в кружке (приём как у UboDvuNote ::before).
+const BankRequestHead = styled.div`
+  ${bodySBold}; font-size:0.9rem; color:#b56412;
+  display:flex; align-items:center; gap:0.5rem;
+  &::before {
+    content:'!'; flex-shrink:0; width:1.25rem; height:1.25rem; border-radius:50%;
+    background:#f5811f; color:#fff; font-size:0.8rem; line-height:1;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+`;
 const BankRequestRow = styled.div`display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;`;
 const BankRequestDoc = styled.span`${bodySBold}; font-size:0.88rem; color:${textPrimary};`;
 
@@ -1080,6 +1090,33 @@ export const CompanyConfirm = () => {
           <Subtitle>{t.subtitle}</Subtitle>
         </CardHeader>
         <CardBody>
+          {/* #62 (Марго 23.06) — обратный запрос банка (DVU): банк запросил догрузить документ.
+              Action Required = самое срочное в момент появления → ПЕРВЫМ блоком, выше пассивного
+              Note «внимательно проверяйте» (бриф Ульяны 2026-06-26). Карточка-действие живёт ЗДЕСЬ
+              (Company Details); на дашборде — только индикатор статуса (левая навигация). id — якорь
+              #bank-request из левой панели. Условный блок: нет запроса → не рендерится, дыры нет. */}
+          {dvuRequest && (
+            <Section id="bank-request">
+              <BankRequest>
+                <BankRequestHead>{t.bankRequestTitle}</BankRequestHead>
+                <Hint>{t.bankRequestHint}</Hint>
+                <BankRequestRow>
+                  <BankRequestDoc>{dvuRequest.docName}</BankRequestDoc>
+                  {dvuRequest.status === 'uploaded'
+                    ? <DocUploaded>{t.dvuUploaded}{dvuRequest.fileName ? ` · ${dvuRequest.fileName}` : ''}</DocUploaded>
+                    : (
+                      <Button
+                        view="secondary" size="s"
+                        text={dvuUploading ? t.dvuUploading : t.dvuUpload}
+                        disabled={dvuUploading}
+                        onClick={handleDvuUpload}
+                      />
+                    )}
+                </BankRequestRow>
+              </BankRequest>
+            </Section>
+          )}
+
           {/* #36 — заметная плашка «внимательно проверяйте». view="info" (оранжевый зарезервирован под DVU) */}
           <Note key={`att-${lang}`} view="info" text={t.attentionNote} />
 
@@ -1152,31 +1189,6 @@ export const CompanyConfirm = () => {
                   />
                 </EditForm>
               )}
-            </Section>
-          )}
-
-          {/* #62 (Марго 23.06) — обратный запрос банка (DVU): банк запросил догрузить документ.
-              Карточка-действие живёт ЗДЕСЬ (Company Details), со статусом Action Required; на дашборде
-              остаётся только индикатор статуса (левая навигация). Показываем, пока документ не догружен. */}
-          {dvuRequest && (
-            <Section>
-              <BankRequest>
-                <BankRequestHead>{t.bankRequestTitle}</BankRequestHead>
-                <Hint>{t.bankRequestHint}</Hint>
-                <BankRequestRow>
-                  <BankRequestDoc>{dvuRequest.docName}</BankRequestDoc>
-                  {dvuRequest.status === 'uploaded'
-                    ? <DocUploaded>{t.dvuUploaded}{dvuRequest.fileName ? ` · ${dvuRequest.fileName}` : ''}</DocUploaded>
-                    : (
-                      <Button
-                        view="secondary" size="s"
-                        text={dvuUploading ? t.dvuUploading : t.dvuUpload}
-                        disabled={dvuUploading}
-                        onClick={handleDvuUpload}
-                      />
-                    )}
-                </BankRequestRow>
-              </BankRequest>
             </Section>
           )}
 
