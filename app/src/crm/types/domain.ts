@@ -159,3 +159,80 @@ export interface Funnel {
   applications: Application[];
   history: HistoryEvent[];
 }
+
+// --- Линия процесса (spine) — машина состояний заявки (процессное-окно-концепт §1/§4) ---
+
+// 9 крупных узлов пути (разв.5 процессного концепта). id стабилен, подпись — в i18n.
+export type ProcessNodeId =
+  | 'intake' // Вход / self-reg
+  | 'pan' // PAN → Probe42
+  | 'questionnaire' // Опросник
+  | 'data' // Данные компании
+  | 'signatories' // Подписанты + BR
+  | 'vkyc' // Идентификация VKYC
+  | 'signing' // Подписание DSC
+  | 'account' // Открытие счёта
+  | 'done'; // Готово / счёт
+
+// Порядок узлов на линии (единый источник истины для реестра-мини-spine и полного spine).
+export const PROCESS_ORDER: ProcessNodeId[] = [
+  'intake', 'pan', 'questionnaire', 'data', 'signatories', 'vkyc', 'signing', 'account', 'done',
+];
+
+// 6 состояний узла (процессное-окно-концепт §4). Цвет/форма берутся из semantic-палитры MUI.
+export type NodeState =
+  | 'not-started'
+  | 'active'
+  | 'waiting'
+  | 'done'
+  | 'action-required'
+  | 'error';
+
+// Срез процесса одного профиля: текущий узел + карта состояний узлов.
+export interface ProcessState {
+  activeNode: ProcessNodeId;
+  nodes: Partial<Record<ProcessNodeId, NodeState>>; // узлы без записи = 'not-started'
+  ageDays?: number; // время в текущем статусе «(N дн)» (входной-реестр §6)
+}
+
+// --- DVU-Task — сущность ядра, ссылается на профиль по profileId (spike §3.2) ---
+
+// Источник задачи (карта стыковок). Привязан к узлу spine для action-required.
+export type DvuTaskKind =
+  | 'probe-fail'
+  | 'crilc'
+  | 'ofac'
+  | 'ckyc'
+  | 'manual-edit'
+  | 'doc-request'
+  | 'vkyc-fail'
+  | 'abandoned';
+
+export type DvuTaskStatus = 'open' | 'in-review' | 'pending-approval' | 'resolved' | 'rejected';
+export type DvuOutcome = 'approved' | 'rejected' | 'more-info';
+
+export interface DvuTaskLogEntry {
+  at: IsoTimestamp;
+  by: string;
+  action: string;
+  comment?: string;
+}
+
+export interface DvuTask {
+  id: string;
+  profileId: string; // FK на CompanyProfile (НЕ дубль профиля — ссылка)
+  onboardingCaseId?: string;
+  node: ProcessNodeId; // узел spine, к которому привязана задача
+  kind: DvuTaskKind;
+  title: string; // человекочитаемое (демо; ключевую локаль даёт i18n по kind)
+  status: DvuTaskStatus;
+  outcome?: DvuOutcome;
+  priority: 'low' | 'medium' | 'high';
+  slaHoursLeft: number; // часы до нарушения SLA (демо)
+  assignedTo?: string; // DVU-офицер (исполнитель) ── four-eyes
+  approvedBy?: string; // финальный аппрувер ≠ performedBy ── four-eyes
+  performedBy?: string; // кто вёл сессию (VKYC) — исключается из валидации (four-eyes BRD)
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+  log: DvuTaskLogEntry[];
+}

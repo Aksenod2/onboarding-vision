@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import Container from '@mui/material/Container';
+import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
-import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
@@ -19,13 +17,13 @@ import Skeleton from '@mui/material/Skeleton';
 import Alert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
 import Snackbar from '@mui/material/Snackbar';
-import { getProfile, getFunnel } from '../mock/crmApi';
+import CircularProgress from '@mui/material/CircularProgress';
+import { getProfile, getFunnel, createDeal, resumeApplication } from '../mock/crmApi';
 import type { CompanyProfile as Profile, Funnel, ClientSource, HistoryEventKind } from '../types/domain';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { FunnelStrip } from '../components/FunnelStrip';
 import { OfferDialog } from '../components/OfferDialog';
 import { SOURCE_OPTIONS, sourceKey } from '../components/options';
+import { useSelectedClient } from '../state/SelectedClientContext';
 import { useCrmI18n, type CrmDictKey } from '../i18n';
 
 const entityKey = (e: Profile['entityType']): CrmDictKey => `entity.${e}` as CrmDictKey;
@@ -47,11 +45,14 @@ const fmtDate = (iso: string): string => {
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 };
 
-// CompanyProfile — агрегатор «одного окна». Порядок секций (бриф Р3): шапка → AI → FunnelStrip → история+действия.
+// CompanyProfile — агрегатор «одного окна» (вкладка «Обзор» рабочей области клиента).
+// Адаптирован под shell: clientId берётся из SelectedClientContext (не из useParams), «Назад» и
+// переключатель языка живут в Shell — здесь рендерим только секции рабочей области.
+// Порядок секций (бриф Р3): шапка → AI → FunnelStrip → история+действия.
 export const CompanyProfile = () => {
-  const { id = '' } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const { t, lang, setLang } = useCrmI18n();
+  const { clientId } = useSelectedClient();
+  const id = clientId ?? '';
+  const { t } = useCrmI18n();
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -59,6 +60,8 @@ export const CompanyProfile = () => {
   const [source, setSource] = useState<ClientSource>('call');
   const [offerOpen, setOfferOpen] = useState(false);
   const [snack, setSnack] = useState<string | null>(null);
+  const [busyDeal, setBusyDeal] = useState(false);
+  const [busyResume, setBusyResume] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,69 +83,59 @@ export const CompanyProfile = () => {
   }, [load]);
 
   const hasOffer = !!funnel && funnel.offers.length > 0;
+  // Брошенная заявка → кандидат на возобновление (UC-1/UC-4, бриф §3).
+  const abandoned = funnel?.applications.find((a) => a.status === 'abandoned');
 
   const onOfferCreated = async () => {
     await load();
     setSnack(t('profile.toast.offer'));
   };
 
+  const onCreateDeal = async () => {
+    if (!profile) return;
+    setBusyDeal(true);
+    // Сделка из последнего оффера, если он есть (ссылка offerId), иначе самостоятельная.
+    const lastOffer = funnel?.offers[funnel.offers.length - 1];
+    await createDeal({
+      profileId: profile.id,
+      kind: lastOffer?.product ?? 'current-account',
+      channel: 'online',
+      offerId: lastOffer?.id,
+    });
+    await load();
+    setBusyDeal(false);
+    setSnack(t('profile.toast.deal'));
+  };
+
+  const onResume = async () => {
+    if (!profile || !abandoned) return;
+    setBusyResume(true);
+    await resumeApplication(profile.id, abandoned.id);
+    await load();
+    setBusyResume(false);
+    setSnack(t('profile.toast.resume'));
+  };
+
   // --- Loading ---
   if (loading) {
     return (
-      <Container sx={{ py: 4 }} maxWidth="lg">
-        <Stack spacing={3}>
-          <Skeleton variant="text" width={220} height={40} />
-          <Skeleton variant="rectangular" height={90} sx={{ borderRadius: 2 }} />
-          <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
-          <Skeleton variant="rectangular" height={110} sx={{ borderRadius: 2 }} />
-          <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 2 }} />
-        </Stack>
-      </Container>
+      <Stack spacing={3}>
+        <Skeleton variant="rectangular" height={90} sx={{ borderRadius: 2 }} />
+        <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
+        <Skeleton variant="rectangular" height={110} sx={{ borderRadius: 2 }} />
+        <Skeleton variant="rectangular" height={200} sx={{ borderRadius: 2 }} />
+      </Stack>
     );
   }
 
   // --- Not found ---
   if (!profile || !funnel) {
-    return (
-      <Container sx={{ py: 4 }} maxWidth="md">
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" size="small" onClick={() => navigate('/rm/crm')}>
-              {t('crm.back')}
-            </Button>
-          }
-        >
-          {t('profile.notFound')}
-        </Alert>
-      </Container>
-    );
+    return <Alert severity="error">{t('profile.notFound')}</Alert>;
   }
 
   return (
-    <Container sx={{ py: 4 }} maxWidth="lg">
+    <>
       <Stack spacing={3}>
-        {/* Назад слева + локальный переключатель языка справа. Заголовок-h1 = название компании (в шапке). */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Button
-            variant="text"
-            onClick={() => navigate('/rm/crm')}
-            startIcon={<Box component="span" aria-hidden>←</Box>}
-          >
-            {t('crm.back')}
-          </Button>
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={lang}
-            onChange={(_, next) => next && setLang(next)}
-            aria-label="language"
-          >
-            <ToggleButton value="ru" aria-label="Russian">RU</ToggleButton>
-            <ToggleButton value="en" aria-label="English">EN</ToggleButton>
-          </ToggleButtonGroup>
-        </Stack>
-
         {/* ШАПКА: primary-атрибуты + дропдаун источника */}
         <Paper variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
           <Stack
@@ -293,6 +286,27 @@ export const CompanyProfile = () => {
               <Button variant="contained" onClick={() => setOfferOpen(true)}>
                 {t('profile.actions.offer')}
               </Button>
+              {/* «Создать сделку» (C3) — из последнего оффера, если он есть. */}
+              <Button
+                variant="outlined"
+                onClick={onCreateDeal}
+                disabled={busyDeal}
+                startIcon={busyDeal ? <CircularProgress size={16} /> : undefined}
+              >
+                {t('profile.actions.deal')}
+              </Button>
+              {/* «Возобновить брошенную заявку» (UC-1/UC-4) — только если есть abandoned-заявка. */}
+              {abandoned && (
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  onClick={onResume}
+                  disabled={busyResume}
+                  startIcon={busyResume ? <CircularProgress size={16} /> : undefined}
+                >
+                  {t('profile.actions.resume')}
+                </Button>
+              )}
               <Button variant="outlined" onClick={() => setSnack(t('profile.toast.call'))}>
                 {t('profile.actions.call')}
               </Button>
@@ -334,6 +348,6 @@ export const CompanyProfile = () => {
         message={snack ?? ''}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
-    </Container>
+    </>
   );
 };

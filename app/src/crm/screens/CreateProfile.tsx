@@ -1,6 +1,4 @@
 import { useState, useMemo, FormEvent } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
@@ -22,16 +20,18 @@ import { useCrmI18n } from '../i18n';
 type ProbeState = 'idle' | 'loading' | 'success' | 'not-found' | 'error';
 
 // CreateProfile — ветка «не найдено» (UC-2б). PAN первым + «Подтянуть из Probe42». CTA дизейбл до валидности.
-export const CreateProfile = () => {
-  const navigate = useNavigate();
-  const { t, lang, setLang } = useCrmI18n();
-  const [params] = useSearchParams();
+// Адаптирован под shell: вместо роутера — колбэки onCancel/onCreated(id). initialPan пробрасывает
+// shell из ненайденного поиска. «Назад» и язык — в Shell, здесь только форма.
+interface CreateProfileProps {
+  initialPan?: string;
+  onCancel: () => void;
+  onCreated: (id: string) => void;
+}
 
-  // PAN предзаполняется из ?pan= (проброс из CrmSearch not-found). Источник по умолчанию «Звонок»
-  // (штатно сюда приходят с входящего звонка после «не найдено»).
-  const initialPan = (params.get('pan') ?? '').toUpperCase();
+export const CreateProfile = ({ initialPan = '', onCancel, onCreated }: CreateProfileProps) => {
+  const { t } = useCrmI18n();
 
-  const [pan, setPan] = useState(initialPan);
+  const [pan, setPan] = useState(initialPan.toUpperCase());
   const [entityType, setEntityType] = useState<EntityType>('Company');
   const [legalName, setLegalName] = useState('');
   const [cin, setCin] = useState('');
@@ -83,41 +83,12 @@ export const CreateProfile = () => {
       source,
     });
     setSubmitting(false);
-    navigate(`/rm/crm/profile/${created.id}`);
+    onCreated(created.id);
   };
 
   return (
-    <Container sx={{ py: 4 }} maxWidth="sm">
+    <Box sx={{ maxWidth: 560 }}>
       <Stack spacing={3}>
-        {/* Назад слева + переключатель языка справа */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Button
-            variant="text"
-            onClick={() => navigate('/rm/crm')}
-            startIcon={<Box component="span" aria-hidden>←</Box>}
-          >
-            {t('crm.back')}
-          </Button>
-          <Box>
-            <Button
-              size="small"
-              variant={lang === 'ru' ? 'contained' : 'text'}
-              onClick={() => setLang('ru')}
-              sx={{ minWidth: 40 }}
-            >
-              RU
-            </Button>
-            <Button
-              size="small"
-              variant={lang === 'en' ? 'contained' : 'text'}
-              onClick={() => setLang('en')}
-              sx={{ minWidth: 40 }}
-            >
-              EN
-            </Button>
-          </Box>
-        </Stack>
-
         <Typography variant="h5" component="h1">
           {t('create.title')}
         </Typography>
@@ -233,7 +204,7 @@ export const CreateProfile = () => {
 
           {/* CTA: «Отмена» слева (text) + «Создать профиль» справа (contained, дизейбл до валидности). */}
           <Stack direction="row" justifyContent="space-between" sx={{ mt: 3 }}>
-            <Button variant="text" onClick={() => navigate('/rm/crm')} disabled={submitting}>
+            <Button variant="text" onClick={onCancel} disabled={submitting}>
               {t('create.cancel')}
             </Button>
             <Button
@@ -247,6 +218,6 @@ export const CreateProfile = () => {
           </Stack>
         </Paper>
       </Stack>
-    </Container>
+    </Box>
   );
 };

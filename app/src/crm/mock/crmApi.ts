@@ -5,6 +5,7 @@
 import { seed, type CrmState } from './seed';
 import type {
   CompanyProfile, Funnel, Application, Offer, Deal, Lead, ClientSource, ProductCode,
+  ProcessState, DvuTask, DvuOutcome,
 } from '../types/domain';
 
 let state: CrmState = structuredClone(seed);
@@ -165,6 +166,27 @@ export const createDeal = (input: CreateDealInput): Promise<Deal> => {
   return delay(deal);
 };
 
+// Возобновить брошенную заявку (UC-1/UC-4): статус abandoned → active, пишем событие в историю.
+// Демо: одна заявка профиля. В реальности — реактивация кейса в онбординге через адаптер.
+export const resumeApplication = (profileId: string, applicationId: string): Promise<Application | null> => {
+  const list = state.applications[profileId] ?? [];
+  const target = list.find((a) => a.id === applicationId);
+  if (!target) return delay(null);
+  const updated: Application = { ...target, status: 'active', updatedAt: nowIso() };
+  state.applications[profileId] = list.map((a) => (a.id === applicationId ? updated : a));
+  state.history[profileId] = [
+    ...(state.history[profileId] ?? []),
+    {
+      id: newId('crm-h'),
+      kind: 'application-stage',
+      at: nowIso(),
+      title: 'Application resumed',
+      detail: `Stage: ${target.stage}`,
+    },
+  ];
+  return delay(updated);
+};
+
 // --- Внутренние хелперы для адаптера (НЕ публичный API экранов) ---
 // Адаптер пишет в тот же state. Эти функции синхронные (адаптер сам решает про delay).
 // Снаружи модуля через barrel НЕ экспортируются — это часть «БД сервиса», не публичный контракт.
@@ -200,6 +222,121 @@ export const patchApplicationByCase = (
 };
 export const pushHistory = (profileId: string, ev: Funnel['history'][number]): void => {
   state.history[profileId] = [...(state.history[profileId] ?? []), ev];
+};
+
+// --- Процесс (spine) — позиция клиента на линии (процессное-окно §1) ---
+
+export const getProcess = (profileId: string): Promise<ProcessState | undefined> =>
+  delay(state.process[profileId]);
+
+// Списком — для колонки-этапа в реестре (входной-реестр §4): profileId → ProcessState.
+export const getAllProcess = (): Promise<Record<string, ProcessState>> =>
+  delay({ ...state.process });
+
+// --- DVU-домен: очередь, задачи, four-eyes (spike §4/§5) ---
+
+// Вся очередь (Queue-WS). Плоский список всех задач всех профилей.
+export const getDvuQueue = (): Promise<DvuTask[]> => {
+  const flat: DvuTask[] = [];
+  for (const list of Object.values(state.dvuTasks)) flat.push(...list);
+  return delay(flat);
+};
+
+// Задачи одного профиля (для блока «связанные DVU-задачи» в профиле — доказывает консистентность).
+export const getDvuTasks = (profileId: string): Promise<DvuTask[]> =>
+  delay(state.dvuTasks[profileId] ?? []);
+
+export const getDvuTask = (taskId: string): Promise<DvuTask | undefined> => {
+  for (const list of Object.values(state.dvuTasks)) {
+    const t = list.find((x) => x.id === taskId);
+    if (t) return delay(t);
+  }
+  return delay(undefined);
+};
+
+// Внутренний поиск задачи без delay (для мутаций).
+const findTask = (taskId: string): { profileId: string; task: DvuTask } | undefined => {
+  for (const [profileId, list] of Object.entries(state.dvuTasks)) {
+    const task = list.find((x) => x.id === taskId);
+    if (task) return { profileId, task };
+  }
+  return undefined;
+};
+
+const patchTask = (taskId: string, patch: Partial<DvuTask>): void => {
+  for (const [profileId, list] of Object.entries(state.dvuTasks)) {
+    if (list.some((x) => x.id === taskId)) {
+      state.dvuTasks[profileId] = list.map((x) =>
+        x.id === taskId ? { ...x, ...patch, updatedAt: nowIso() } : x,
+      );
+      return;
+    }
+  }
+};
+
+// Взять задачу на себя (исполнитель). assignedTo = currentUser.
+export const takeDvuTask = (taskId: string, by: string): Promise<DvuTask> => {
+  const found = findTask(taskId);
+  if (!found) return Promise.reject(new Error('task not found'));
+  const log = [...found.task.log, { at: nowIso(), by, action: 'taken' }];
+  patchTask(taskId, { assignedTo: by, status: 'in-review', log });
+  return delay(findTask(taskId)!.task);
+};
+
+// Результат резолва: ok | заблокировано four-eyes-гардом (исполнитель/ведущий = аппрувер).
+export interface ResolveResult {
+  ok: boolean;
+  reason?: 'four-eyes';
+  task?: DvuTask;
+}
+
+// Резолв задачи (аппрувер). FOUR-EYES-ГАРД (spike §5): один человек не может быть и
+// исполнителем/ведущим сессию, и аппрувером по одной задаче.
+export const resolveDvuTask = (
+  taskId: string,
+  outcome: DvuOutcome,
+  by: string,
+): Promise<ResolveResult> => {
+  const found = findTask(taskId);
+  if (!found) return delay({ ok: false });
+  const { task } = found;
+
+  // Гард segregation of duties: вёл сессию ИЛИ был исполнителем → не может аппрувить.
+  if (task.performedBy === by || task.assignedTo === by) {
+    return delay({ ok: false, reason: 'four-eyes' as const });
+  }
+
+  const status = outcome === 'approved' ? 'resolved' : outcome === 'rejected' ? 'rejected' : 'in-review';
+  const log = [...task.log, { at: nowIso(), by, action: `resolved:${outcome}` }];
+  patchTask(taskId, { status, outcome, approvedBy: by, log });
+
+  // КОНСИСТЕНТНОСТЬ (тезис 1): мутируем ядро напрямую — история + узел spine + заявка.
+  const profileId = found.profileId;
+  state.history[profileId] = [
+    ...(state.history[profileId] ?? []),
+    {
+      id: newId('crm-h'),
+      kind: 'dvu-result',
+      at: nowIso(),
+      title: `DVU: ${outcome === 'approved' ? 'approved' : outcome === 'rejected' ? 'rejected' : 'more info requested'} — ${task.title}`,
+      detail: `by ${by}`,
+    },
+  ];
+  // Красим узел spine: approved → done и сдвигаем активный узел вперёд.
+  const proc = state.process[profileId];
+  if (proc) {
+    const nextNodes = { ...proc.nodes };
+    if (outcome === 'approved') nextNodes[task.node] = 'done';
+    else if (outcome === 'rejected') nextNodes[task.node] = 'error';
+    else nextNodes[task.node] = 'waiting';
+    state.process[profileId] = { ...proc, nodes: nextNodes };
+  }
+  // Патчим заявку (если есть трассировка).
+  if (task.onboardingCaseId && outcome === 'approved') {
+    patchApplicationByCase(profileId, task.onboardingCaseId, { stage: 'signing' });
+  }
+
+  return delay({ ok: true, reason: undefined, task: findTask(taskId)!.task });
 };
 
 // --- Сброс демо ---
