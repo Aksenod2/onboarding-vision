@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:crm": "node ../scripts/check-crm-isolation.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

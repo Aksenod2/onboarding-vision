@@ -30,7 +30,7 @@ import { CompanyBank } from './screens/v2/company/CompanyBank';
 import { LanguageProvider } from './ui/v2/LanguageContext';
 import { CompanyProvider } from './ui/v2/CompanyContext';
 import { RmThemeProvider } from './rm/RmThemeProvider';
-import { CrmSmoke } from './rm/CrmSmoke';
+import { CrmRoutes } from './crm';
 import { DemoNav } from './ui/DemoNav';
 
 // Сброс прокрутки наверх при смене экрана (React Router сам этого не делает).
@@ -54,7 +54,8 @@ export const App = () => {
         <Route path="/" element={<Navigate to="/v2/sole" replace />} />
         {/* RM-ветка (роль Менеджера). Обёрнута в RmThemeProvider — MUI/Caldera (оранжевая тема).
             Существующие RM01…RM05 на SDDS продолжают рендериться (MUI-компоненты не используют).
-            Новый CRM/Caldera (решение Дениса 25.06) — на чистом MUI v5, /rm/crm — smoke-экран. */}
+            Новый CRM/Caldera (решение Дениса 25.06) — изолированный модуль crm/* на чистом MUI v5,
+            монтируется под /rm/crm/* через barrel crm/index.ts (CrmRoutes). */}
         <Route path="/rm/*" element={
           <RmThemeProvider>
             <Routes>
@@ -63,7 +64,7 @@ export const App = () => {
               <Route path="kyc" element={<RM03KycTask />} />
               <Route path="vkyc" element={<RM04VkycMeeting />} />
               <Route path="session" element={<RM05Session />} />
-              <Route path="crm" element={<CrmSmoke />} />
+              <Route path="crm/*" element={<CrmRoutes />} />
               <Route path="*" element={<Navigate to="/rm/queue" replace />} />
             </Routes>
           </RmThemeProvider>

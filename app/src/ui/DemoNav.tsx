@@ -15,6 +15,8 @@ const MANAGER: Node[] = [
   { l: 'KYC-разбор', p: '/rm/kyc?id=DVU-1051' },
   { l: 'VKYC · встреча', p: '/rm/vkyc?id=DVU-1055' },
   { l: 'VKYC · сессии', p: '/rm/session?id=DVU-1055' },
+  // CRM «одного окна» (изолированный модуль crm/*, MUI). Ссылка-строка — без импорта из crm/ (изоляция).
+  { l: 'CRM · Одно окно', p: '/rm/crm' },
 ];
 
 const V2: Node[] = [
