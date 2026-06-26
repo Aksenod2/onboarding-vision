@@ -15,13 +15,13 @@ import {
   setUboModified, uploadUboShareholdingDoc, uploadCompanyFieldProof,
   getDirectors, addDirector, updateDirector, removeDirector,
   setDirectorsModified, uploadDirectorsProofDoc,
-  getBoardResolution, setAsFromBnq, getBnq,
+  getBoardResolution, setAsFromBnq, getBnq, updateBnqAnswer,
   getCompanyCase, uploadDvuDocument,
 } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { CompanyDetails, Signatory, Ubo, CompanyDocument, BrSignerConfig, Director, DvuRequest } from '../../../mock/v2/companyTypes';
 import type { BnqAnswer } from '../../../mock/v2/types';
-import { buildStepOrder } from '../../../ui/v2/bnq/BnqDialog';
+import { buildStepOrder, isNoAnswer, INDUSTRIES } from '../../../ui/v2/bnq/BnqDialog';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow, ConsentRow } from './companyUi';
 
 // CO-CONFIRM — шаг 2 фазы A: обзор данных компании + редактирование + бизнес-профиль (директора, UBO).
@@ -73,6 +73,19 @@ const dict: Record<Lang, {
   // #60 — ответы клиента на вопросы опросника на превью (read-only + правка в анкете)
   sectionAnswers: string; answersHint: string; answersEdit: string; answersEmpty: string;
   qLabels: Record<string, string>;
+  // #60-edit — инлайн-правка ответов опросника прямо на превью (по аналогии с Company details,
+  // без редиректа в анкету). Канонические опции выборов по типу вопроса (см. BnqDialog).
+  ans: {
+    residency: [string, string]; // [резидент, нерезидент]
+    pepYes: string; pepNo: string;
+    creditYes: string; creditNo: string;
+    impExp: [string, string, string, string]; // [экспорт, импорт, оба, нет]
+    iecNow: string; iecLater: string;
+    fatca: Array<{ key: string; label: string }>; // key — каноничный (англ.), хранится в value
+    fatcaCountry: string;
+    ccodYes: string; ccodNo: string; ccodMore: string; ccodLess: string; ccodThreshold: string;
+    revenueHint: string; countriesHint: string;
+  };
 }> = {
   ru: {
     title: 'Проверьте данные компании',
@@ -169,6 +182,22 @@ const dict: Record<Lang, {
       Q9: 'Импорт / экспорт',
       Q10: 'Страны-партнёры по импорту/экспорту',
       Q11: 'Документ IEC',
+    },
+    ans: {
+      residency: ['Резидент Индии', 'Нерезидент (вне Индии)'],
+      pepYes: 'Да', pepNo: 'Нет',
+      creditYes: 'Да, планируем', creditNo: 'Нет, не планируем',
+      impExp: ['Да, только экспорт', 'Да, только импорт', 'Да, импорт и экспорт', 'Нет, не занимаюсь'],
+      iecNow: 'Загрузить сейчас', iecLater: 'Загрузить позже',
+      fatca: [
+        { key: 'Active NFFE', label: 'Active NFFE (активная нефинансовая компания)' },
+        { key: 'Passive NFFE', label: 'Passive NFFE (пассивная нефинансовая компания)' },
+        { key: 'Financial Institution', label: 'Финансовая организация' },
+      ],
+      fatcaCountry: 'Страна налогового резидентства',
+      ccodYes: 'Да', ccodNo: 'Нет', ccodMore: 'Более 10 крор', ccodLess: 'Менее 10 крор',
+      ccodThreshold: 'Совокупный объём задолженности',
+      revenueHint: 'Сумма в крорах (Cr)', countriesHint: 'Через запятую. Напр.: Russia, UAE, China',
     },
   },
   en: {
@@ -267,6 +296,22 @@ const dict: Record<Lang, {
       Q10: 'Import / export partner countries',
       Q11: 'IEC document',
     },
+    ans: {
+      residency: ['Indian resident', 'Foreign resident outside India'],
+      pepYes: 'Yes', pepNo: 'No',
+      creditYes: 'Yes, planning', creditNo: 'No, not planning',
+      impExp: ['Yes, export only', 'Yes, import only', 'Yes, both import and export', "No, I don't"],
+      iecNow: 'Upload now', iecLater: 'Upload later',
+      fatca: [
+        { key: 'Active NFFE', label: 'Active NFFE' },
+        { key: 'Passive NFFE', label: 'Passive NFFE' },
+        { key: 'Financial Institution', label: 'Financial Institution' },
+      ],
+      fatcaCountry: 'Country of tax residency',
+      ccodYes: 'Yes', ccodNo: 'No', ccodMore: 'More than 10 crore', ccodLess: 'Less than 10 crore',
+      ccodThreshold: 'Aggregate total exposure',
+      revenueHint: 'Amount in crore (Cr)', countriesHint: 'Comma-separated. E.g.: Russia, UAE, China',
+    },
   },
 };
 
@@ -300,6 +345,26 @@ const LinkBtn = styled.button`
   &:hover { text-decoration:underline; color:${textPrimary}; }
 `;
 const EditRow = styled.div`display:flex; gap:0.75rem; align-items:center;`;
+
+// Радио-опция для инлайн-правки ответов опросника (тот же визуал, что в BnqDialog).
+const AnsRadioGroup = styled.div`display:flex; flex-direction:column; gap:0.5rem;`;
+const AnsRadio = styled.label<{ $selected: boolean }>`
+  display:flex; align-items:center; gap:0.6rem; cursor:pointer;
+  padding:0.6rem 0.8rem; border-radius:${radii.panel};
+  border:1.5px solid ${({ $selected }) => ($selected ? textAccent : 'rgba(0,0,0,0.10)')};
+  background:${({ $selected }) => ($selected ? 'rgba(33,160,56,0.06)' : '#fafafa')};
+  font-size:0.85rem; color:${textPrimary}; transition:border-color .18s, background .18s;
+  &:hover { border-color:${textAccent}; }
+`;
+const AnsRadioDot = styled.span<{ $selected: boolean }>`
+  flex-shrink:0; width:16px; height:16px; border-radius:50%; position:relative;
+  border:2px solid ${({ $selected }) => ($selected ? textAccent : 'rgba(0,0,0,0.22)')};
+  background:${({ $selected }) => ($selected ? textAccent : 'transparent')};
+  &::after { content:''; position:absolute; inset:3px; border-radius:50%; background:#fff;
+    display:${({ $selected }) => ($selected ? 'block' : 'none')}; }
+`;
+// Лейбл редактируемого ответа над контролом.
+const AnsFieldLabel = styled.span`${bodySBold}; font-size:0.8rem; color:${textSecondary};`;
 
 // Редактируемая форма данных компании (reg-поля редактируемы в edit + адрес переписки, manual).
 const EditForm = styled.div`display:flex; flex-direction:column; gap:0.75rem;`;
@@ -418,6 +483,12 @@ export const CompanyConfirm = () => {
   const [signatories, setSignatories] = useState<Signatory[]>([]);
   // #60 — ответы клиента на вопросы опросника (показываем на превью, он их подписывает).
   const [bnq, setBnq] = useState<BnqAnswer[]>([]);
+  // #60-edit — инлайн-правка ответов прямо здесь (без редиректа в анкету, по аналогии с Company details).
+  // ansDraft — простые выборы/тексты по ключу вопроса; q4bDraft/q6bDraft — составные ответы.
+  const [editingAnswers, setEditingAnswers] = useState(false);
+  const [ansDraft, setAnsDraft] = useState<Record<string, string>>({});
+  const [q4bDraft, setQ4bDraft] = useState<{ cls: string; country: string }>({ cls: 'Active NFFE', country: 'India' });
+  const [q6bDraft, setQ6bDraft] = useState<{ yesNo: 'yes' | 'no'; threshold: string }>({ yesNo: 'no', threshold: '' });
 
   // #15b — режим правки данных компании + черновик редактируемого поля (адрес переписки).
   const [editingCompany, setEditingCompany] = useState(false);
@@ -545,6 +616,207 @@ export const CompanyConfirm = () => {
   const answerRows = buildStepOrder(bnq)
     .map((i) => bnq[i])
     .filter((a) => a && a.q !== 'QAS');
+
+  // --- #60-edit — инлайн-правка ответов опросника ---------------------------------
+  // Закодированное значение черновика по вопросу (составные Q4b/Q6b собираем из отдельного state).
+  const ansDraftValue = (q: string): string => {
+    if (q === 'Q4b') return `${q4bDraft.cls} · ${q4bDraft.country}`.trim();
+    if (q === 'Q6b') {
+      if (q6bDraft.yesNo === 'no') return t.ans.ccodNo;
+      return q6bDraft.threshold ? `${t.ans.ccodYes} — ${q6bDraft.threshold}` : t.ans.ccodYes;
+    }
+    return ansDraft[q] ?? '';
+  };
+  // bnq с применённым черновиком — для ЖИВОГО ветвления (Q9=«Нет» → скрыть Q10/Q11) в режиме правки.
+  const draftBnq = editingAnswers
+    ? bnq.map((a) => ({ ...a, value: ansDraftValue(a.q) || a.value }))
+    : bnq;
+  const editAnswerRows = buildStepOrder(draftBnq)
+    .map((i) => draftBnq[i])
+    .filter((a) => a && a.q !== 'QAS');
+
+  const startEditAnswers = () => {
+    const draft: Record<string, string> = {};
+    for (const a of bnq) {
+      const v = a.value;
+      switch (a.q) {
+        case 'Q1':
+          draft.Q1 = v || INDUSTRIES[0];
+          break;
+        case 'Q3':
+          draft.Q3 = /foreign|нерезид|outside/i.test(v) ? t.ans.residency[1] : t.ans.residency[0];
+          break;
+        case 'Q4b': {
+          const [clsPart, countryPart] = v.split(' · ');
+          const cls = /passive/i.test(clsPart) ? 'Passive NFFE' : /financial/i.test(clsPart) ? 'Financial Institution' : 'Active NFFE';
+          setQ4bDraft({ cls, country: (countryPart || 'India').trim() });
+          break;
+        }
+        case 'Q5':
+          draft.Q5 = !v || isNoAnswer(v) ? t.ans.pepNo : t.ans.pepYes;
+          break;
+        case 'Q6':
+          draft.Q6 = v;
+          break;
+        case 'Q6b': {
+          if (!v || isNoAnswer(v)) setQ6bDraft({ yesNo: 'no', threshold: '' });
+          else setQ6bDraft({ yesNo: 'yes', threshold: /less|меньше|менее|<\s*10/i.test(v) ? t.ans.ccodLess : t.ans.ccodMore });
+          break;
+        }
+        case 'Q7':
+          draft.Q7 = !v || isNoAnswer(v) ? t.ans.creditNo : t.ans.creditYes;
+          break;
+        case 'Q9': {
+          const hasImp = /import|импорт/i.test(v);
+          const hasExp = /export|экспорт/i.test(v);
+          draft.Q9 = isNoAnswer(v) ? t.ans.impExp[3] : hasImp && hasExp ? t.ans.impExp[2] : hasImp ? t.ans.impExp[1] : t.ans.impExp[0];
+          break;
+        }
+        case 'Q10':
+          draft.Q10 = v;
+          break;
+        case 'Q11':
+          draft.Q11 = /later|позже/i.test(v) ? t.ans.iecLater : t.ans.iecNow;
+          break;
+        default:
+          break;
+      }
+    }
+    setAnsDraft(draft);
+    setEditingAnswers(true);
+  };
+  const cancelEditAnswers = () => setEditingAnswers(false);
+  const saveAnswers = async () => {
+    let updated = bnq;
+    for (const a of bnq) {
+      if (a.q === 'QAS' || a.q === 'Q8' || a.q === 'Q2') continue; // редактируем только видимые ответы превью
+      const next = ansDraftValue(a.q);
+      if (next && next !== a.value) updated = await updateBnqAnswer(a.q, next);
+    }
+    setBnq(updated);
+    setEditingAnswers(false);
+  };
+
+  // Рендер контрола правки одного ответа (по типу вопроса — см. BnqDialog).
+  const renderAnsRadio = (q: string, options: string[]) => (
+    <AnsRadioGroup>
+      {options.map((opt) => (
+        <AnsRadio key={opt} $selected={ansDraft[q] === opt} onClick={() => setAnsDraft((d) => ({ ...d, [q]: opt }))}>
+          <AnsRadioDot $selected={ansDraft[q] === opt} />
+          {opt}
+        </AnsRadio>
+      ))}
+    </AnsRadioGroup>
+  );
+  const renderAnswerEditor = (a: BnqAnswer) => {
+    const label = t.qLabels[a.q] ?? a.attribute;
+    const field = (control: React.ReactNode) => (
+      <FieldGroup key={a.q}>
+        <AnsFieldLabel>{label}</AnsFieldLabel>
+        {control}
+      </FieldGroup>
+    );
+    switch (a.q) {
+      case 'Q1':
+        return field(
+          <Select
+            target="textfield-like"
+            value={ansDraft.Q1 ?? ''}
+            onChange={(v: string) => setAnsDraft((d) => ({ ...d, Q1: v }))}
+            items={(INDUSTRIES.includes(ansDraft.Q1) ? INDUSTRIES : [ansDraft.Q1, ...INDUSTRIES]).map((v) => ({ value: v, label: v }))}
+          />,
+        );
+      case 'Q3':
+        return field(
+          <Select
+            target="textfield-like"
+            value={ansDraft.Q3 ?? ''}
+            onChange={(v: string) => setAnsDraft((d) => ({ ...d, Q3: v }))}
+            items={t.ans.residency.map((v) => ({ value: v, label: v }))}
+          />,
+        );
+      case 'Q4b':
+        return field(
+          <>
+            <Select
+              target="textfield-like"
+              value={q4bDraft.cls}
+              onChange={(v: string) => setQ4bDraft((d) => ({ ...d, cls: v }))}
+              items={t.ans.fatca.map((o) => ({ value: o.key, label: o.label }))}
+            />
+            <div style={{ marginTop: '0.5rem' }}>
+              <TextField
+                label={t.ans.fatcaCountry}
+                value={q4bDraft.country}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQ4bDraft((d) => ({ ...d, country: e.target.value }))}
+                size="m"
+              />
+            </div>
+          </>,
+        );
+      case 'Q5':
+        return field(renderAnsRadio('Q5', [t.ans.pepNo, t.ans.pepYes]));
+      case 'Q6':
+        return field(
+          <TextField
+            label={t.ans.revenueHint}
+            value={ansDraft.Q6 ?? ''}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAnsDraft((d) => ({ ...d, Q6: e.target.value }))}
+            size="m"
+          />,
+        );
+      case 'Q6b':
+        return field(
+          <>
+            <AnsRadioGroup>
+              {([['no', t.ans.ccodNo], ['yes', t.ans.ccodYes]] as const).map(([key, lbl]) => (
+                <AnsRadio key={key} $selected={q6bDraft.yesNo === key} onClick={() => setQ6bDraft((d) => ({ yesNo: key, threshold: key === 'no' ? '' : d.threshold }))}>
+                  <AnsRadioDot $selected={q6bDraft.yesNo === key} />
+                  {lbl}
+                </AnsRadio>
+              ))}
+            </AnsRadioGroup>
+            {q6bDraft.yesNo === 'yes' && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <AnsFieldLabel>{t.ans.ccodThreshold}</AnsFieldLabel>
+                <AnsRadioGroup>
+                  {[t.ans.ccodMore, t.ans.ccodLess].map((opt) => (
+                    <AnsRadio key={opt} $selected={q6bDraft.threshold === opt} onClick={() => setQ6bDraft((d) => ({ ...d, threshold: opt }))}>
+                      <AnsRadioDot $selected={q6bDraft.threshold === opt} />
+                      {opt}
+                    </AnsRadio>
+                  ))}
+                </AnsRadioGroup>
+              </div>
+            )}
+          </>,
+        );
+      case 'Q7':
+        return field(renderAnsRadio('Q7', [t.ans.creditYes, t.ans.creditNo]));
+      case 'Q9':
+        return field(
+          <Select
+            target="textfield-like"
+            value={ansDraft.Q9 ?? ''}
+            onChange={(v: string) => setAnsDraft((d) => ({ ...d, Q9: v }))}
+            items={t.ans.impExp.map((v) => ({ value: v, label: v }))}
+          />,
+        );
+      case 'Q10':
+        return field(
+          <TextField
+            label={t.ans.countriesHint}
+            value={ansDraft.Q10 ?? ''}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAnsDraft((d) => ({ ...d, Q10: e.target.value }))}
+            size="m"
+          />,
+        );
+      case 'Q11':
+        return field(renderAnsRadio('Q11', [t.ans.iecNow, t.ans.iecLater]));
+      default:
+        return null;
+    }
+  };
 
   const startEdit = () => {
     setCorrespondenceDraft(company?.correspondenceAddress ?? '');
@@ -909,22 +1181,36 @@ export const CompanyConfirm = () => {
           )}
 
           {/* #60 — ответы клиента на вопросы опросника (он их подписывает / даёт consent).
-              Read-only; правка — в анкете (единое место правки, ссылка ведёт на /company/bnq). */}
+              #60-edit (Денис 2026-06-26) — правка ПРЯМО ЗДЕСЬ, инлайн (по аналогии с Company details),
+              без редиректа в анкету: контролы по типу вопроса (select/радио/текст), ветвления живые. */}
           {answerRows.length > 0 && (
             <Section>
               <SectionHead>
                 <SectionTitle>{t.sectionAnswers}</SectionTitle>
-                <LinkBtn type="button" onClick={() => navigate('/company/bnq')}>{t.answersEdit}</LinkBtn>
+                {!editingAnswers
+                  ? <LinkBtn type="button" onClick={startEditAnswers}>{t.edit}</LinkBtn>
+                  : (
+                    <EditRow>
+                      <LinkBtn type="button" onClick={cancelEditAnswers}>{t.cancel}</LinkBtn>
+                      <LinkBtn type="button" onClick={saveAnswers}>{t.save}</LinkBtn>
+                    </EditRow>
+                  )}
               </SectionHead>
               <Hint>{t.answersHint}</Hint>
-              <Grid $lw="20rem">
-                {answerRows.map((a) => (
-                  <Fragment key={a.q}>
-                    <DT>{t.qLabels[a.q] ?? a.attribute}</DT>
-                    <DD>{a.value ? a.value : <Empty>{t.answersEmpty}</Empty>}</DD>
-                  </Fragment>
-                ))}
-              </Grid>
+              {!editingAnswers ? (
+                <Grid $lw="20rem">
+                  {answerRows.map((a) => (
+                    <Fragment key={a.q}>
+                      <DT>{t.qLabels[a.q] ?? a.attribute}</DT>
+                      <DD>{a.value ? a.value : <Empty>{t.answersEmpty}</Empty>}</DD>
+                    </Fragment>
+                  ))}
+                </Grid>
+              ) : (
+                <EditForm>
+                  {editAnswerRows.map((a) => renderAnswerEditor(a))}
+                </EditForm>
+              )}
             </Section>
           )}
 
