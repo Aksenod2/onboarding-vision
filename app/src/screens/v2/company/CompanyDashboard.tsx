@@ -9,7 +9,7 @@ import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
 import { useCompany } from '../../../ui/v2/CompanyContext';
 import {
-  getCompanyCase, getApplicationBlocks, remindSignatory, advanceSignatories,
+  getCompanyCase, getApplicationBlocks, remindSignatory, advanceSignatories, getInitiator,
 } from '../../../mock/v2/companyApi';
 import { roleLabel, goesThroughPhaseB, signingSubStatus, vkycSubStatus } from '../../../mock/v2/companyTypes';
 import type {
@@ -37,6 +37,10 @@ const dict: Record<Lang, {
   badgePi: string; badgeSigning: string;
   // инфобокс «заявка отправлена» (мягкая благодарность вместо блокирующей модалки)
   sentBanner: string;
+  // заполнитель-подписант: его собственная карточка (он сам прошёл бесшовно после BR)
+  you: string;            // метка «Вы» на карточке заполнителя
+  continueOwn: string;    // CTA «Продолжить» в свою сессию (вместо «Войти как себя»)
+  completedAt: string;    // «Пройдено» — префикс к времени завершения
 }> = {
   ru: {
     blockStatus: { verify: 'На проверке', 'in-progress': 'В процессе', done: 'Готово', 'action-required': 'Нужно действие', 'in-request': 'Нужно действие' },
@@ -63,6 +67,9 @@ const dict: Record<Lang, {
     badgePi: 'Идентификация',
     badgeSigning: 'Подписание',
     sentBanner: 'Заявка отправлена подписантам. Следите за статусом подписания и видеоидентификации ниже.',
+    you: 'Вы',
+    continueOwn: 'Продолжить',
+    completedAt: 'Пройдено',
   },
   en: {
     blockStatus: { verify: 'In verification', 'in-progress': 'In progress', done: 'Done', 'action-required': 'Action required', 'in-request': 'Action required' },
@@ -89,6 +96,9 @@ const dict: Record<Lang, {
     badgePi: 'Identification',
     badgeSigning: 'Signing',
     sentBanner: 'The application has been sent to signatories. Track signing and video identification status below.',
+    you: 'You',
+    continueOwn: 'Continue',
+    completedAt: 'Completed',
   },
 };
 
@@ -165,6 +175,17 @@ const SubStatus = styled.span<{ $status: SubStepStatus }>`
   &::before { content:'${({ $status }) => ($status === 'done' ? '✓' : '⟳')}'; }
 `;
 
+// Метка «Вы» на карточке заполнителя-подписанта — нейтральный серый чип (отличает его от остальных).
+const YouChip = styled.span`
+  font-size:0.68rem; font-weight:600; color:#475569;
+  background:rgba(100,116,139,0.14); border-radius:0.4rem; padding:0.1rem 0.45rem;
+`;
+// Тег «Пройдено · <время>» на завершённой карточке (вместо кнопок действия).
+const CompletedTag = styled.span`
+  font-size:0.78rem; font-weight:600; color:#1a7a28; white-space:nowrap;
+  &::before { content:'✓ '; }
+`;
+
 // Действия по участнику справа в карточке (Войти как / Напомнить).
 const CardActions = styled.div`display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;`;
 // Метка «напоминание отправлено» — нейтрально-серая.
@@ -191,6 +212,16 @@ const SectionLabel = styled.h2`
 
 const initials = (name: string) => name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
 
+// Время завершения сессии для метки «Пройдено · <время>» (ISO → «26 июн, 14:32» / «26 Jun, 14:32»).
+const fmtCompleted = (iso: string | undefined, lang: Lang): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-GB', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+};
+
 export const CompanyDashboard = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
@@ -199,6 +230,8 @@ export const CompanyDashboard = () => {
   const [data, setData] = useState<CompanyCaseV2 | null>(null);
   const [blocks, setBlocks] = useState<ApplicationBlock[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  // id заполнителя-подписанта — чтобы его карточка отличалась (метка «Вы», «Продолжить» вместо «Войти как»).
+  const [initiatorId, setInitiatorId] = useState<string | null>(null);
 
   // getCompanyCase() резолвит ОДИН и тот же mock-объект state (общий reference).
   // setData(тот же reference) → React.memo bail-out, ре-рендера нет, продвинутые
@@ -210,7 +243,10 @@ export const CompanyDashboard = () => {
     setData({ ...c, signatories: [...c.signatories] });
     setBlocks(await getApplicationBlocks());
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    getInitiator().then((s) => setInitiatorId(s?.id ?? null));
+  }, []);
 
   // «Обновить статусы» — демо-симуляция живого мониторинга: продвигаем
   // не завершённых подписантов на следующий этап, затем перечитываем кейс
@@ -237,9 +273,11 @@ export const CompanyDashboard = () => {
   const done = data.status === 'Completed';
   const recipients = data.signatories.filter(goesThroughPhaseB);
 
-  const enterSession = (s: Signatory) => {
+  // origin='dashboard' — демо-мостик «Войти как» (чужой подписант); 'initiator' — заполнитель
+  // продолжает СВОЮ сессию (тот же бесшовный вход, что и сразу после BR).
+  const enterSession = (s: Signatory, origin: 'dashboard' | 'initiator' = 'dashboard') => {
     setActiveSignatoryId(s.id);
-    setSessionOrigin('dashboard'); // демо-мостик «Войти как» → навигация на дашборд разрешена
+    setSessionOrigin(origin);
     navigate('/company/signatory'); // мини-сессия резюмится по currentStep
   };
 
@@ -258,12 +296,14 @@ export const CompanyDashboard = () => {
         const vkyc = vkycSubStatus(s);
         const signing = signingSubStatus(s);
         const bothDone = vkyc === 'done' && signing === 'done';
+        const isInitiator = s.id === initiatorId; // заполнитель-подписант — это «он сам»
         return (
           <PersonCard key={s.id} $done={bothDone}>
             <Avatar $done={bothDone}>{initials(s.fullName)}</Avatar>
             <PersonInfo>
               <PersonTop>
                 <PName>{s.fullName}</PName>
+                {isInitiator && <YouChip>{t.you}</YouChip>}
                 <Chips>{s.roles.map((r) => <Chip key={r}>{lang === 'ru' ? roleLabel[r].ru : roleLabel[r].en}</Chip>)}</Chips>
               </PersonTop>
               <SubStatuses>
@@ -271,7 +311,19 @@ export const CompanyDashboard = () => {
                 <SubStatus $status={signing}><span className="lbl">{t.signing}:</span> {t.subStatus[signing]}</SubStatus>
               </SubStatuses>
             </PersonInfo>
-            {!sDone && (
+            {sDone ? (
+              // Завершил сессию → «Пройдено · <время>» вместо кнопок (для заполнителя это его собственная
+              // карточка: он прошёл бесшовно сразу после BR — Денис 2026-06-26).
+              <CardActions>
+                <CompletedTag>{t.completedAt}{s.completedAt ? ` · ${fmtCompleted(s.completedAt, lang)}` : ''}</CompletedTag>
+              </CardActions>
+            ) : isInitiator ? (
+              // Заполнитель ещё не прошёл свою сессию → «Продолжить» в СВОЮ сессию (не «Войти как себя»),
+              // напоминание самому себе не показываем.
+              <CardActions>
+                <Button view="accent" size="s" text={t.continueOwn} onClick={() => enterSession(s, 'initiator')} />
+              </CardActions>
+            ) : (
               <CardActions>
                 {s.reminderSent
                   ? <ReminderTag>{t.reminderSent}</ReminderTag>

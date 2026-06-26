@@ -169,7 +169,7 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
   const { pathname } = useLocation();
   // Версия mock-состояния: инкрементится при мутациях без смены роута
   // (refresh статусов, догрузка документа на дашборде) → перечитываем блоки/кейс.
-  const { caseVersion, setActiveSignatoryId, setSessionOrigin } = useCompany();
+  const { caseVersion, setActiveSignatoryId, setSessionOrigin, sessionOrigin } = useCompany();
 
   const [companyName, setCompanyName] = useState('');
   const [appId, setAppId] = useState('');
@@ -223,6 +223,14 @@ export const CompanyNavPanel = ({ onNavigate }: CompanyNavPanelProps) => {
     // Driver — данные (fillerIsSignatory), не флаг «офис-бой».
     if ((item.id === 'hub-ident' || item.id === 'hub-sign') && !fillerIsSignatory) {
       return 'locked';
+    }
+    // Заполнитель СЕЙЧАС проходит свою сессию (origin='initiator', роут /company/signatory):
+    // помечаем Personal Identification активным («вы здесь»), а не «Проверяем» — это его живой шаг,
+    // не пассивный мониторинг. Гранулярность (Aadhaar→Подпись→Видео) показывает step-progress внутри.
+    if (item.id === 'hub-ident'
+        && sessionOrigin === 'initiator'
+        && pathname.startsWith(COMPANY_SIGNATORY_ROUTE)) {
+      return 'active';
     }
     const block = blocks.find((b) => b.id === HUB_TO_BLOCK[item.id]);
     return blockToState(block?.status, !!item.locked);

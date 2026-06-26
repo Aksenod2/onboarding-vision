@@ -129,6 +129,25 @@ export const passSignatoryAadhaar = (id: string): Promise<AadhaarResult> => {
   return delay(result);
 };
 
+// Заполнитель-подписант (origin='initiator') уже прошёл Aadhaar eKYC на ВХОДЕ в портал
+// (passCompanyAadhaar → state.entry). В его личной сессии подписания НЕ просим Aadhaar повторно
+// (Денис 2026-06-26): переносим eKYC-данные + согласия (Privacy + Aadhaar) с входа на запись
+// подписанта и двигаем шаг ЗА Aadhaar — на ввод PAN («свой» AS без PAN) или сразу на подписание.
+// Остальные подписанты (invite / «Войти как») вход-eKYC не делали → проходят Aadhaar как обычно.
+export const reuseInitiatorAadhaar = (id: string): Promise<Signatory[]> => {
+  state.signatories = state.signatories.map((s) => {
+    if (s.id !== id) return s;
+    const aadhaarResult = state.entry?.aadhaar ?? s.aadhaarResult;
+    const consents = s.consents.map((c) =>
+      (c.type === 'Privacy Notice' || c.type === 'Aadhaar')
+        ? { ...c, status: 'given' as const, timestamp: nowIST() }
+        : c);
+    const nextStep: SignatoryStep = needsPanStep(s) ? 'pan' : 'dsc-sign';
+    return { ...s, aadhaarResult, consents, currentStep: nextStep, status: 'in_progress' };
+  });
+  return delay(state.signatories);
+};
+
 // Пин-код (цифры) = креды интернет-банка. Логин привязан к email (заглушка Марго).
 export const setCompanyPasscode = (passcode: string): Promise<void> => {
   state.entry = { ...(state.entry ?? emptyEntry()), passcodeSet: true, passcode };
@@ -670,7 +689,9 @@ export const setSignatoryStep = (id: string, step: SignatoryStep): Promise<Signa
   state.signatories = state.signatories.map((s) => {
     if (s.id !== id) return s;
     const status: Signatory['status'] = step === 'done' ? 'done' : step === 'waiting' ? 'waiting' : 'in_progress';
-    return { ...s, currentStep: step, status };
+    // Фиксируем момент завершения сессии (для метки «Пройдено · <время>» на дашборде).
+    const completedAt = step === 'done' ? (s.completedAt ?? nowIST()) : s.completedAt;
+    return { ...s, currentStep: step, status, completedAt };
   });
   recomputeCompletion();
   return delay(state.signatories);
@@ -757,7 +778,8 @@ export const advanceSignatories = (): Promise<Signatory[]> => {
     const vcip = step === 'done' || base >= chain.indexOf('vkyc')
       ? { ...s.vcip, status: 'Passed' as const }
       : s.vcip;
-    return { ...s, currentStep: step, status, signature, vcip };
+    const completedAt = step === 'done' ? (s.completedAt ?? nowIST()) : s.completedAt;
+    return { ...s, currentStep: step, status, signature, vcip, completedAt };
   });
   recomputeCompletion();
   return delay(state.signatories);

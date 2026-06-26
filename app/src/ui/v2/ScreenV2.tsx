@@ -251,7 +251,11 @@ export const ScreenV2 = ({ children, progress, navHub }: ScreenV2Props) => {
           <HubAside>
             <CompanyNavPanel />
           </HubAside>
-          <HubContent>{children}</HubContent>
+          {/* progress (если передан) — под-прогресс шага НАД контентом в правой колонке.
+              Кейс «панель + progress вместе»: собственная сессия заполнителя (origin='initiator')
+              остаётся в контексте заявки (левая панель) + показывает свои под-шаги (Aadhaar→Подпись→Видео).
+              Фаза-A экраны progress не передают → ничего не меняется. */}
+          <HubContent>{progress}{children}</HubContent>
         </HubGrid>
 
         {/* Мобильный drawer-overlay с тем же списком разделов */}

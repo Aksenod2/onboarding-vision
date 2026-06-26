@@ -53,6 +53,7 @@ export interface Signatory {
   consents: Consent[]; // личные согласия подписанта
   vcip: VCIPSession; // его видеосессия
   signature: { signed: boolean; method: 'DSC'; timestamp?: IST };
+  completedAt?: IST; // когда подписант завершил всю сессию (currentStep → done) — для метки «Пройдено · <время>»
 }
 
 // --- Board Resolution (генерируется банком по шаблону; happy-flow) ---

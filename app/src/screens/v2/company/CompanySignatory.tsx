@@ -16,7 +16,7 @@ import type { Lang } from '../../../ui/v2/LanguageContext';
 import { useCompany } from '../../../ui/v2/CompanyContext';
 import {
   getSignatory, giveSignatoryConsent, setSignatoryStep, passSignatoryVcip, signByDsc, passSignatoryAadhaar,
-  updateSignatoryPan, needsPanStep,
+  updateSignatoryPan, needsPanStep, reuseInitiatorAadhaar,
 } from '../../../mock/v2/companyApi';
 import { roleLabel } from '../../../mock/v2/companyTypes';
 import type { Signatory, SignatoryStep, AadhaarResult } from '../../../mock/v2/companyTypes';
@@ -50,14 +50,15 @@ const dict: Record<Lang, {
   otpTitle: string; otpHint: string; otpDemo: string; otpErr: string;
   // summary (#31) — вводный экран сессии подписанта
   // summaryIntro зависит от sessionOrigin: invited (приглашён) vs initiator (сам подал заявку).
-  summaryTitle: string; summaryIntro: { invited: string; initiator: string }; summarySteps: string[]; summaryTime: string; summaryStart: string;
+  summaryTitle: string; summaryIntro: { invited: string; initiator: string }; summarySteps: string[]; summaryStepsInitiator: string[]; summaryTime: string; summaryStart: string;
   // common
   back: string; cont: string; finish: string; doneTitle: string; doneSub: string; doneFollowUp: string; toDashboard: string;
   doneClose: string; // #41 — для invite/initiator: завершение без навигации на дашборд инициатора
   invalidInvite: string; // #41 — невалидная invite-ссылка
   // session exit (всегда доступен)
   toDashboardBtn: string; // origin=dashboard: «К дашборду»
-  exitBtn: string;        // origin=invite/initiator: «Выйти» из сессии
+  backBtn: string;        // origin=initiator: «Назад» (дашборда-экрана нет, обзор — в левой панели)
+  exitBtn: string;        // origin=invite: «Выйти» из сессии
   // нейтральный маркер необратимости у заголовка завершённого шага
   irreversibleMarker: string;
   // присяга перед подписанием
@@ -115,12 +116,16 @@ const dict: Record<Lang, {
     summaryTitle: 'Подписание банковских документов',
     summaryIntro: {
       invited: 'Вас пригласили на площадку Банка для подписания банковских документов. Вам потребуется:',
-      initiator: 'Вы — инициатор заявки. Подпишите свои банковские документы. Вам потребуется:',
+      initiator: 'Вы — инициатор заявки, личность уже подтверждена при входе (Aadhaar). Остаётся подписать банковские документы — вам потребуется:',
     },
     summarySteps: [
       'подтвердить личность через Aadhaar;',
       'ознакомиться и подтвердить данные в превью заявки (Application);',
       'подписать документы цифровой подписью;',
+      'пройти видеоидентификацию (VKYC).',
+    ],
+    summaryStepsInitiator: [
+      'подписать банковские документы цифровой подписью (DSC);',
       'пройти видеоидентификацию (VKYC).',
     ],
     summaryTime: 'Это займёт около 15 минут.',
@@ -131,6 +136,7 @@ const dict: Record<Lang, {
     doneClose: 'Готово',
     invalidInvite: 'Ссылка приглашения недействительна. Запросите новую ссылку у представителя компании.',
     toDashboardBtn: 'К дашборду',
+    backBtn: 'Назад',
     exitBtn: 'Выйти',
     irreversibleMarker: 'Шаг завершён — изменить нельзя',
     signOath: 'После подписания изменить данные нельзя.',
@@ -187,12 +193,16 @@ const dict: Record<Lang, {
     summaryTitle: 'Signing banking documents',
     summaryIntro: {
       invited: 'You have been invited to the Bank’s platform to sign the banking documents. You will need to:',
-      initiator: 'You are the applicant. Please sign your banking documents. You will need to:',
+      initiator: 'You are the applicant; your identity is already verified at login (Aadhaar). It remains to sign the banking documents — you will need to:',
     },
     summarySteps: [
       'verify your identity via Aadhaar;',
       'review and confirm the data in the application preview (Application);',
       'sign the documents with a digital signature;',
+      'complete video identification (VKYC).',
+    ],
+    summaryStepsInitiator: [
+      'sign the banking documents with a digital signature (DSC);',
       'complete video identification (VKYC).',
     ],
     summaryTime: 'It will take about 15 minutes.',
@@ -203,6 +213,7 @@ const dict: Record<Lang, {
     doneClose: 'Done',
     invalidInvite: 'This invitation link is no longer valid. Please request a new link from the company representative.',
     toDashboardBtn: 'To dashboard',
+    backBtn: 'Back',
     exitBtn: 'Exit',
     irreversibleMarker: "Step complete — can't be changed",
     signOath: "Once signed, data can't be changed.",
@@ -282,12 +293,13 @@ const STEP_TO_PROGRESS: Record<Exclude<SignatoryStep, 'done'>, string> = {
   pan: 'co-b-pan', 'dsc-sign': 'co-b-sign', vkyc: 'co-b-vkyc',
 };
 // Для верхнего прогресса используем тот же StepProgress c company-mini-реестром.
-// Порядок: Aadhaar (с согласиями) → [PAN — только «свой» AS] → Подписание → Видео.
-// Шаг PAN скрыт в прогрессе у тех, кому не нужен (PAN из реестра у директоров).
-const miniSteps = (withPan: boolean): StepDef[] => {
-  const steps: StepDef[] = [
-    { id: 'co-b-aadhaar', route: '', order: 1, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' },
-  ];
+// Порядок: [Aadhaar] → [PAN — только «свой» AS] → Подписание → Видео.
+// Шаг PAN скрыт у тех, кому не нужен (PAN из реестра у директоров).
+// withAadhaar=false у заполнителя (origin='initiator'): он прошёл Aadhaar на ВХОДЕ, в сессии
+// шаг переиспользуется/пропускается — не показываем его в прогрессе, чтобы не путать (Денис 26.06).
+const miniSteps = (withPan: boolean, withAadhaar: boolean): StepDef[] => {
+  const steps: StepDef[] = [];
+  if (withAadhaar) steps.push({ id: 'co-b-aadhaar', route: '', order: steps.length + 1, titleRu: 'Aadhaar eKYC', titleEn: 'Aadhaar eKYC' });
   if (withPan) steps.push({ id: 'co-b-pan', route: '', order: steps.length + 1, titleRu: 'PAN', titleEn: 'PAN' });
   steps.push({ id: 'co-b-sign', route: '', order: steps.length + 1, titleRu: 'Подписание', titleEn: 'Signing' });
   steps.push({ id: 'co-b-vkyc', route: '', order: steps.length + 1, titleRu: 'Видео', titleEn: 'Video' });
@@ -387,7 +399,7 @@ export const CompanySignatory = () => {
   //  • origin=dashboard / initiator → «К дашборду» (заполнитель-подписант и «Войти как» — владельцы хаба);
   //  • origin=invite → «Выйти» из сессии на нейтральную заглушку (дашборд инициатора скрыт).
   const exitBtn = exitRoute
-    ? <Button view="secondary" size="l" text={t.toDashboardBtn} onClick={() => navigate(exitRoute)} />
+    ? <Button view="secondary" size="l" text={sessionOrigin === 'initiator' ? t.backBtn : t.toDashboardBtn} onClick={() => navigate(exitRoute)} />
     : <Button view="secondary" size="l" text={t.exitBtn} onClick={() => setExited(true)} />;
 
   const id = sig.id;
@@ -410,25 +422,36 @@ export const CompanySignatory = () => {
   // на самой Aadhaar-панели, как у входа компании — отдельного шага «Согласия» нет).
   // Шаг PAN показываем в прогрессе только тем, кому он нужен («свой» AS, PAN не из реестра).
   const withPan = needsPanStep(sig);
+  // Бэклинк «← Обзор заявки» скрываем у заполнителя (origin='initiator'): у него теперь есть
+  // левая панель-хаб (на десктопе) / MobileBar «Обзор заявки» (на мобайле) — бэклинк их дублирует.
+  // Для origin='dashboard' («Войти как» чужого, панели нет) — оставляем как единственный возврат;
+  // для invite уже скрыт (exitRoute===null).
   const progress = step !== 'done'
-    ? <StepProgress currentStepId={STEP_TO_PROGRESS[step]} steps={miniSteps(withPan)} backRoute={exitRoute ?? COMPANY_DASHBOARD_ROUTE} isIrreversible={() => true} hideBack={exitRoute === null} />
+    ? <StepProgress currentStepId={STEP_TO_PROGRESS[step]} steps={miniSteps(withPan, sessionOrigin !== 'initiator')} backRoute={exitRoute ?? COMPANY_DASHBOARD_ROUTE} isIrreversible={() => true} hideBack={sessionOrigin === 'initiator' || exitRoute === null} />
     : undefined;
 
   // ── Вводный экран сессии (#31) — показываем один раз в самом начале, до Aadhaar. ──
   if (showSummary && (sig.currentStep === 'waiting' || sig.currentStep === 'consents')) {
     return (
-      <ScreenV2 progress={progress}>
+      <ScreenV2 progress={progress} navHub={sessionOrigin === 'initiator'}>
         <Card>
           <CardHeader>{eyebrow}<Title>{t.summaryTitle}</Title></CardHeader>
           <CardBody>
             <SummaryIntro>{sessionOrigin === 'initiator' ? t.summaryIntro.initiator : t.summaryIntro.invited}</SummaryIntro>
             <SummaryList>
-              {t.summarySteps.map((s, i) => <li key={i}>{s}</li>)}
+              {(sessionOrigin === 'initiator' ? t.summaryStepsInitiator : t.summarySteps).map((s, i) => <li key={i}>{s}</li>)}
             </SummaryList>
             <SummaryTime>{t.summaryTime}</SummaryTime>
             <ButtonRow>
               {exitBtn}
-              <Button view="accent" size="l" text={t.summaryStart} onClick={() => setShowSummary(false)} />
+              <Button
+                view="accent" size="l" text={t.summaryStart}
+                onClick={async () => {
+                  // Заполнитель уже прошёл Aadhaar на входе → переиспользуем, минуя шаг Aadhaar в сессии.
+                  if (sessionOrigin === 'initiator') { await reuseInitiatorAadhaar(id); await refresh(); }
+                  setShowSummary(false);
+                }}
+              />
             </ButtonRow>
           </CardBody>
         </Card>
@@ -461,7 +484,7 @@ export const CompanySignatory = () => {
       { id: 'eKYC', label: t.cAadhaar, description: t.cAadhaarDesc, checked: cAadhaar, onChange: setCAadhaar },
     ];
     return (
-      <ScreenV2 progress={progress}>
+      <ScreenV2 progress={progress} navHub={sessionOrigin === 'initiator'}>
         <Card>
           <CardHeader>
             {eyebrow}<Title>{t.aadhaarTitle}</Title><Subtitle>{t.aadhaarSub}</Subtitle>
@@ -508,7 +531,7 @@ export const CompanySignatory = () => {
       await refresh();
     };
     return (
-      <ScreenV2 progress={progress}>
+      <ScreenV2 progress={progress} navHub={sessionOrigin === 'initiator'}>
         <Card>
           <CardHeader>{eyebrow}<Title>{t.panTitle}</Title><Subtitle>{t.panSub}</Subtitle></CardHeader>
           <CardBody>
@@ -541,9 +564,16 @@ export const CompanySignatory = () => {
       const tt = setTimeout(async () => { await passSignatoryVcip(id); setVideoPhase('done'); }, 2600);
       timers.current.push(tt);
     };
-    const next = async () => { await setSignatoryStep(id, 'done'); await refresh(); };
+    const next = async () => {
+      await setSignatoryStep(id, 'done');
+      // «All done!»-экран не показываем тем, у кого есть дашборд-обзор (заполнитель / «Войти как»):
+      // факт прохождения уже виден там — его карточка «Пройдено». Сразу ведём на обзор (Денис 26.06).
+      // Внешнему invite (exitRoute=null) дашборда инициатора нет → оставляем экран «Готово».
+      if (exitRoute) { navigate(exitRoute); return; }
+      await refresh();
+    };
     return (
-      <ScreenV2 progress={progress}>
+      <ScreenV2 progress={progress} navHub={sessionOrigin === 'initiator'}>
         <Card>
           <CardHeader>
             {eyebrow}<Title>{t.vkycTitle}</Title><Subtitle>{t.vkycSub}</Subtitle>
@@ -588,7 +618,7 @@ export const CompanySignatory = () => {
       await refresh();
     };
     return (
-      <ScreenV2 progress={progress}>
+      <ScreenV2 progress={progress} navHub={sessionOrigin === 'initiator'}>
         <Card>
           <CardHeader>{eyebrow}<Title>{t.dscTitle}</Title><Subtitle>{t.dscSub}</Subtitle></CardHeader>
           <CardBody>
@@ -608,7 +638,10 @@ export const CompanySignatory = () => {
             </DocList>
             {/* Присяга необратимости перед подписанием (BRD): после DSC данные изменить нельзя. */}
             {!otpPhase && <SignOath><span className="ic">🔒</span>{t.signOath}</SignOath>}
-            {!otpPhase && <ButtonRowEnd><Button view="accent" size="l" text={t.dscBtn} onClick={onSign} /></ButtonRowEnd>}
+            {/* Кнопка назад/к обзору слева (как на остальных шагах) — раньше шаг подписания был
+                единственным без возврата. Документы можно перечитать через «Просмотреть документ»;
+                к другим разделам — через левую панель (сессия резюмится на этом же шаге). */}
+            {!otpPhase && <ButtonRow>{exitBtn}<Button view="accent" size="l" text={t.dscBtn} onClick={onSign} /></ButtonRow>}
             {otpPhase && (
               <>
                 <Hint>{t.otpHint}</Hint>
@@ -637,7 +670,7 @@ export const CompanySignatory = () => {
 
   // ── done ──
   return (
-    <ScreenV2>
+    <ScreenV2 navHub={sessionOrigin === 'initiator'}>
       <Card>
         {/* Заголовок «Готово!» — без Subtitle-дубля: тот же текст несёт ОДНА плашка-подтверждение ниже. */}
         <CardHeader>{eyebrow}<Title>{t.doneTitle}</Title></CardHeader>

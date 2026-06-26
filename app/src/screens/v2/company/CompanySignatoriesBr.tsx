@@ -8,11 +8,17 @@ import { ScreenV2 } from '../../../ui/v2/ScreenV2';
 import { COMPANY_DASHBOARD_ROUTE } from '../../../ui/v2/companySteps';
 import { useLanguage } from '../../../ui/v2/LanguageContext';
 import type { Lang } from '../../../ui/v2/LanguageContext';
+import { useCompany } from '../../../ui/v2/CompanyContext';
 import {
   getDirectors, getSignatories, getBoardResolution, getCompany, confirmBoardResolution,
-  setBoardResolutionSource, setBrSignerConfig, buildPhaseBSignatories,
+  setBoardResolutionSource, setBrSignerConfig, buildPhaseBSignatories, getInitiator,
 } from '../../../mock/v2/companyApi';
+import { goesThroughPhaseB } from '../../../mock/v2/companyTypes';
 import type { Director, BrSource, GovernanceOption, BrSignerConfig } from '../../../mock/v2/companyTypes';
+
+// Куда ведём заполнителя-подписанта сразу после подтверждения BR — в ЕГО собственную сессию фазы B
+// (бесшовный переход BR → персональная идентификация, без промежуточного дашборда).
+const COMPANY_SIGNATORY_ROUTE = '/company/signatory';
 import { Card, CardHeader, Title, Subtitle, CardBody, ButtonRow } from './companyUi';
 
 // CO-SIGNATORIES-BR — акт назначения ОДНОГО Authorised Signatory + оформление Board Resolution.
@@ -296,6 +302,7 @@ type Contact = { email: string; phone: string };
 export const CompanySignatoriesBr = () => {
   const navigate = useNavigate();
   const { lang } = useLanguage();
+  const { setActiveSignatoryId, setSessionOrigin } = useCompany();
   const t = dict[lang];
 
   // Директора — ЕДИНЫЙ мастер-список (state.directors), который правит финальная анкета.
@@ -432,8 +439,21 @@ export const CompanySignatoriesBr = () => {
           : undefined,
       });
       // #52 — приглашения уходят автоматически внутри confirmBoardResolution
-      // (отдельного шага «invite signatures»/dispatch больше нет). Сразу на дашборд.
+      // (отдельного шага «invite signatures»/dispatch больше нет).
       await confirmBoardResolution();
+      // Бесшовный переход BR → Personal Identification (Денис 2026-06-26): заполнитель теперь ВСЕГДА
+      // сам подписант (офис-бой убран по Марго, см. [[filler-is-signatory]]) — подтвердив BR, он сразу
+      // продолжает в СВОЮ персональную сессию (Aadhaar → подпись → видео), а не падает на дашборд и
+      // не «логинится как сам себя». На дашборд-мониторинг (статусы остальных) он попадёт ПОСЛЕ,
+      // выйдя из сессии — там его карточка уже будет «Пройдено». Если заполнитель почему-то НЕ
+      // подписант — сохраняем прежнее поведение (сразу на дашборд-мониторинг).
+      const initiator = await getInitiator();
+      if (initiator && goesThroughPhaseB(initiator)) {
+        setActiveSignatoryId(initiator.id);
+        setSessionOrigin('initiator');
+        navigate(COMPANY_SIGNATORY_ROUTE);
+        return;
+      }
     } catch (_) { /* демо: игнорируем */ }
     navigate(COMPANY_DASHBOARD_ROUTE);
   };
