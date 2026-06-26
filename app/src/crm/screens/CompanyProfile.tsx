@@ -19,7 +19,6 @@ import Skeleton from '@mui/material/Skeleton';
 import Alert from '@mui/material/Alert';
 import Tooltip from '@mui/material/Tooltip';
 import Snackbar from '@mui/material/Snackbar';
-import Grid from '@mui/material/Grid';
 import { getProfile, getFunnel } from '../mock/crmApi';
 import type { CompanyProfile as Profile, Funnel, ClientSource, HistoryEventKind } from '../types/domain';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -242,76 +241,81 @@ export const CompanyProfile = () => {
           <FunnelStrip funnel={funnel} />
         </Box>
 
-        {/* ИСТОРИЯ + ДЕЙСТВИЯ (2 колонки на desktop; действия выше истории на mobile) */}
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={4} order={{ xs: 1, md: 2 }}>
-            <Paper variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
-              <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600, mb: 2 }}>
-                {t('profile.actions.title')}
+        {/* ИСТОРИЯ + ДЕЙСТВИЯ — CSS-grid (без negative-margin багов MUI Grid).
+            desktop: история (2fr) | действия (1fr); mobile: действия сверху, история ниже.
+            alignItems:start — колонки по высоте своего контента, не растягиваются. */}
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 3,
+            gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 2fr) minmax(0, 1fr)' },
+            alignItems: 'start',
+          }}
+        >
+          <Paper variant="outlined" sx={{ p: 3, borderRadius: 2, order: { xs: 2, md: 1 } }}>
+            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600, mb: 1 }}>
+              {t('profile.history.title')}
+            </Typography>
+            {funnel.history.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                {t('profile.history.empty')}
               </Typography>
-              <Stack spacing={1.5}>
-                <Button variant="contained" onClick={() => setOfferOpen(true)}>
-                  {t('profile.actions.offer')}
-                </Button>
-                <Button variant="outlined" onClick={() => setSnack(t('profile.toast.call'))}>
-                  {t('profile.actions.call')}
-                </Button>
-                <Button variant="outlined" onClick={() => setSnack(t('profile.toast.meeting'))}>
-                  {t('profile.actions.meeting')}
-                </Button>
-                {/* «Сгенерировать ссылку» disabled+tooltip без оффера (правило Хафизовой, бриф Р6).
-                    Tooltip оборачивает span — disabled-кнопка не ловит события. */}
-                <Tooltip title={hasOffer ? '' : t('profile.actions.linkDisabled')}>
-                  <Box component="span" sx={{ display: 'block' }}>
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      disabled={!hasOffer}
-                      onClick={() => setSnack(t('profile.toast.link'))}
-                    >
-                      {t('profile.actions.link')}
-                    </Button>
-                  </Box>
-                </Tooltip>
-              </Stack>
-            </Paper>
-          </Grid>
+            ) : (
+              <List dense disablePadding>
+                {[...funnel.history]
+                  .sort((a, b) => +new Date(b.at) - +new Date(a.at))
+                  .map((ev) => (
+                    <ListItem key={ev.id} disableGutters alignItems="flex-start">
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Box
+                          component="span"
+                          aria-hidden
+                          sx={{ fontSize: 18, color: ev.kind === 'rejection' ? 'error.main' : 'text.secondary' }}
+                        >
+                          {historyGlyph[ev.kind]}
+                        </Box>
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={ev.title}
+                        secondary={`${fmtDate(ev.at)}${ev.detail ? ` · ${ev.detail}` : ''}`}
+                      />
+                    </ListItem>
+                  ))}
+              </List>
+            )}
+          </Paper>
 
-          <Grid item xs={12} md={8} order={{ xs: 2, md: 1 }}>
-            <Paper variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
-              <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600, mb: 1 }}>
-                {t('profile.history.title')}
-              </Typography>
-              {funnel.history.length === 0 ? (
-                <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                  {t('profile.history.empty')}
-                </Typography>
-              ) : (
-                <List dense disablePadding>
-                  {[...funnel.history]
-                    .sort((a, b) => +new Date(b.at) - +new Date(a.at))
-                    .map((ev) => (
-                      <ListItem key={ev.id} disableGutters alignItems="flex-start">
-                        <ListItemIcon sx={{ minWidth: 36 }}>
-                          <Box
-                            component="span"
-                            aria-hidden
-                            sx={{ fontSize: 18, color: ev.kind === 'rejection' ? 'error.main' : 'text.secondary' }}
-                          >
-                            {historyGlyph[ev.kind]}
-                          </Box>
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={ev.title}
-                          secondary={`${fmtDate(ev.at)}${ev.detail ? ` · ${ev.detail}` : ''}`}
-                        />
-                      </ListItem>
-                    ))}
-                </List>
-              )}
-            </Paper>
-          </Grid>
-        </Grid>
+          <Paper variant="outlined" sx={{ p: 3, borderRadius: 2, order: { xs: 1, md: 2 } }}>
+            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600, mb: 2 }}>
+              {t('profile.actions.title')}
+            </Typography>
+            <Stack spacing={1.5}>
+              <Button variant="contained" onClick={() => setOfferOpen(true)}>
+                {t('profile.actions.offer')}
+              </Button>
+              <Button variant="outlined" onClick={() => setSnack(t('profile.toast.call'))}>
+                {t('profile.actions.call')}
+              </Button>
+              <Button variant="outlined" onClick={() => setSnack(t('profile.toast.meeting'))}>
+                {t('profile.actions.meeting')}
+              </Button>
+              {/* «Сгенерировать ссылку» disabled+tooltip без оффера (правило Хафизовой, бриф Р6).
+                  Tooltip оборачивает span — disabled-кнопка не ловит события. */}
+              <Tooltip title={hasOffer ? '' : t('profile.actions.linkDisabled')}>
+                <Box component="span" sx={{ display: 'block' }}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    disabled={!hasOffer}
+                    onClick={() => setSnack(t('profile.toast.link'))}
+                  >
+                    {t('profile.actions.link')}
+                  </Button>
+                </Box>
+              </Tooltip>
+            </Stack>
+          </Paper>
+        </Box>
 
       </Stack>
 
